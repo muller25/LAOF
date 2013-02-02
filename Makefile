@@ -8,13 +8,13 @@ LIBS			= $(OPENCVLIBS) -L$(LIBDIR)
 DEL				= rm -rf
 
 LIBDIR 			= .
-OBJS			= Maths.o toy.o
+OBJS			= Maths.o toy.o OpticalFlow.o
 TARGET 			= toy
 
 all: $(TARGET)
 	@echo "Done"
 
-$(TARGET): Maths.o toy.o
+$(TARGET): $(OBJS)
 	$(LINK) $(LFLAGS) -o $(TARGET) $(OBJS) $(LIBS)
 
 clean:

@@ -2,7 +2,7 @@
 
 /*
   description:
-  use forward difference to approximate
+  use central difference to approximate
   first order of derivative x of matrix src
   params:
   src - input matrix (in)
@@ -11,35 +11,20 @@
 */
 Mat Maths::dx(const Mat &src)
 {
-    int r, c, k, offset;
     int rows = src.rows;
     int cols = src.cols;
     int channels = src.channels();
-    Mat tmp, dst(rows, cols, CV_64FC(channels));
-    int step = dst.step / sizeof(double);
-    double *ptr, *dptr;
+    double kernel_arr[] = {1./12, -8./12, 0, 8./12, -1./12};
+    Mat kernel(1, 5, CV_64FC1, kernel_arr), dst;
 
-    src.convertTo(tmp, CV_64FC(channels));
-    ptr = (double *)tmp.data;
-    dptr = (double *)dst.data;
-    for (r = 0; r < rows; r++)
-        for (c = 0; c < cols; c++)
-            for (k = 0; k < channels; k++)
-            {
-                offset = r * step + c * channels + k;
-                // use reflect to extrapolate pixels out of boundary
-                if (c == cols - 1)
-                    dptr[offset] = ptr[offset-channels] - ptr[offset];
-                else
-                    dptr[offset] = ptr[offset+channels] - ptr[offset];
-            }
-
+//    cout << kernel << endl;
+    filter2D(src, dst, CV_64FC(channels), kernel);
     return dst;
 }
 
 /*
   description:
-  use forward difference to approximate
+  use central difference to approximate
   first order of derivative y of matrix src
   params:
   src - input matrix (in)
@@ -52,24 +37,11 @@ Mat Maths::dy(const Mat &src)
     int rows = src.rows;
     int cols = src.cols;
     int channels = src.channels();
-    Mat tmp, dst(rows, cols, CV_64FC(channels));
-    int step = dst.step / sizeof(double);
-    double *ptr, *dptr;
+    double kernel_arr[5][1] = {{1./12},{-8./12},{0},{8./12},{-1./12}};
+    Mat dst, kernel(5, 1, CV_64FC1, kernel_arr);
     
-    src.convertTo(tmp, CV_64FC(channels));
-    ptr = (double *)tmp.data;
-    dptr = (double *)dst.data;
-    for (r = 0; r < rows; r++)
-        for (c = 0; c < cols; c++)
-            for (k = 0; k < channels; k++)
-            {
-                offset = r * step + c * channels + k;
-                // use reflect to extrapolate pixels out of boundary
-                if (r == rows - 1)
-                    dptr[offset] = ptr[offset-step] - ptr[offset];
-                else
-                    dptr[offset] = ptr[offset+step] - ptr[offset];
-            }
+//    cout << kernel << endl;
+    filter2D(src, dst, CV_64FC(channels), kernel);
 
     return dst;
 }
@@ -85,31 +57,14 @@ Mat Maths::dy(const Mat &src)
 */
 Mat Maths::dxx(const Mat &src)
 {
-    int r, c, k, offset;
     int rows = src.rows;
     int cols = src.cols;
     int channels = src.channels();
-    Mat tmp, dst(rows, cols, CV_64FC(channels));
-    int step = dst.step / sizeof(double);
-    double *ptr, *dptr;
+    double kernel_arr[] = {-1./12,16./12,-30./12,16./12,-1./12};
+    Mat dst, kernel(1, 5, CV_64FC1, kernel_arr);
 
-    src.convertTo(tmp, CV_64FC(channels));
-    ptr = (double *)tmp.data;
-    dptr = (double *)dst.data;
-    for (r = 0; r < rows; r++)
-        for (c = 0; c < cols; c++)
-            for (k = 0; k < channels; k++)
-            {
-                offset = r * step + c * channels + k;
-                
-                // use reflect to extrapolate pixels out of boundary
-                if (c == 0)
-                    dptr[offset] = 2 * ptr[offset+channels] - 2 * ptr[offset];
-                else if (c == cols - 1)
-                    dptr[offset] = 2 * ptr[offset-channels] - 2 * ptr[offset];
-                else
-                    dptr[offset] = ptr[offset+channels] + ptr[offset-channels] - 2 * ptr[offset];
-            }
+    cout << kernel << endl;
+    filter2D(src, dst, CV_64FC(channels), kernel);
 
     return dst;
 }
@@ -125,38 +80,21 @@ Mat Maths::dxx(const Mat &src)
 */
 Mat Maths::dyy(const Mat &src)
 {
-    int r, c, k, offset;
     int rows = src.rows;
     int cols = src.cols;
     int channels = src.channels();
-    Mat tmp, dst(rows, cols, CV_64FC(channels));
-    int step = dst.step / sizeof(double);
-    double *ptr, *dptr;
+    double kernel_arr[5][1] = {{-1./12},{16./12},{-30./12},{16./12},{-1./12}};
+    Mat dst, kernel(5, 1, CV_64FC1, kernel_arr);
 
-    src.convertTo(tmp, CV_64FC(channels));
-    ptr = (double *)tmp.data;
-    dptr = (double *)dst.data;
-    for (r = 0; r < rows; r++)
-        for (c = 0; c < cols; c++)
-            for (k = 0; k < channels; k++)
-            {
-                offset = r * step + c * channels + k;
-                
-                // use reflect to extrapolate pixels out of boundary
-                if (r == 0)
-                    dptr[offset] = 2 * ptr[offset+step] - 2 * ptr[offset];
-                else if (r == rows - 1)
-                    dptr[offset] = 2 * ptr[offset-step] - 2 * ptr[offset];
-                else
-                    dptr[offset] = ptr[offset+step] + ptr[offset-step] - 2 * ptr[offset];
-            }
-
+    cout << kernel << endl;
+    filter2D(src, dst, CV_64FC(channels), kernel);
+    
     return dst;
 }
 
 /*
   description:
-  use central difference to approximate
+  use taylor series to approximate
   derivative x-y of matrix src
   params:
   src - input matrix (in)
@@ -165,41 +103,48 @@ Mat Maths::dyy(const Mat &src)
 */
 Mat Maths::dxy(const Mat &src)
 {
-    int r, c, k, offset;
     int rows = src.rows;
     int cols = src.cols;
     int channels = src.channels();
-    Mat tmp, dst(rows, cols, CV_64FC(channels));
-    int step = dst.step / sizeof(double);
-    double *ptr, *dptr;
+    double kernel_arr[3][3] = {
+        {.25, 0, -.25},
+        {0,   0,    0},
+        {-.25,0,  .25}
+    };
+    Mat dst, kernel(3, 3, CV_64FC1, kernel_arr);
 
-    src.convertTo(tmp, CV_64FC(channels));
-    ptr = (double *)tmp.data;
-    dptr = (double *)dst.data;
-    for (r = 0; r < rows; r++)
-        for (c = 0; c < cols; c++)
-            for (k = 0; k < channels; k++)
-            {
-                offset = r * step + c * channels + k;
-                
-                // use reflect to extrapolate pixels out of boundary
-                if (r == 0)
-                    dptr[offset] = 0;
-                else if (r == rows - 1)
-                    dptr[offset] = 0;
-                else
-                {
-                    if (c == 0 || c == cols-1)
-                        dptr[offset] = 0;
-                    else
-                    {
-                        dptr[offset] = ptr[offset+step+channels] + ptr[offset-step-channels]
-                            - ptr[offset+step-channels] - ptr[offset-step+channels];
-                        dptr[offset] /= 4;
-                    }
-                }
-            }
+    cout << kernel << endl;
+    filter2D(src, dst, CV_64FC(channels), kernel);
+    
+    return dst;
+}
 
+Mat Maths::laplace3D(const Mat &im0, const Mat &im1, const Mat &im2)
+{
+    int rows = im1.rows;
+    int cols = im1.cols;
+    int channels = im1.channels();
+
+    assert(im0.rows == rows && rows == im2.rows &&
+           im0.cols == cols && cols == im2.cols &&
+           im0.channels() == channels && channels == im2.channels());
+
+    double kernel_arr[3][3] = {
+        {0,  1.,  0},
+        {1.,-6., 1.},
+        {0,  1.,  0}
+    };
+    Mat ctmp, tmp, dst, kernel(3, 3, CV_64FC1, kernel_arr);
+    
+    filter2D(im1, dst, CV_64FC(channels), kernel);
+    cout << "***** dst *****" << endl << dst << endl;
+    
+    tmp = im0 + im2;
+    tmp.convertTo(ctmp, CV_64FC(channels));
+
+    cout << "***** ctmp *****" << endl << ctmp << endl;
+    dst += ctmp;
+    
     return dst;
 }
 
