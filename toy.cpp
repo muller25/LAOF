@@ -11,7 +11,7 @@ int main(int argc, char *argv[])
     // Mat im1 = imread("car1.jpg", CV_LOAD_IMAGE_COLOR);
     // Mat im2 = imread("car2.jpg", CV_LOAD_IMAGE_COLOR);
 
-    Mat src(3, 3, CV_8UC3);
+    Mat src(3, 3, CV_8UC1);
     RNG rng(0);
     rng.fill(src, RNG::UNIFORM, -10, 10);
     
@@ -22,6 +22,15 @@ int main(int argc, char *argv[])
     cout << dst << endl;
 
     dst = Maths::dy(src);
+    cout << dst << endl;
+
+    dst = Maths::dxx(src);
+    cout << dst << endl;
+
+    dst = Maths::dyy(src);
+    cout << dst << endl;
+
+    dst = Maths::dxy(src);
     cout << dst << endl;
     
     // int b_init[2][1] = {{2}, {5}};
