@@ -1,31 +1,36 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/opencv.hpp>
+using namespace cv;
+
 #include <iostream>
+using namespace std;
 
 #include "Maths.h"
-using namespace std;
-using namespace cv;
 
 int main(int argc, char *argv[])
 {
     // Mat im1 = imread("car1.jpg", CV_LOAD_IMAGE_COLOR);
     // Mat im2 = imread("car2.jpg", CV_LOAD_IMAGE_COLOR);
+    RNG rng(0x7fffffff);
+        
+    Mat pflow(3, 3, CV_32SC2), flow(3, 3, CV_32SC2), nflow(3, 3, CV_32SC2);
+    Mat weight(3, 3, CV_32SC1), nweight(3, 3, CV_32SC1);
 
-    Mat src(5, 5, CV_8UC1), im0(5, 5, CV_8UC1), im2(5, 5, CV_8UC1);
-    RNG rng(12345);
-    rng.fill(src, RNG::UNIFORM, -10, 10);
-    rng.fill(im0, RNG::UNIFORM, 5, 10);
-    rng.fill(im2, RNG::UNIFORM, 0, 5);
+    rng.fill(pflow, RNG::UNIFORM, -1, 1);
+    rng.fill(flow, RNG::UNIFORM, -1, 1);
+    rng.fill(nflow, RNG::UNIFORM, -1, 1);
+    rng.fill(weight, RNG::UNIFORM, -1, 1);
+    rng.fill(nweight, RNG::UNIFORM, -1, 1);
     
-    cout << "***** src *****" << endl;
-    cout << im0 << endl;
-    cout << src << endl;
-    cout << im2 << endl;
-
-    Mat dz, dxdy, dx, dy, dxx, dyy, dxy, laplace;
+    cout << "***** params *****" << endl;
+    cout << pflow << endl;
+    cout << flow << endl;
+    cout << nflow << endl;
+    cout << weight << endl;
+    cout << nweight << endl;
     
-    laplace = Maths::laplace3D(im0, src, im2);
-    cout << laplace << endl;
+    Mat lap3d = Maths::weighted_laplacian3D(pflow, flow, nflow, weight, nweight);
+    cout << lap3d << endl;
     
     // cout << "***** dx *****" << endl;
     // dx = Maths::dx(src);
