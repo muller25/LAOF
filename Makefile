@@ -17,8 +17,12 @@ all: $(TARGET)
 $(TARGET): $(OBJS)
 	$(LINK) $(LFLAGS) -o $(TARGET) $(OBJS) $(LIBS)
 
-clean:
-	$(DEL) $(OBJS) $(TARGET)
+toy.o: toy.cpp
+	$(CXX) $(CFLAGS) -c toy.cpp -o toy.o
 
-%.o: %.cpp
-	$(CXX) -c $(CFLAGS) $(INCPATH) -o $@ $^
+%.o: %.cpp %.h
+	$(CXX) $(CFLAGS) -c $< -o $@
+
+.PHONY: clean
+clean:
+	-$(DEL) $(OBJS) $(TARGET)

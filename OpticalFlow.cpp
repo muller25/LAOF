@@ -19,6 +19,3 @@ double OpticalFlow::phi_d(double s, double e)
 {
     return 0.5 / sqrt(s + e);
 }
-
-
-
