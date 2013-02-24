@@ -1,28 +1,18 @@
-CXX				= g++
-CFLAGS  		= -O3
-INCPATH			= -I$(LIBDIR)
-LINK			= g++
-LFLAGS			= 
-OPENCVLIBS		= `pkg-config --libs opencv`
-LIBS			= $(OPENCVLIBS) -L$(LIBDIR)
-DEL				= rm -rf
+MAKE			= make
 
-LIBDIR 			= .
-OBJS			= Maths.o toy.o OpticalFlow.o
-TARGET 			= toy
+SRCDIR			= src
+TESTDIR			= tests
 
-all: $(TARGET)
-	@echo "Done"
+all: laof test
+	@echo "DONE"
 
-$(TARGET): $(OBJS)
-	$(LINK) $(LFLAGS) -o $(TARGET) $(OBJS) $(LIBS)
+laof:
+	$(MAKE) -C $(SRCDIR)
 
-toy.o: toy.cpp
-	$(CXX) $(CFLAGS) -c toy.cpp -o toy.o
-
-%.o: %.cpp %.h
-	$(CXX) $(CFLAGS) -c $< -o $@
+test:
+	$(MAKE) -C $(TESTDIR)
 
 .PHONY: clean
 clean:
-	-$(DEL) $(OBJS) $(TARGET)
+	$(MAKE) -C $(SRCDIR) clean
+	$(MAKE) -C $(TESTDIR) clean

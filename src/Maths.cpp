@@ -131,7 +131,7 @@ Mat Maths::dxy(const Mat &src)
   [return]
   0 for success, others for failure
 */
-int Maths::sor_solver(const Mat &A, const Mat &b, Mat &x,
+int Maths::SORSolver(const Mat &A, const Mat &b, Mat &x,
                       int nIters, double w)
 {
     // sanity check
@@ -161,20 +161,40 @@ int Maths::sor_solver(const Mat &A, const Mat &b, Mat &x,
 
 /*
   [description]
-  match two matrix size, channel and depth
+  match two matrix in 2 dimension: row and col
+  [params]
+  m1, m2 - matrix to match (in)
+  [return]
+  true if two matrix match in size(row, col), otherwise returns false
+ */
+bool Maths::match2D(const Mat &m1, const Mat &m2)
+{
+    return (m1.rows == m2.rows && m1.cols == m2.cols);
+}
+
+/*
+  [description]
+  match two matrix in 3 dimension: row ,col and channel
+  [params]
+  m1, m2 - matrix to match (in)
+  [return]
+  true if two matrix match in row, col and channel, otherwise returns false
+ */
+bool Maths::match3D(const Mat &m1, const Mat &m2)
+{
+    return (match2D(m1, m2) && m1.channels() == m2.channels());
+}
+
+/*
+  [description]
+  match two matrix in all aspects: row, col, channel and depth
   [params]
   m1, m2 - matrix to match (in)
   depth - whether match depth or not (in)
   [return]
   true if two matrix match in all aspect, otherwise returns false
  */
-bool Maths::match(const Mat &m1, const Mat &m2, bool depth)
+bool Maths::matchAll(const Mat &m1, const Mat &m2)
 {
-    bool size_match = (m1.rows == m2.rows && m1.cols == m2.cols &&
-                       m1.channels() == m2.channels());
-
-    if (depth)
-        return (size_match && m1.depth() == m2.depth());
-
-    return size_match;
+    return (match3D(m1, m2) && m1.depth() == m2.depth());
 }
