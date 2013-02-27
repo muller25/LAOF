@@ -1,4 +1,5 @@
 #include "OpticalFlow.h"
+#include "Flow2Color.h"
 
 #include <cv.h>
 #include <highgui.h>
@@ -21,10 +22,10 @@ int main(int argc, char *argv[])
     tmp.convertTo(im2, CV_64FC3);
 
     // init optical flow parameters
-    const int nInIter = 10;
-    const int nOutIter = 10;
-    const int nSORIter = 10;
-    const double a_s = 1;
+    const int nOutIter = 1;
+    const int nInIter = 1;
+    const int nSORIter = 30;
+    const double a_s = 0.012;
     int rows = im1.rows, cols = im1.cols, channels = im1.channels();
     Mat u = Mat::zeros(rows, cols, CV_64F);
     Mat v = Mat::zeros(rows, cols, CV_64F);
@@ -32,11 +33,16 @@ int main(int argc, char *argv[])
     OpticalFlow of;
 
     of.warpImage(im1, im2, u, v, warp);
-    of.compute(im1, im2, warp, u, v, a_s, nInIter, nOutIter, nSORIter);
+    of.compute(im1, im2, warp, u, v, a_s, nOutIter, nInIter, nSORIter);
 
-    warp.convertTo(tmp, CV_8UC(channels));
+/*    warp.convertTo(tmp, CV_8UC(channels));
     imshow("warp image", tmp);
+
+    Mat flowImg, idxImg;
+    flow2color(u, v, flowImg, idxImg);
+    imshow("flow image", flowImg);
+    imshow("unknown flow index image", idxImg);
     waitKey(0);
-        
+*/  
     return 0;
 }

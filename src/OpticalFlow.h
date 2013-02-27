@@ -7,8 +7,7 @@
 using namespace cv;
 
 #include <cmath>
-#include <iostream>
-using namespace std;
+#include <cstdio>
 
 #define EPSILON 10e-6
 
@@ -27,7 +26,7 @@ public:
     void getGrads(Mat &im1, Mat &im2, Mat &Ix, Mat &Iy, Mat &Iz);
     
     void compute(Mat &im1, Mat &im2, Mat &warp, Mat &u, Mat &v, double a_s,
-                 int nInIter=100, int nOutIter=100, int nSORIter=1000);
+                 int nOutIter=100, int nInIter=100, int nSORIter=100);
 };
 
 #endif
