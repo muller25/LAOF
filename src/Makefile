@@ -8,11 +8,18 @@ LIBDIR 			= .
 
 DEL				= rm -rf
 
-OPENCVLIBS		= /usr/local/lib/libopencv_calib3d.so /usr/local/lib/libopencv_contrib.so /usr/local/lib/libopencv_core.so /usr/local/lib/libopencv_features2d.so /usr/local/lib/libopencv_flann.so /usr/local/lib/libopencv_gpu.so /usr/local/lib/libopencv_highgui.so /usr/local/lib/libopencv_imgproc.so /usr/local/lib/libopencv_legacy.so /usr/local/lib/libopencv_ml.so /usr/local/lib/libopencv_nonfree.so /usr/local/lib/libopencv_objdetect.so /usr/local/lib/libopencv_photo.so /usr/local/lib/libopencv_stitching.so /usr/local/lib/libopencv_ts.so /usr/local/lib/libopencv_video.so /usr/local/lib/libopencv_videostab.so
-OBJS			= Maths.o OpticalFlow.o
+OPENCVLIBS		= `pkg-config --libs opencv`
+OBJS			= Maths.o OpticalFlow.o main.o Flow2Color.o
+TARGET			= run
 
-all: $(OBJS)
+all: $(TARGET)
 	@echo "DONE"
+
+run: $(OBJS)
+	$(LINK) $(LFAGS) -o run $(OBJS) $(OPENCVLIBS)
+
+main.o: main.cpp
+	$(CXX) $(CFLAGS) -c main.cpp -o main.o
 
 %.o: %.cpp %.h
 	$(CXX) $(CFLAGS) -c $< -o $@

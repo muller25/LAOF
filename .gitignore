@@ -14,3 +14,5 @@
 
 # executable files
 rule_all_tests
+run
+flow2color
