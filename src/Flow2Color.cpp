@@ -12,35 +12,46 @@ void flow2color(Mat &u, Mat &v, Mat &flowImg, Mat &idxImg)
     int r, c, offset;
 
     // fix unknown flow
-    Mat unknownIdx = Mat::zeros(rows, cols, CV_64F);
-    double *pIdx = (double *)unknownIdx.data;
+    idxImg = Mat::zeros(rows, cols, CV_8U);
+    uchar *pIdx = (uchar *)idxImg.data;
+    int istep = idxImg.step / sizeof(uchar), ioffset;
+    
     for (r = 0; r < rows; r++)
     {
         for (c = 0; c < cols; c++)
         {
             offset = r * step + c;
+            ioffset = r * istep + c;
             if (pu[offset] >= thresh || pu[offset] <= -thresh)
             {
                 pu[offset] = 0;
-                pIdx[offset] = 1;
+                pIdx[ioffset] = 255;
             }
             
             if (pv[offset] >= thresh || pv[offset] <= -thresh)
             {
                 pv[offset] = 0;
-                pIdx[offset] = 1;
+                pIdx[ioffset] = 255;
             }
         }
     }
-    unknownIdx.convertTo(idxImg, CV_8U);
     
     // find min and max
+    Mat rad(rows, cols, CV_64F);
+    double *pr = (double *)rad.data;
+    for (r = 0; r < rows; r++)
+    {
+        for (c = 0; c < cols; c++)
+        {
+            offset = r * step + c;
+            pr[offset] = sqrt(pu[offset]*pu[offset] + pv[offset]*pv[offset]);
+        }
+    }
+    
     double minu, maxu, minv, maxv, maxrad;
-    Mat rad = u * u + v * v;
     minMaxIdx(u, &minu, &maxu);
     minMaxIdx(v, &minv, &maxv);
     minMaxIdx(rad, NULL, &maxrad);
-    maxrad = sqrt(maxrad);
 
     printf("max flow: %.4f flow range: u = %.3f .. %.3f;", maxrad, minu, maxu);
     printf("v = %.3f .. %.3f\n", minv, maxv);
@@ -111,7 +122,7 @@ Mat computeColor(Mat &u, Mat &v)
         }
     }
 
-    Mat img(rows, cols, CV_8UC3);
+    Mat img(rows, cols, CV_8UC(wheel.cols));
     int istep = img.step / sizeof(uchar), ioffset;
     uchar *pi = img.data;
     double col0, col1, col;
@@ -123,7 +134,7 @@ Mat computeColor(Mat &u, Mat &v)
         {
             offset = r * step + c;
             koffset = r * kstep + c;
-            ioffset = r * istep + c;
+            ioffset = r * istep + c * wheel.cols;
             idx = (pr[offset] <= 1);
         
             for (int k = 0; k < wheel.cols; k++)
