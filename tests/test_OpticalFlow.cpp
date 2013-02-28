@@ -79,10 +79,10 @@ TEST(TestOpticalFlow, TestPhiD)
 
 TEST(TestOpticalFlow, TestWarpImage)
 {
-    int rows = 3, cols = 3;
-    Mat im1(rows, cols, CV_64F), im2(rows, cols, CV_64F), warp(rows, cols, CV_64F);
+    int rows = 5, cols = 5;
+    Mat im1(rows, cols, CV_64FC3), im2(rows, cols, CV_64FC3), warp(rows, cols, CV_64FC3);
     Mat u = Mat::zeros(rows, cols, CV_64F), v = Mat::zeros(rows, cols, CV_64F);
-    Mat exp(rows, cols, CV_64F), tmp(rows, cols, CV_64F);
+    Mat exp(rows, cols, im1.type()), tmp(rows, cols, im1.type());
     
     RNG rng(time(NULL));
     rng.fill(im1, RNG::UNIFORM, 0, 255.);

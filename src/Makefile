@@ -9,7 +9,7 @@ LIBDIR 			= .
 DEL				= rm -rf
 
 OPENCVLIBS		= `pkg-config --libs opencv`
-OBJS			= Maths.o OpticalFlow.o main.o Flow2Color.o
+OBJS			= Maths.o OpticalFlow.o main.o Flow2Color.o GaussianPyramid.o
 TARGET			= run
 
 all: $(TARGET)

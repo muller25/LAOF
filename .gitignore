@@ -13,8 +13,9 @@
 *.a
 
 # executable files
-test/rule_all_tests
-test/flow2color
+tests/run_all_tests
+tests/flow2color
+tests/pyramid
 src/run
 
 *cscope.out

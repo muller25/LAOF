@@ -11,7 +11,7 @@ DEL				= rm -rf
 
 LAOF			= ../src
 OBJS			= test_Maths.o test_OpticalFlow.o
-TARGET 			= run_all_tests flow2color
+TARGET 			= run_all_tests flow2color pyramid
 
 all: $(TARGET)
 	@echo "DONE"
@@ -21,6 +21,9 @@ run_all_tests: $(OBJS) $(LAOF)/Maths.o $(LAOF)/OpticalFlow.o
 
 flow2color: test_Flow2Color.o $(LAOF)/Maths.o $(LAOF)/Flow2Color.o
 	$(LINK) $(LFLAGS) -o $@ $^ $(OPENCVLIBS)
+
+pyramid: test_GaussianPyramid.o $(LAOF)/GaussianPyramid.o
+	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS)
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -I$(INCDIR) -I$(LAOF) -c $< -o $@

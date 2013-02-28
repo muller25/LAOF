@@ -77,12 +77,12 @@ void OpticalFlow::compute(const Mat &im1, const Mat &im2, Mat &warp,
     double *pixy = (double *)ixy.data, *pix2 = (double *)ix2.data;
     double *piy2 = (double *)iy2.data, *pixt = (double *)ixt.data;
     double *piyt = (double *)iyt.data;
-    int step = du.step / sizeof(double);
-    int offset, tmp;
+    int step = du.step / sizeof(double), offset, tmp;
 
     double maxu, minu;
-
+    
     // outer fixed point iteration for u, v
+    estLapNoise(im1, warp);
     for (int oiter = 0; oiter < nOutIter; oiter++)
     {
         printf("outer fixed point iterations %d\n", oiter);
@@ -109,8 +109,8 @@ void OpticalFlow::compute(const Mat &im1, const Mat &im2, Mat &warp,
             phi_d(uu, vv, phi_1st);
             psi_d(Ix, Iy, It, du, dv, psi_1st);
 
-            printf("inner fixed point iteration\n");
-            sanityCheck(Ix, Iy, It, uu, vv);
+            // printf("inner fixed point iteration\n");
+            // sanityCheck(Ix, Iy, It, uu, vv);
 
             // components for linear system
             multiply(Ix, Ix, Ix2);
@@ -198,15 +198,18 @@ void OpticalFlow::compute(const Mat &im1, const Mat &im2, Mat &warp,
                     }
                 }
             }
-            minMaxIdx(du, &minu, &maxu);
-            printf("du: %.3f .. %.3f\n", minu, maxu);
-            minMaxIdx(dv, &minu, &maxu);
-            printf("dv: %.3f .. %.3f\n", minu, maxu);
+            // minMaxIdx(du, &minu, &maxu);
+            // printf("du: %.3f .. %.3f\n", minu, maxu);
+            // minMaxIdx(dv, &minu, &maxu);
+            // printf("dv: %.3f .. %.3f\n", minu, maxu);
         }
 
-        add(u, du, u);
-        add(v, dv, v);
+        u += du;
+        v += dv;
         warpImage(im1, im2, u, v, warp);
+
+        // esitmate noise level
+        estLapNoise(im1, warp);
     }
 }
 
@@ -217,27 +220,27 @@ void OpticalFlow::psi_d(const Mat &Ix, const Mat &Iy, const Mat &It,
     assert(matchAll(Ix, Iy) && matchAll(Iy, It) && matchAll(It, res) &&
            matchAll(du, dv) && Ix.depth() == CV_64F && du.depth() == CV_64F);
     
-    int rows = Ix.rows;
-    int cols = Ix.cols;
-    int channels = Ix.channels();
-    int istep = Ix.step / sizeof(double);
+    int rows = Ix.rows, cols = Ix.cols, channels = Ix.channels();
+    int istep = Ix.step / sizeof(double), io, fo;
     double *px = (double *)Ix.data, *py = (double *)Iy.data, *pt = (double *)It.data;
     double *p = (double *)res.data;
     
     int fstep = du.step / sizeof(double);
-    double *pu = (double *)du.data, *pv = (double *)dv.data;
-    
-    int r, c, k, io, fo;
-    double tmp;
-    for (r = 0; r < rows; r++)
+    double *pu = (double *)du.data, *pv = (double *)dv.data, tmp;
+
+    res.setTo(0);
+    for (int r = 0; r < rows; r++)
     {
-        for (c = 0; c < cols; c++)
+        for (int c = 0; c < cols; c++)
         {
             io = r * istep + c * channels;
             fo = r * fstep + c;
             
-            for (k = 0; k < channels; k++)
+            for (int k = 0; k < channels; k++)
             {
+                if (LapPara[k] < 1E-20)
+                    continue;
+                
                 tmp = pt[io+k] + px[io+k]*pu[fo] + py[io+k]*pv[fo];
                 p[io+k] = psi_d(tmp * tmp);
             }
@@ -294,7 +297,7 @@ void OpticalFlow::getGrads(const Mat &im1, const Mat &im2, Mat &Ix, Mat &Iy, Mat
 }
 
 void OpticalFlow::sanityCheck(const Mat &Ix, const Mat &Iy, const Mat &It,
-                                const Mat &du, const Mat &dv)
+                              const Mat &du, const Mat &dv)
 {
     assert(matchAll(Ix, Iy) && matchAll(Iy, It) && matchAll(du, dv) &&
            Ix.depth() == CV_64F && du.type() == CV_64F);
@@ -322,4 +325,46 @@ void OpticalFlow::sanityCheck(const Mat &Ix, const Mat &Iy, const Mat &It,
 
     error = error / (rows * cols);
     printf("mean error for |Ix*u + Iy*v + It| = %.2f\n", error);
+}
+
+void OpticalFlow::estLapNoise(const Mat &im1, const Mat &im2)
+{
+    assert(matchAll(im1, im2));
+
+    int rows = im1.rows, cols = im1.cols, channels = im1.channels(), offset;
+    int step = im1.step / sizeof(double);
+    double *p1 = (double *)im1.data, *p2 = (double *)im2.data;
+    std::vector<int> total(channels, 0);
+    double tmp;
+    
+    LapPara.resize(channels, 0);
+
+    for (int r = 0; r < rows; r++)
+    {
+        for (int c = 0; c < cols; c++)
+        {
+            offset = r * step + c * channels;
+            for (int k = 0; k < channels; k++)
+            {
+                tmp = fabs(p1[offset+k] - p2[offset+k]);
+                if (tmp >= 0 && tmp < 1000000)
+                {
+                    LapPara[k] += tmp;
+                    total[k]++;
+                }
+            }
+        }
+    }
+    
+    for (int k = 0; k < channels; k++)
+    {
+        if (total[k] == 0)
+        {
+            cout << "All the pixels are invalid in estimation Laplacian noise!!!" << endl;
+			cout << "Something severely wrong happened!!!" << endl;
+			LapPara[k] = 0.001;
+		}
+		else
+			LapPara[k] /= total[k];
+    }
 }

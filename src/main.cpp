@@ -6,11 +6,12 @@
 using namespace cv;
 
 #include <iostream>
+#include <ctime>
 using namespace std;
 
 int main(int argc, char *argv[])
 {
-    // load color image
+/*    // load color image
     const char *im1Name = "../car1.jpg";
     const char *im2Name = "../car2.jpg";
 
@@ -20,15 +21,17 @@ int main(int argc, char *argv[])
     
     tmp = imread(im2Name, CV_LOAD_IMAGE_COLOR);
     tmp.convertTo(im2, CV_64FC3);
-
-/*    double im1Arr[][3] = {{1, 2, 3}, {2, 3, 4}, {3, 4, 5}};
-    Mat im1(3, 3, CV_64F, im1Arr);
-    double im2Arr[][3] = {{2, 3, 4}, {3, 4, 5}, {4, 5, 6}};
-    Mat im2(3, 3, CV_64F, im2Arr);
+*/
+    int nrows = 3, ncols = 3;
+    Mat im1(nrows, ncols, CV_64FC3), im2(nrows, ncols, CV_64FC3);
+    RNG rng(time(NULL));
+    rng.fill(im1, RNG::UNIFORM, 0., 255.);
+    rng.fill(im2, RNG::UNIFORM, 0., 255.);
     
-    cout << "im1 " << im1 << endl;
-    cout << "im2 " << im2 << endl;
-*/  
+    for (int r = 0; r < nrows-1; r++)
+        im1.row(r).copyTo(im2.row(r+1));
+    
+
     // init optical flow parameters
     const int nOutIter = 7;
     const int nInIter = 7;
@@ -42,6 +45,11 @@ int main(int argc, char *argv[])
 
     of.warpImage(im1, im2, u, v, warp);
     of.compute(im1, im2, warp, u, v, a_s, nOutIter, nInIter, nSORIter);
+
+    cout << "im1 " << im1 << endl;
+    cout << "im2 " << im2 << endl;
+    cout << u << endl;
+    cout << v << endl;
     
 /*    warp.convertTo(tmp, CV_8UC(channels));
     imshow("warp image", tmp);

@@ -8,6 +8,7 @@ using namespace cv;
 
 #include <cmath>
 #include <cstdio>
+#include <vector>
 
 #define EPSILON 1e-6
 
@@ -50,6 +51,10 @@ public:
     void sanityCheck(const Mat &Ix, const Mat &Iy, const Mat &It,
                      const Mat &du, const Mat &dv);
 
+    void estLapNoise(const Mat &im1, const Mat &im2);
+    
+private:
+    std::vector<double> LapPara;
 };
 
 #endif
