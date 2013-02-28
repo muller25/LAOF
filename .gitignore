@@ -13,8 +13,8 @@
 *.a
 
 # executable files
-rule_all_tests
-run
-flow2color
+test/rule_all_tests
+test/flow2color
+src/run
 
-cscope.out
+*cscope.out

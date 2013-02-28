@@ -8,7 +8,7 @@ using namespace cv;
 #include <cmath>
 using namespace std;
 
-#define ESP 10e-6
+#define ESP 1e-6
 
 Mat dx(const Mat &src);
 Mat dy(const Mat &src);
@@ -22,7 +22,38 @@ bool matchAll(const Mat& m1, const Mat &m2);
 
 void weighted_lap(const Mat &flow, const Mat &weight, Mat &dst);
 
-void collapse(Mat &src, Mat &dst);
+template<class T>
+void collapse(const Mat &src, Mat &dst)
+{
+    assert(match2D(src, dst) && src.depth() == dst.depth());
+    
+    int rows = src.rows;
+    int cols = src.cols;
+    int channels = src.channels();
+    T *ps = (T *)src.data, *pd = (T *)dst.data;
+    int sstep = src.step / sizeof(T), dstep = dst.step / sizeof(T);
+    int r, c, k, soffset, doffset;
+    double tmp;
+    
+    if (channels == 1)
+    {
+        src.copyTo(dst);
+        return;
+    }
+        
+    for (r = 0; r < rows; r++)
+    {
+        for (c = 0; c < cols; c++)
+        {
+            soffset = r * sstep + c * channels;
+            doffset = r * dstep + c;
+            for (tmp = 0, k = 0; k < channels; k++)
+                tmp += ps[soffset + k];
+            
+            pd[doffset] = (T)(tmp / channels);
+        }
+    }
+}
 
 /*
   [description]
@@ -36,22 +67,24 @@ void collapse(Mat &src, Mat &dst);
   无
 */
 template<class T>
-void biInterpolate(Mat &im, double x, double y, T *res)
+inline void biInterpolate(const Mat &im, const double x, const double y, T *res)
 {
     int r, c, k, nx, ny, offset;
     int ix = x, iy = y;
-    double s, dx = x-ix, dy = y-iy;
+    double s, dx, dy;
     int rows = im.rows, cols = im.cols, channels = im.channels();
     int step = im.step / sizeof(T);
     T *ptr = (T *)im.data;
     double tmp[3] = {0};
-    
+
+    dx = std::max(std::min(x-floor(x), 1.), 0.);
+    dy = std::max(std::min(y-floor(y), 1.), 0.);
     for (r = 0; r <= 1; r++)
     {
-        ny = min(max(iy+r, 0), rows-1);
+        ny = std::min(std::max(iy+r, 0), rows-1);
         for (c = 0; c <= 1; c++)
         {
-            nx = min(max(ix+c, 0), cols-1);
+            nx = std::min(std::max(ix+c, 0), cols-1);
             s = fabs(1-r-dy) * fabs(1-c-dx);
             offset = nx * channels + ny * step;
 

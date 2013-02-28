@@ -1,47 +1,7 @@
 #include "gtest/gtest.h"
+
 #include "Maths.h"
-
-#include <cv.h>
-using namespace cv;
-
-#include <iostream>
-
-template<class T>
-bool array_match(T *exp, T *act, int size)
-{
-    int i;
-    for (i = 0; i < size; i++)
-    {
-        if (fabs(exp[i] - act[i]) <= 10E-6) continue;
-
-        std::cout << "expected[" << i << "(" << exp[i]
-             << ") != actual[" << i << "(" << act[i] << ")\n";
-        return false;
-    }
-
-    return true;
-}
-
-template<class T>
-void setData(Mat &m, const T *data)
-{
-    int rows = m.rows;
-    int cols = m.cols;
-    int channels = m.channels();
-    int r, c, k, offset;
-    int step = m.step / sizeof(T);
-    T *ptr = (T *)m.data;
-    
-    for (r = 0; r < rows; r++)
-    {
-        for (c = 0; c < cols; c++)
-        {
-            offset = r * step + c * channels;
-            for (k = 0; k < channels; k++)
-                ptr[offset+k] = data[offset+k];
-        }
-    }
-}
+#include "Utils.h"
 
 template<class T, int channels>
 void tests()
@@ -121,4 +81,129 @@ TEST(TestBiInterpolation, MultiChannel)
     tests<double, 1>();
     tests<double, 2>();
     tests<double, 3>();
+}
+
+TEST(TestGrads, MultiChannel)
+{
+    // single channel
+    double arr[][3] = {{1., 2., 3.},
+                       {2., 3., 4.},
+                       {3., 4., 5.}};
+    double exp_1st[][3] = {{0.5, 14./12, 0.5},
+                           {0.5, 14./12, 0.5},
+                           {0.5, 14./12, 0.5}};
+    Mat m(3, 3, CV_64F, arr);
+    Mat exp_dx(3, 3, CV_64F, exp_1st);
+
+    Mat gx = dx(m);
+    EXPECT_TRUE(matrix_match<double>(exp_dx, gx));
+
+    Mat gy = dy(m);
+    EXPECT_TRUE(matrix_match<double>(exp_dx.t(), gy));
+
+    double exp_2st[][3]={{14./12, 0, -14./12},
+                         {14./12, 0, -14./12},
+                         {14./12, 0, -14./12}};
+    Mat exp_dxx(3, 3, CV_64F, exp_2st);
+
+    Mat gxx = dxx(m);
+    EXPECT_TRUE(matrix_match<double>(exp_dxx, gxx));
+
+    Mat gyy = dyy(m);
+    EXPECT_TRUE(matrix_match<double>(exp_dxx.t(), gyy));
+
+    double exp_2st1[][3] = {{0, 0, 0},
+                            {0, 0, 0},
+                            {0, 0, 0}};
+    Mat exp_dxy(3, 3, CV_64F, exp_2st1);
+
+    Mat gxy = dxy(m);
+    EXPECT_TRUE(matrix_match<double>(exp_dxy, gxy));
+
+    // multi-channel
+    double arr3[][9] = {{1., 1., 1., 2., 2., 2., 3., 3., 3.},
+                        {2., 2., 2., 3., 3., 3., 4., 4., 4.},
+                        {3., 3., 3., 4., 4., 4., 5., 5., 5.}};
+    double exp3_1st[][9] = {{0.5, 0.5, 0.5, 14./12, 14./12, 14./12, 0.5, 0.5, 0.5},
+                            {0.5, 0.5, 0.5, 14./12, 14./12, 14./12, 0.5, 0.5, 0.5},
+                            {0.5, 0.5, 0.5, 14./12, 14./12, 14./12, 0.5, 0.5, 0.5}};
+    Mat m3(3, 3, CV_64FC3, arr3);
+    Mat exp3_dx(3, 3, CV_64FC3, exp3_1st);
+
+    gx = dx(m3);
+    EXPECT_TRUE(matrix_match<double>(exp3_dx, gx));
+
+    gy = dy(m3);
+    EXPECT_TRUE(matrix_match<double>(exp3_dx.t(), gy));
+
+    double exp3_2st[][9]={{14./12, 14./12, 14./12, 0, 0, 0, -14./12, -14./12, -14./12},
+                          {14./12, 14./12, 14./12, 0, 0, 0, -14./12, -14./12, -14./12},
+                          {14./12, 14./12, 14./12, 0, 0, 0, -14./12, -14./12, -14./12}};
+    Mat exp3_dxx(3, 3, CV_64FC3, exp3_2st);
+
+    gxx = dxx(m3);
+    EXPECT_TRUE(matrix_match<double>(exp3_dxx, gxx));
+
+    gyy = dyy(m3);
+    EXPECT_TRUE(matrix_match<double>(exp3_dxx.t(), gyy));
+
+    double exp3_2st1[][9] = {{0, 0, 0, 0, 0, 0, 0, 0, 0},
+                             {0, 0, 0, 0, 0, 0, 0, 0, 0},
+                             {0, 0, 0, 0, 0, 0, 0, 0, 0}};
+    Mat exp3_dxy(3, 3, CV_64FC3, exp3_2st1);
+    
+    gxy = dxy(m3);
+    EXPECT_TRUE(matrix_match<double>(exp3_dxy, gxy));
+}
+
+TEST(TestCollapse, MultiChannel)
+{
+    int arr3[][9] = {{1, 2, 3, 4, 5, 6, 7, 8, 9},
+                     {2, 3, 4, 5, 6, 7, 8, 9, 10},
+                     {3, 4, 5, 6, 7, 8, 9, 10, 11}};
+    int arr[][3] = {{2, 5, 8},
+                    {3, 6, 9},
+                    {4, 7, 10}};
+    Mat m3(3, 3, CV_32SC3, arr3), m1(3, 3, CV_32S, arr);
+    Mat exp(3, 3, CV_32S, arr), res(3, 3, CV_32S);
+
+    collapse<int>(m1, res);
+    EXPECT_TRUE(matrix_match<int>(exp, res));
+
+    collapse<int>(m3, res);
+    EXPECT_TRUE(matrix_match<int>(exp, res));
+
+    double darr3[][9] = {{.1, .2, .3, .4, .5, .6, .7, .8, .9},
+                         {.2, .3, .4, .5, .6, .7, .8, .9, .1},
+                         {.3, .4, .5, .6, .7, .8, .9, .1, .11}};
+    double darr[][3] = {{.2, .5, .8},
+                        {.3, .6, .6},
+                        {.4, .7, .37}};
+    Mat dm1(3, 3, CV_64F, darr), dm3(3, 3, CV_64FC3, darr3);
+    Mat dexp(3, 3, CV_64F, darr), dres(3, 3, CV_64F);
+
+    collapse<double>(dm1, dres);
+    EXPECT_TRUE(matrix_match<double>(dexp, dres));
+
+    collapse<double>(dm3, dres);
+    EXPECT_TRUE(matrix_match<double>(dexp, dres));
+}
+
+TEST(TestWeightedLap, Lap2D)
+{
+    double arr[][3] = {{1., 2., 3.},
+                       {2., 3., 4.},
+                       {3., 4., 5.}};
+    double earr[][3] = {{-2., -3., -1.},
+                        {-3., -2., 2.},
+                        {-1., 2., 8.}};
+    Mat flow(3, 3, CV_64F, arr), weight(3, 3, CV_64F, arr), dst(3, 3, CV_64F);
+    Mat exp(3, 3, CV_64F, earr);
+            
+    weighted_lap(flow, weight, dst);
+    EXPECT_TRUE(matrix_match<double>(exp, dst));
+}
+
+TEST(TestWeightedLap, Lap3D)
+{
 }

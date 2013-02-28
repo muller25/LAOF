@@ -21,9 +21,17 @@ int main(int argc, char *argv[])
     tmp = imread(im2Name, CV_LOAD_IMAGE_COLOR);
     tmp.convertTo(im2, CV_64FC3);
 
+/*    double im1Arr[][3] = {{1, 2, 3}, {2, 3, 4}, {3, 4, 5}};
+    Mat im1(3, 3, CV_64F, im1Arr);
+    double im2Arr[][3] = {{2, 3, 4}, {3, 4, 5}, {4, 5, 6}};
+    Mat im2(3, 3, CV_64F, im2Arr);
+    
+    cout << "im1 " << im1 << endl;
+    cout << "im2 " << im2 << endl;
+*/  
     // init optical flow parameters
-    const int nOutIter = 1;
-    const int nInIter = 1;
+    const int nOutIter = 7;
+    const int nInIter = 7;
     const int nSORIter = 30;
     const double a_s = 0.012;
     int rows = im1.rows, cols = im1.cols, channels = im1.channels();
@@ -34,7 +42,7 @@ int main(int argc, char *argv[])
 
     of.warpImage(im1, im2, u, v, warp);
     of.compute(im1, im2, warp, u, v, a_s, nOutIter, nInIter, nSORIter);
-
+    
 /*    warp.convertTo(tmp, CV_8UC(channels));
     imshow("warp image", tmp);
 

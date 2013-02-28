@@ -11,11 +11,10 @@
 */
 Mat dx(const Mat &src)
 {
-    int channels = src.channels();
     double kernel_arr[] = {1./12, -8./12, 0, 8./12, -1./12};
     Mat kernel(1, 5, CV_64F, kernel_arr), dst;
 
-    filter2D(src, dst, CV_64FC(channels), kernel);
+    filter2D(src, dst, src.type(), kernel, Point(-1, -1), 0, BORDER_REPLICATE);
     return dst;
 }
 
@@ -30,14 +29,10 @@ Mat dx(const Mat &src)
 */
 Mat dy(const Mat &src)
 {
-    int r, c, k, offset;
-    int rows = src.rows;
-    int cols = src.cols;
-    int channels = src.channels();
     double kernel_arr[5][1] = {{1./12},{-8./12},{0},{8./12},{-1./12}};
     Mat kernel(5, 1, CV_64F, kernel_arr), dst;
 
-    filter2D(src, dst, CV_64FC(channels), kernel);
+    filter2D(src, dst, src.type(), kernel, Point(-1, -1), 0, BORDER_REPLICATE);
     return dst;
 }
 
@@ -52,13 +47,10 @@ Mat dy(const Mat &src)
 */
 Mat dxx(const Mat &src)
 {
-    int rows = src.rows;
-    int cols = src.cols;
-    int channels = src.channels();
-    double kernel_arr[] = {-1./12,16./12,-30./12,16./12,-1./12};
+    double kernel_arr[] = {-1./12, 16./12, -30./12, 16./12, -1./12};
     Mat kernel(1, 5, CV_64F, kernel_arr), dst;
 
-    filter2D(src, dst, CV_64FC(channels), kernel);
+    filter2D(src, dst, src.type(), kernel, Point(-1, -1), 0, BORDER_REPLICATE);
     return dst;
 }
 
@@ -73,13 +65,10 @@ Mat dxx(const Mat &src)
 */
 Mat dyy(const Mat &src)
 {
-    int rows = src.rows;
-    int cols = src.cols;
-    int channels = src.channels();
     double kernel_arr[5][1] = {{-1./12},{16./12},{-30./12},{16./12},{-1./12}};
     Mat kernel(5, 1, CV_64F, kernel_arr), dst;
 
-    filter2D(src, dst, CV_64FC(channels), kernel);
+    filter2D(src, dst, src.type(), kernel, Point(-1, -1), 0, BORDER_REPLICATE);
     return dst;
 }
 
@@ -94,9 +83,6 @@ Mat dyy(const Mat &src)
 */
 Mat dxy(const Mat &src)
 {
-    int rows = src.rows;
-    int cols = src.cols;
-    int channels = src.channels();
     double kernel_arr[3][3] = {
         {.25, 0, -.25},
         {0,   0,    0},
@@ -104,38 +90,8 @@ Mat dxy(const Mat &src)
     };
     Mat kernel(3, 3, CV_64F, kernel_arr), dst;
 
-    filter2D(src, dst, CV_64FC(channels), kernel);
+    filter2D(src, dst, src.type(), kernel, Point(-1, -1), 0, BORDER_REPLICATE);
     return dst;
-}
-
-void collapse(Mat &src, Mat &dst)
-{
-    int rows = src.rows;
-    int cols = src.cols;
-    int channels = src.channels();
-    double *ps = (double *)src.data, *pd = (double *)dst.data;
-    int sstep = src.step / sizeof(double), dstep = dst.step / sizeof(double);
-    int r, c, k, soffset, doffset;
-    double tmp;
-    
-    if (channels == 1)
-    {
-        src.copyTo(dst);
-        return;
-    }
-        
-    for (r = 0; r < rows; r++)
-    {
-        for (c = 0; c < cols; c++)
-        {
-            soffset = r * sstep + c * channels;
-            doffset = r * dstep + c;
-            for (tmp = 0, k = 0; k < channels; k++)
-                tmp += ps[soffset];
-            
-            pd[doffset] = tmp / channels;
-        }
-    }
 }
 
 /*
@@ -192,18 +148,16 @@ void weighted_lap(const Mat &flow, const Mat &weight, Mat &lap)
 {
     assert(matchAll(flow, lap) && matchAll(flow, weight) && flow.type() == CV_64F);
     
-    int r, c, k, offset;
-    int rows = flow.rows;
-    int cols = flow.cols;
+    int rows = flow.rows, cols = flow.cols, offset;
     int step = flow.step / sizeof(double);
     double *pf = (double *)flow.data;
     double *pl = (double *)lap.data;
     double *pw = (double *)weight.data;
 
     lap.setTo(0);
-    for (r = 0; r < rows; r++)
+    for (int r = 0; r < rows; r++)
     {
-        for (c = 0; c < cols; c++)
+        for (int c = 0; c < cols; c++)
         {
             offset = r * step + c;
             if (c < cols-1)
