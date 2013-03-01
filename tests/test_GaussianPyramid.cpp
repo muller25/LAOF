@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
     buildPyramid(im, pyr3, 4, BORDER_REPLICATE);
 
     std::cout << "show pyramid\n";
-    for (int i = 0; i < pyr3.size(); i++)
+    for (size_t i = 0; i < pyr3.size(); i++)
     {
         sprintf(buf, name, i);
         std::cout << "image size " << pyr3[i].cols << ", " << pyr3[i].rows << std::endl;

@@ -13,7 +13,7 @@ TEST(TestOpticalFlow, TestPsiD)
 {
     Mat ix(3, 3, CV_64FC3), iy(3, 3, CV_64FC3), it(3, 3, CV_64FC3);
     Mat du(3, 3, CV_64F), dv(3, 3, CV_64F);
-    Mat exp(3, 3, CV_64FC3), res(3, 3, CV_64FC3);
+    Mat exp(3, 3, CV_64FC3), res;
 
     srand(time(NULL));
     double ixVal, iyVal, itVal, duVal, dvVal, tmp;
@@ -80,13 +80,13 @@ TEST(TestOpticalFlow, TestPhiD)
 TEST(TestOpticalFlow, TestWarpImage)
 {
     int rows = 5, cols = 5;
-    Mat im1(rows, cols, CV_64FC3), im2(rows, cols, CV_64FC3), warp(rows, cols, CV_64FC3);
+    Mat im1(rows, cols, CV_64FC3), im2(rows, cols, CV_64FC3), warp;
     Mat u = Mat::zeros(rows, cols, CV_64F), v = Mat::zeros(rows, cols, CV_64F);
     Mat exp(rows, cols, im1.type()), tmp(rows, cols, im1.type());
     
     RNG rng(time(NULL));
-    rng.fill(im1, RNG::UNIFORM, 0, 255.);
-    rng.fill(im2, RNG::UNIFORM, 0, 255.);
+    rng.fill(im1, RNG::UNIFORM, 0., 1.);
+    rng.fill(im2, RNG::UNIFORM, 0., 1.);
     
     of.warpImage(im1, im2, u, v, warp);
     EXPECT_TRUE(matrix_match<double>(im2, warp));
@@ -101,7 +101,7 @@ TEST(TestOpticalFlow, TestWarpImage)
         uVal = low + rand() / (RAND_MAX/range);
         vVal = low + rand() / (RAND_MAX/range);
 
-        cout << "uVal: " << uVal << ", vVal: " << vVal << endl;
+//        cout << "uVal: " << uVal << ", vVal: " << vVal << endl;
         u.setTo(uVal), v.setTo(vVal);
         if (uVal >= 0)
         {
@@ -136,5 +136,50 @@ TEST(TestOpticalFlow, TestWarpImage)
         of.warpImage(im1, im2, u, v, warp);
         
         EXPECT_TRUE(matrix_match<double>(exp, warp));
+    }
+}
+
+TEST(TestOpticalFlow, TestIm2Feature)
+{
+    int rows = 5, cols = 5, channels = 3;
+    
+    RNG rng(time(NULL));
+    Mat gx, gy, act;
+    Mat exp(rows, cols, CV_64FC(channels * 3));
+    Mat im(rows, cols, CV_64FC(channels));
+    Mat m[] = {im, gx, gy};
+    int from_to[] = {0,0, 1,1, 2,2, 3,3, 4,4, 5,5, 6,6, 7,7, 8,8};
+    
+    for (int i = 0; i < 10; i++)
+    {
+        rng.fill(im, RNG::UNIFORM, 0, 255);
+        gx = dx(im), gy = dy(im);
+
+        m[1] = gx;
+        m[2] = gy;
+        
+        mixChannels(m, 3, &exp, 1, from_to, channels*3);
+    
+        of.im2feature(im, act);
+        EXPECT_TRUE(matrix_match<double>(exp, act));
+    }
+}
+
+TEST(TestOpticalFlow, TestThreshold)
+{
+    RNG rng(time(NULL));
+    Mat im(3, 3, CV_64FC(1));
+    Mat exp(3, 3, CV_64FC(1)), act(3, 3, CV_64FC(1));
+    double minVal, maxVal;
+    
+    for (int i = 0; i < 10; i++)
+    {
+        rng.fill(im, RNG::UNIFORM, -1., 2.);
+        im.copyTo(act);
+        of.threshold<double>(act);
+
+        minMaxIdx(act, &minVal, &maxVal);
+        EXPECT_LE(maxVal, 1.);
+        EXPECT_GE(minVal, 0.);
     }
 }

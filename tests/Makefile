@@ -16,7 +16,7 @@ TARGET 			= run_all_tests flow2color pyramid
 all: $(TARGET)
 	@echo "DONE"
 
-run_all_tests: $(OBJS) $(LAOF)/Maths.o $(LAOF)/OpticalFlow.o
+run_all_tests: $(OBJS) $(LAOF)/OpticalFlow.o $(LAOF)/Maths.o $(LAOF)/GaussianPyramid.o
 	$(LINK) $(LFLAGS) -o $@ $^ -L$(LIBDIR) -lgtest -lgtest_main -lpthread $(OPENCVLIBS)
 
 flow2color: test_Flow2Color.o $(LAOF)/Maths.o $(LAOF)/Flow2Color.o

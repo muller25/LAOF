@@ -25,21 +25,21 @@ void weighted_lap(const Mat &flow, const Mat &weight, Mat &dst);
 template<class T>
 void collapse(const Mat &src, Mat &dst)
 {
-    assert(match2D(src, dst) && src.depth() == dst.depth());
-    
-    int rows = src.rows;
-    int cols = src.cols;
-    int channels = src.channels();
-    T *ps = (T *)src.data, *pd = (T *)dst.data;
-    int sstep = src.step / sizeof(T), dstep = dst.step / sizeof(T);
-    int r, c, k, soffset, doffset;
-    double tmp;
-    
+    int rows = src.rows, cols = src.cols, channels = src.channels();
+    T *ps = (T *)src.data;
+    int sstep = src.step / sizeof(T), soffset;
+
     if (channels == 1)
     {
         src.copyTo(dst);
         return;
     }
+
+    dst.create(rows, cols, src.depth());
+    dst.setTo(0);
+    T  *pd = (T *)dst.data;
+    int dstep = dst.step / sizeof(T), doffset, r, c, k;
+    double tmp;
         
     for (r = 0; r < rows; r++)
     {

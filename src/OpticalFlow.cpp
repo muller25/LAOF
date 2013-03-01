@@ -15,23 +15,23 @@
 */
 void OpticalFlow::warpImage(const Mat &im1, const Mat &im2, const Mat &u, const Mat &v, Mat &warp)
 {
-    assert(matchAll(im1, im2) && matchAll(im2, warp) && matchAll(u, v) &&
-           im1.depth() == CV_64F && u.type() == CV_64F);
+    assert(matchAll(im1, im2) && matchAll(u, v) && im1.depth() == CV_64F && u.type() == CV_64F);
     
     int rows = im1.rows, cols = im1.cols, channels = im1.channels();
-    int istep = im1.step / sizeof(double);
-    double *pim1 = (double *)im1.data, *pwarp = (double *)warp.data;
-    
-    int fstep = u.step / sizeof(double);
-    double *pu = (double *)u.data, *pv = (double *)v.data;
+    int istep = im1.step / sizeof(double), ioffset;
+    double *pim1 = (double *)im1.data;
 
-    int r, c, k, ioffset, foffset;
+    warp.create(rows, cols, im1.type());
+    warp.setTo(0);
+    double *pw = (double *)warp.data;
+    
+    int fstep = u.step / sizeof(double), foffset;
+    double *pu = (double *)u.data, *pv = (double *)v.data;
     double nx, ny;
 
-    warp.setTo(0);
-    for (r = 0; r < rows; r++)
+    for (int r = 0; r < rows; r++)
     {
-        for (c = 0; c < cols; c++)
+        for (int c = 0; c < cols; c++)
         {
             ioffset = r * istep + c * channels;
             foffset = r * fstep + c;
@@ -40,45 +40,33 @@ void OpticalFlow::warpImage(const Mat &im1, const Mat &im2, const Mat &u, const 
                 
             if (nx < 0 || nx > cols-1 || ny < 0 || ny > rows-1)
             {
-                for (k = 0; k < channels; k++)
-                    pwarp[ioffset+k] = pim1[ioffset+k];
+                for (int k = 0; k < channels; k++)
+                    pw[ioffset+k] = pim1[ioffset+k];
 
                 continue;
             }
 
-            biInterpolate(im2, nx, ny, pwarp+ioffset);
+            biInterpolate(im2, nx, ny, pw+ioffset);
         }
     }
 }
 
 // 计算im1到im2的光流，u, v为初始化值，并将结果保存在u,v。a_s是smoothness term的权重
-// u, v需要预先初始化
+// u, v, warp需要预先初始化
 void OpticalFlow::compute(const Mat &im1, const Mat &im2, Mat &warp,
                           Mat &u, Mat &v, const double a_s,
                           const int nOutIter, const int nInIter, const int nSORIter)
 {
-    int rows = im1.rows;
-    int cols = im1.cols;
-    int channels = im1.channels();
+    int rows = im1.rows,  cols = im1.cols;
 
     Mat du(rows, cols, CV_64F), dv(rows, cols, CV_64F);
-    Mat It, Ix, Iy, Ixy, Ix2, Iy2, Ixt, Iyt, uu, vv;
-     
-    Mat ixy(rows, cols, CV_64F), ix2(rows, cols, CV_64F);
-    Mat iy2(rows, cols, CV_64F), iyt(rows, cols, CV_64F);
-    Mat ixt(rows, cols, CV_64F);
-
-    Mat psi_1st(rows, cols, CV_64FC(channels));
-    Mat phi_1st(rows, cols, CV_64F);
-    Mat lapU(rows, cols, CV_64F), lapV(rows, cols, CV_64F);
-    
-    double *pphi = (double *)phi_1st.data;
     double *pdu = (double *)du.data, *pdv = (double *)dv.data;
-    double *pixy = (double *)ixy.data, *pix2 = (double *)ix2.data;
-    double *piy2 = (double *)iy2.data, *pixt = (double *)ixt.data;
-    double *piyt = (double *)iyt.data;
     int step = du.step / sizeof(double), offset, tmp;
-
+    
+    Mat It, Ix, Iy, Ixy, Ix2, Iy2, Ixt, Iyt, uu, vv, psi_1st, phi_1st, lapU, lapV;
+    Mat ixy, ix2, iy2, iyt, ixt;
+    double *pixy, *pix2, *piy2, *pixt, *piyt, *pphi;
+    
     double maxu, minu;
     
     // outer fixed point iteration for u, v
@@ -95,8 +83,6 @@ void OpticalFlow::compute(const Mat &im1, const Mat &im2, Mat &warp,
         printf("u: %.3f .. %.3f\n", minu, maxu);
         minMaxIdx(v, &minu, &maxu);
         printf("v: %.3f .. %.3f\n", minu, maxu);
-        // minMaxIdx(It, &minu, &maxu);
-        // printf("It: %.3f .. %.3f\n", minu, maxu);
 
         // inner fixed point iteration for du, dv
         du.setTo(0), dv.setTo(0);
@@ -106,33 +92,38 @@ void OpticalFlow::compute(const Mat &im1, const Mat &im2, Mat &warp,
 
             add(u, du, uu);
             add(v, dv, vv);
-            phi_d(uu, vv, phi_1st);
-            psi_d(Ix, Iy, It, du, dv, psi_1st);
 
-            // printf("inner fixed point iteration\n");
-            // sanityCheck(Ix, Iy, It, uu, vv);
+            phi_d(uu, vv, phi_1st);
+            pphi = (double *)phi_1st.data;
+            
+            psi_d(Ix, Iy, It, du, dv, psi_1st);
 
             // components for linear system
             multiply(Ix, Ix, Ix2);
             Ix2.mul(psi_1st);
             collapse<double>(Ix2, ix2);
-
+            pix2 = (double *)ix2.data;
+            
             multiply(Iy, Iy, Iy2);
             Iy2.mul(psi_1st);
             collapse<double>(Iy2, iy2);
-
+            piy2 = (double *)iy2.data;
+            
             multiply(Ix, Iy, Ixy);
             Ixy.mul(psi_1st);
             collapse<double>(Ixy, ixy);
-
+            pixy = (double *)ixy.data;
+            
             multiply(Ix, It, Ixt);
             Ixt.mul(psi_1st);
             collapse<double>(Ixt, ixt);
-
+            pixt = (double *)ixt.data;
+            
             multiply(Iy, It, Iyt);
             Iyt.mul(psi_1st);
             collapse<double>(Iyt, iyt);
-
+            piyt = (double *)iyt.data;
+            
             weighted_lap(u, phi_1st, lapU);
             addWeighted(lapU, -a_s, ixt, -1, 0, ixt);
             
@@ -143,6 +134,7 @@ void OpticalFlow::compute(const Mat &im1, const Mat &im2, Mat &warp,
             du.setTo(0), dv.setTo(0);
             const double omega = 1.8;
             double l, l_du, l_dv;
+
 
             for (int siter = 0; siter < nSORIter; siter++)
             {
@@ -217,18 +209,21 @@ void OpticalFlow::compute(const Mat &im1, const Mat &im2, Mat &warp,
 void OpticalFlow::psi_d(const Mat &Ix, const Mat &Iy, const Mat &It,
                         const Mat &du, const Mat &dv, Mat &res)
 {
-    assert(matchAll(Ix, Iy) && matchAll(Iy, It) && matchAll(It, res) &&
-           matchAll(du, dv) && Ix.depth() == CV_64F && du.depth() == CV_64F);
+    assert(matchAll(Ix, Iy) && matchAll(Iy, It) && matchAll(du, dv) &&
+           Ix.depth() == CV_64F && du.depth() == CV_64F);
     
     int rows = Ix.rows, cols = Ix.cols, channels = Ix.channels();
     int istep = Ix.step / sizeof(double), io, fo;
     double *px = (double *)Ix.data, *py = (double *)Iy.data, *pt = (double *)It.data;
-    double *p = (double *)res.data;
+
+    res.create(rows, cols, Ix.type());
+    res.setTo(0);
     
+    double *p = (double *)res.data;
+
     int fstep = du.step / sizeof(double);
     double *pu = (double *)du.data, *pv = (double *)dv.data, tmp;
 
-    res.setTo(0);
     for (int r = 0; r < rows; r++)
     {
         for (int c = 0; c < cols; c++)
@@ -238,9 +233,9 @@ void OpticalFlow::psi_d(const Mat &Ix, const Mat &Iy, const Mat &It,
             
             for (int k = 0; k < channels; k++)
             {
-                if (LapPara[k] < 1E-20)
+                if (lapPara[k] < 1E-20)
                     continue;
-                
+
                 tmp = pt[io+k] + px[io+k]*pu[fo] + py[io+k]*pv[fo];
                 p[io+k] = psi_d(tmp * tmp);
             }
@@ -251,22 +246,23 @@ void OpticalFlow::psi_d(const Mat &Ix, const Mat &Iy, const Mat &It,
 // calculate res = phi_1st(u^2 + v^2)
 void OpticalFlow::phi_d(const Mat &u, const Mat &v, Mat &res)
 {
-    assert(matchAll(u, v) && matchAll(v, res) && u.type() == CV_64F &&
-           res.type() == CV_64F);
+    assert(matchAll(u, v) && u.type() == CV_64F);
     
     int rows = u.rows, cols = u.cols;
-    int step = u.step / sizeof(double);
+    int step = u.step / sizeof(double), o;
+
+    res.create(rows, cols, u.type());
+    res.setTo(0);
     double *p = (double *)res.data;
 
     Mat ux = dx(u), uy = dy(u), vx = dx(v), vy = dy(v);
     double *pux = (double *)ux.data, *puy = (double *)uy.data;
     double *pvx = (double *)vx.data, *pvy = (double *)vy.data;
-    
-    int r, c, o;
+
     double tmp;
-    for (r = 0; r < rows; r++)
+    for (int r = 0; r < rows; r++)
     {
-        for (c = 0; c < cols; c++)
+        for (int c = 0; c < cols; c++)
         {
             o = r * step + c;
             tmp = pux[o]*pux[o] + puy[o]*puy[o] + pvx[o]*pvx[o] + pvy[o]*pvy[o];
@@ -303,11 +299,12 @@ void OpticalFlow::sanityCheck(const Mat &Ix, const Mat &Iy, const Mat &It,
            Ix.depth() == CV_64F && du.type() == CV_64F);
 
     int rows = Ix.rows, cols = Ix.cols, channels = Ix.channels();
-    int istep = Ix.step / sizeof(double);
-    int fstep = du.step / sizeof(double);
+    int istep = Ix.step / sizeof(double), io;
     double *pix = (double *)Ix.data, *piy = (double *)Iy.data, *pit = (double *)It.data;
+
+    int fstep = du.step / sizeof(double), fo;
     double *pdu = (double *)du.data, *pdv = (double *)dv.data;
-    int fo, io;
+
     double error = 0;
 
     for (int r = 0; r < rows; r++)
@@ -337,7 +334,7 @@ void OpticalFlow::estLapNoise(const Mat &im1, const Mat &im2)
     std::vector<int> total(channels, 0);
     double tmp;
     
-    LapPara.resize(channels, 0);
+    lapPara.resize(channels, 0);
 
     for (int r = 0; r < rows; r++)
     {
@@ -349,7 +346,7 @@ void OpticalFlow::estLapNoise(const Mat &im1, const Mat &im2)
                 tmp = fabs(p1[offset+k] - p2[offset+k]);
                 if (tmp >= 0 && tmp < 1000000)
                 {
-                    LapPara[k] += tmp;
+                    lapPara[k] += tmp;
                     total[k]++;
                 }
             }
@@ -362,9 +359,79 @@ void OpticalFlow::estLapNoise(const Mat &im1, const Mat &im2)
         {
             cout << "All the pixels are invalid in estimation Laplacian noise!!!" << endl;
 			cout << "Something severely wrong happened!!!" << endl;
-			LapPara[k] = 0.001;
+			lapPara[k] = 0.001;
 		}
 		else
-			LapPara[k] /= total[k];
+			lapPara[k] /= total[k];
     }
+}
+
+void OpticalFlow::Coarse2FineFlow(const Mat &im1, const Mat &im2, Mat &warp, Mat &u, Mat &v,
+                                  const double a_s, const double ratio, const int minWidth,
+                                  const int nOutIter, const int nInIter, const int nSORIter)
+{
+    printf("Constructing pyramid... ");
+    
+    GaussianPyramid pyr1, pyr2;
+
+    pyr1.ConstructPyramid(im1, ratio, minWidth);
+    pyr2.ConstructPyramid(im2, ratio, minWidth);
+    
+    printf("done!\n");
+
+    Mat tmp, fIm1, fIm2;
+    
+    // init lap noise
+    lapPara.resize(im1.channels() * 3, 0.02);
+
+    // iterate from the top level to the bottom
+    int rows, cols;
+    for (int k = pyr1.nLevels()-1; k >= 0; k--)
+    {
+        printf("Pyramid level %d\n", k);
+
+        rows = pyr1[k].rows;
+        cols = pyr1[k].cols;
+        im2feature(pyr1[k], fIm1);
+        im2feature(pyr2[k], fIm2);
+        
+        // if at the top level
+        if (k == pyr1.nLevels()-1)
+        {
+            u.create(rows, cols, CV_64F);
+            u.setTo(0);
+            v.create(rows, cols, CV_64F);
+            v.setTo(0);
+            fIm2.copyTo(warp);
+        } else {
+            resize(u, tmp, Size(cols, rows));
+            tmp.copyTo(u);
+            u.mul(1./ratio);
+            
+            resize(v, tmp, Size(cols, rows));
+            tmp.copyTo(v);
+            v.mul(1./ratio);
+
+            warpImage(fIm1, fIm2, u, v, warp);
+        }
+
+        compute(fIm1, fIm2, warp, u, v, a_s, nOutIter+k, nInIter, nSORIter+k*3);
+    }
+
+    warpImage(im1, im2, u, v, warp);
+    threshold<double>(warp);
+}
+
+void OpticalFlow::im2feature(const Mat &im, Mat &feature)
+{
+    int rows = im.rows, cols = im.cols, channels = im.channels();
+    Mat gx = dx(im), gy = dy(im);
+    
+    feature.create(rows, cols, CV_64FC(3*channels));
+    feature.setTo(0);
+
+    Mat m[] = {im, gx, gy};
+    int from_to[] = {0,0, 1,1, 2,2, 3,3, 4,4, 5,5, 6,6, 7,7, 8,8};
+    
+    mixChannels(m, 3, &feature, 1, from_to, 3*channels);
 }

@@ -14,24 +14,24 @@ int main(int argc, char *argv[])
 /*    // load color image
     const char *im1Name = "../car1.jpg";
     const char *im2Name = "../car2.jpg";
-
+    const double factor = 1./255;
+    
     Mat im1, im2;
     Mat tmp = imread(im1Name, CV_LOAD_IMAGE_COLOR);
-    tmp.convertTo(im1, CV_64FC3);
+    tmp.convertTo(im1, CV_64FC3, factor); // im2double
     
     tmp = imread(im2Name, CV_LOAD_IMAGE_COLOR);
-    tmp.convertTo(im2, CV_64FC3);
+    tmp.convertTo(im2, CV_64FC3, factor); // im2double
 */
     int nrows = 3, ncols = 3;
     Mat im1(nrows, ncols, CV_64FC3), im2(nrows, ncols, CV_64FC3);
     RNG rng(time(NULL));
-    rng.fill(im1, RNG::UNIFORM, 0., 255.);
-    rng.fill(im2, RNG::UNIFORM, 0., 255.);
+    rng.fill(im1, RNG::UNIFORM, 0., 1.);
+    rng.fill(im2, RNG::UNIFORM, 0., 1.);
     
     for (int r = 0; r < nrows-1; r++)
         im1.row(r).copyTo(im2.row(r+1));
     
-
     // init optical flow parameters
     const int nOutIter = 7;
     const int nInIter = 7;

@@ -146,15 +146,16 @@ bool matchAll(const Mat &m1, const Mat &m2)
 */
 void weighted_lap(const Mat &flow, const Mat &weight, Mat &lap)
 {
-    assert(matchAll(flow, lap) && matchAll(flow, weight) && flow.type() == CV_64F);
+    assert(matchAll(flow, weight) && flow.type() == CV_64F);
     
     int rows = flow.rows, cols = flow.cols, offset;
     int step = flow.step / sizeof(double);
-    double *pf = (double *)flow.data;
-    double *pl = (double *)lap.data;
-    double *pw = (double *)weight.data;
+    double *pf = (double *)flow.data, *pw = (double *)weight.data;
 
-    lap.setTo(0);
+    lap.create(rows, cols, flow.type());
+    lap.setTo(0);    
+    double *pl = (double *)lap.data;
+
     for (int r = 0; r < rows; r++)
     {
         for (int c = 0; c < cols; c++)
