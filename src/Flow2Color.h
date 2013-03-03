@@ -1,15 +1,13 @@
-#ifndef _FLOW2COLOR_H
-#define _FLOW2COLOR_H
+#ifndef _Flow2Color_H
+#define _Flow2Color_H
 
 #include <cstdio>
 
-#include <cv.h>
-using namespace cv;
-
+#include "Image.h"
 #include "Maths.h"
 
-void flow2color(Mat &u, Mat &v, Mat &flow, Mat &idx);
-Mat computeColor(Mat &u, Mat &v);
-Mat makeColorWheel();
+void flow2color(UCImage &flowImg, UCImage &idxImg, const DImage &u, const DImage &v);
+void computeColor(UCImage &im, const DImage &u, const DImage &v);
+DImage makeColorWheel();
 
 #endif

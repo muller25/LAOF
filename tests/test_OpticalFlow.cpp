@@ -48,7 +48,7 @@ TEST(TestOpticalFlow, TestPhiD)
                        {3., 4., 5.}};
     Mat u(3, 3, CV_64F, arr), v(3, 3, CV_64F, arr);
     Mat exp(3, 3, CV_64F), res(3, 3, CV_64F);
-    Mat ux = dx(u), uy = dy(u), vx = dx(v), vy = dy(v);
+    Mat ux = gradX(u), uy = gradY(u), vx = gradX(v), vy = gradY(v);
 
     ASSERT_TRUE(matrix_match<double>(ux, vx));
     ASSERT_TRUE(matrix_match<double>(uy, vy));
@@ -153,7 +153,7 @@ TEST(TestOpticalFlow, TestIm2Feature)
     for (int i = 0; i < 10; i++)
     {
         rng.fill(im, RNG::UNIFORM, 0, 255);
-        gx = dx(im), gy = dy(im);
+        gx = gradX(im), gy = gradY(im);
 
         m[1] = gx;
         m[2] = gy;

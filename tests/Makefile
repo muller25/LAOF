@@ -11,9 +11,9 @@ DEL				= rm -rf
 
 LAOF			= ../src
 OBJS			= test_Maths.o test_OpticalFlow.o
-TARGET 			= run_all_tests flow2color pyramid
+TARGET 			= run_all_tests flow2color pyramid improc
 
-all: $(TARGET)
+all: pyramid improc
 	@echo "DONE"
 
 run_all_tests: $(OBJS) $(LAOF)/OpticalFlow.o $(LAOF)/Maths.o $(LAOF)/GaussianPyramid.o
@@ -25,9 +25,12 @@ flow2color: test_Flow2Color.o $(LAOF)/Maths.o $(LAOF)/Flow2Color.o
 pyramid: test_GaussianPyramid.o $(LAOF)/GaussianPyramid.o
 	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS)
 
+improc: test_ImageProcess.o $(LAOF)/ImageProcess.h $(LAOF)/ImageIO.h
+	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS)
+
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -I$(INCDIR) -I$(LAOF) -c $< -o $@
 
 .PHONY: clean
 clean:
-	-$(DEL) *.o $(TARGET)
+	-$(DEL) *.o $(TARGET) *.jpg

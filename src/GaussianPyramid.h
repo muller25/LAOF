@@ -1,18 +1,14 @@
 #ifndef _GaussianPyramid_H
 #define _GaussianPyramid_H
 
-#include <cv.h>
-#include <opencv2/imgproc/imgproc.hpp>
-using namespace cv;
+#include "Image.h"
+#include "ImageProcess.h"
 
 class GaussianPyramid
 {
 public:
-    GaussianPyramid()
-    {
-        pPyr = NULL;
-    }
-
+    GaussianPyramid():pPyr(NULL){}
+    
     virtual ~GaussianPyramid()
     {
         if (pPyr != NULL)
@@ -20,22 +16,14 @@ public:
 
         pPyr = NULL;
     }
-    
-    void ConstructPyramid(const Mat &im, double ratio, int minWidth);
-    void ConstructPyramid(const Mat &im, int minWidth);
-    
-    Mat& operator[](int i)
-    {
-        return pPyr[i];
-    }
 
-    int nLevels()
-    {
-        return levels;
-    }
+    void ConstructPyramid(const DImage &im, double ratio, int minWidth);
+    
+    inline DImage& operator[](int i){return pPyr[i];}
+    inline int nLevels() const {return levels;}
     
 private:
-    Mat *pPyr;
+    DImage *pPyr;
     int levels;
 };
 

@@ -1,27 +1,23 @@
 #include "Flow2Color.h"
 
-void flow2color(Mat &u, Mat &v, Mat &flowImg, Mat &idxImg)
+void flow2color(UCImage &flowImg, UCImage &idxImg, const DImage &u, const DImage &v)
 {
-    assert(matchAll(u, v) && u.type() == CV_64F);
+    assert(u.match3D(v) && u.nChannels() == 1);
 
     const double thresh = 10e9;
     
-    int rows = u.rows, cols = u.cols;
-    double *pu = (double *)u.data, *pv = (double *)v.data;
-    int step = u.step / sizeof(double);
-    int r, c, offset;
+    int width = u.nWidth(), height = u.nHeight(), offset, ioffset;
+    double *pu = u.ptr(), *pv = v.ptr();
 
     // fix unknown flow
-    idxImg = Mat::zeros(rows, cols, CV_8U);
-    uchar *pIdx = (uchar *)idxImg.data;
-    int istep = idxImg.step / sizeof(uchar), ioffset;
+    idxImg.create(width, height);
+    uchar *pIdx = idxImg.ptr();
     
-    for (r = 0; r < rows; r++)
+    for (int h = 0; h < height; ++h)
     {
-        for (c = 0; c < cols; c++)
+        for (int w = 0; w < width; ++w)
         {
-            offset = r * step + c;
-            ioffset = r * istep + c;
+            offset = h * width + w;
             if (pu[offset] >= thresh || pu[offset] <= -thresh)
             {
                 pu[offset] = 0;
@@ -37,67 +33,64 @@ void flow2color(Mat &u, Mat &v, Mat &flowImg, Mat &idxImg)
     }
     
     // find min and max
-    Mat rad(rows, cols, CV_64F);
-    double *pr = (double *)rad.data;
-    for (r = 0; r < rows; r++)
+    DImage rad(width, height);
+    double *pr = rad.ptr();
+    for (int h = 0; h < height; ++h)
     {
-        for (c = 0; c < cols; c++)
+        for (int w = 0; w < width; ++w)
         {
-            offset = r * step + c;
+            offset = h * width + w;
             pr[offset] = sqrt(pu[offset]*pu[offset] + pv[offset]*pv[offset]);
         }
     }
+    double maxrad = rad.max();
     
-    double minu, maxu, minv, maxv, maxrad;
-    minMaxIdx(u, &minu, &maxu);
-    minMaxIdx(v, &minv, &maxv);
-    minMaxIdx(rad, NULL, &maxrad);
+    printf("max flow: %.4f flow range: ", maxrad);
+    printf("u = %.3f .. %.3f; ", rad.max(), u.min(),  u.max());
+    printf("v = %.3f .. %.3f\n", v.min(), v.max());
 
-    printf("max flow: %.4f flow range: u = %.3f .. %.3f;", maxrad, minu, maxu);
-    printf("v = %.3f .. %.3f\n", minv, maxv);
-
-    Mat nu, nv;
+    DImage nu, nv;
     if (fabs(maxrad) < ESP)
     {
-        nu = u;
-        nv = v;
+        u.copyTo(nu);
+        v.copyTo(nv);
     }
     else
     {
-        nu = u / maxrad;
-        nv = v / maxrad;
+        divide(nu, u, maxrad);
+        divide(nv, v, maxrad);
     }
     
-    flowImg = computeColor(nu, nv);
+    computeColor(flowImg, nu, nv);
 }
 
-Mat computeColor(Mat &u, Mat &v)
+void computeColor(UCImage &im, const DImage &u, const DImage &v)
 {
-    assert(matchAll(u, v) && u.type() == CV_64F);
+    assert(u.match3D(v) && u.nChannels() == 1);
 
-    const double PI = atan(1) * 4;        
+    const double PI = atan(1) * 4;
 
-    int rows = u.rows, cols = u.cols;
-    int step = u.step / sizeof(double), offset;
-    double *pu = (double *)u.data, *pv = (double *)v.data;
+    int width = u.nWidth(), height = u.nHeight();
+    double *pu = u.ptr(), *pv = v.ptr();
 
-    Mat rad(rows, cols, CV_64F);
-    double *pr = (double *)rad.data;
-    Mat k0(rows, cols, CV_32S), k1(rows, cols, CV_32S), f(rows, cols, CV_64F);
-    int *pk = (int *)k0.data, *pk1 = (int *)k1.data;
-    int kstep = k0.step / sizeof(int), koffset;
-    
-    double *pf = (double *)f.data, fk;
+    DImage rad(width, height);
+    double *pr = rad.ptr();
 
-    Mat wheel = makeColorWheel();
-    double *pw = (double *)wheel.data;
-    int wstep = wheel.step / sizeof(double), ncols = wheel.rows;
+    IImage k0(width, height), k1(width, height);
+    int *pk = k0.ptr(), *pk1 = k1.ptr();
 
-    for (int r = 0; r < rows; r++)
+    DImage f(width, height);    
+    double *pf = f.ptr(), fk;
+
+    DImage wheel = makeColorWheel();
+    double *pw = wheel.ptr();
+    int ncols = wheel.nHeight(), offset;
+
+    for (int h = 0; h < height; ++h)
     {
-        for (int c = 0; c < cols; c++)
+        for (int w = 0; w < width; ++w)
         {
-            offset = r * step + c;
+            offset = h * width + w;
 
             // rad = sqrt(u^2 + v^2)
             pr[offset] = pv[offset]*pv[offset] + pu[offset]*pu[offset];
@@ -110,37 +103,33 @@ Mat computeColor(Mat &u, Mat &v)
             fk = (fk+1) / 2 * (ncols-1) + 1;
 
             // 1, 2, ..., ncols
-            koffset = r * kstep + c;
-            pk[koffset] = (int)floor(fk);
+            pk[offset] = (int)floor(fk);
 
-            if (pk[koffset] == ncols)
-                pk1[koffset] = 1;
+            if (pk[offset] == ncols)
+                pk1[offset] = 1;
             else
-                pk1[koffset] = pk[koffset] + 1;
+                pk1[offset] = pk[offset] + 1;
 
-            pf[koffset] = fk - pk[koffset];
+            pf[offset] = fk - pk[offset];
         }
     }
 
-    Mat img(rows, cols, CV_8UC(wheel.cols));
-    int istep = img.step / sizeof(uchar), ioffset;
-    uchar *pi = img.data;
+    im.create(width, height, ncols);
+    uchar *pi = im.ptr();
     double col0, col1, col;
     bool idx;
     
-    for (int r = 0; r < rows; r++)
+    for (int h = 0; h < height; ++h)
     {
-        for (int c = 0; c < cols; c++)
+        for (int w = 0; w < width; ++w)
         {
-            offset = r * step + c;
-            koffset = r * kstep + c;
-            ioffset = r * istep + c * wheel.cols;
+            offset = h * width + w;
             idx = (pr[offset] <= 1);
         
-            for (int k = 0; k < wheel.cols; k++)
+            for (int k = 0; k < ncols; ++k)
             {
-                col0 = pw[pk[koffset] * wstep + k] / 255;
-                col1 = pw[pk1[koffset] * wstep + k] / 255;
+                col0 = pw[pk[offset] * width + k] / 255;
+                col1 = pw[pk1[offset] * width + k] / 255;
                 col = (1 - pf[offset]) * col0 + pf[offset] * col1;
 
                 // increase saturation with radius
@@ -148,15 +137,13 @@ Mat computeColor(Mat &u, Mat &v)
                 // out of range
                 else col = col * 0.75;
 
-                pi[ioffset + k] = (uchar)floor(255 * col);
+                pi[offset*ncols + k] = (uchar)floor(255 * col);
             }
         }
     }
-
-    return img;
 }
 
-Mat makeColorWheel()
+DImage makeColorWheel()
 {
     const int RY = 15;
     const int YG = 6;
@@ -164,59 +151,59 @@ Mat makeColorWheel()
     const int CB = 11;
     const int BM = 13;
     const int MR = 6;
-
-    int rows = RY + YG + GC + CB + BM + MR;
-    Mat wheel = Mat::zeros(rows, 3, CV_64F);
-    int step = wheel.step / sizeof(double);
-    double *pw = (double *)wheel.data;
+    const int width = 3;
+    int height = RY + YG + GC + CB + BM + MR;
+    
+    DImage wheel(width, height);
+    double *pw = wheel.ptr();
 
     // RY
     int start = 0;
-    for (int r = start; r < start + RY; r++)
+    for (int h = start; h < start + RY; ++h)
     {
-        pw[r * step] = 255;
-        pw[r * step + 1] = floor(255 * r / RY);
+        pw[h * width] = 255;
+        pw[h * width + 1] = floor(255 * h / RY);
     }
     start += RY;
     
     // YG
-    for (int r = start; r < start + YG; r++)
+    for (int h = start; h < start + YG; ++h)
     {
-        pw[r * step] = 255 - floor(255 * (r-start) / YG);
-        pw[r * step + 1] = 255;
+        pw[h * width] = 255 - floor(255 * (h-start) / YG);
+        pw[h * width + 1] = 255;
     }
     start += YG;
 
     // GC
-    for (int r = start; r < start + GC; r++)
+    for (int h = start; h < start + GC; ++h)
     {
-        pw[r * step + 1] = 255;
-        pw[r * step + 2] = floor(255 * (r-start) / GC);
+        pw[h * width + 1] = 255;
+        pw[h * width + 2] = floor(255 * (h-start) / GC);
     }
     start += GC;
 
     // CB
-    for (int r = start; r < start + CB; r++)
+    for (int h = start; h < start + CB; ++h)
     {
-        pw[r * step + 1] = 255 - floor(255 * (r-start) / CB);
-        pw[r * step + 2] = 255;
+        pw[h * width + 1] = 255 - floor(255 * (h-start) / CB);
+        pw[h * width + 2] = 255;
     }
     start += CB;
 
     // BM
-    for (int r = start; r < start + BM; r++)
+    for (int h = start; h < start + BM; ++h)
     {
-        pw[r * step + 2] = 255;
-        pw[r * step] = floor(255 * (r-BM) / BM);
+        pw[h * width + 2] = 255;
+        pw[h * width] = floor(255 * (h-BM) / BM);
     }
     start += BM;
     
     // MR
-    for (int r = start; r < start + MR; r++)
+    for (int h = start; h < start + MR; ++h)
     {
-        pw[r * step + 2] = 255 - floor(255 * (r-MR) / MR);
-        pw[r * step] = 255;
+        pw[h * width + 2] = 255 - floor(255 * (h-MR) / MR);
+        pw[h * width] = 255;
     }
-    
+
     return wheel;
 }
