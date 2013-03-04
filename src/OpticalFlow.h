@@ -27,20 +27,30 @@ public:
     
     void getGrads(DImage &Ix, DImage &Iy, DImage &It,
                   const DImage &im1, const DImage &im2);
-    
-    void SORSolver(DImage &u, DImage &v, DImage &warp,
-                   const DImage &im1, const DImage &im2, 
-                   double a_s, int nOutIter=7, int nInIter=1, int nSORIter=30);
 
     void estLapNoise(const DImage &im1, const DImage &im2);
 
-    // coarse to fine flow estimation
-    void c2fFlow(DImage &u, DImage &v, const DImage &im1, const DImage &im2,
-                 double a_s, double ratio, int minWidth,
-                 int nOutIter, int nInIter, int nSORIter);
-
     void im2feature(DImage &feature, const DImage &im);
 
+// coarse to fine flow estimation
+    void c2fFlow(DImage &u, DImage &v, const DImage &im1, const DImage &im2,
+                 double as=0.012, double ratio=0.75, int minWidth=20,
+                 int nOutIter=7, int nInIter=1, int nSORIter=30);
+
+    void SORSolver(DImage &u, DImage &v, DImage &warp,
+                   const DImage &im1, const DImage &im2, 
+                   double as, int nOutIter, int nInIter, int nSORIter);
+
+    void biC2FFlow(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
+                   const DImage &im1, const DImage &im2,
+                   double as=0.012, double ap=0.012, double ratio=0.75, int minWidth=20,
+                   int nBiIter=7, int nIRLSIter=1, int nSORIter=30);
+
+    void biIRLS(DImage &du, DImage &dv,
+                const DImage &Ix, const DImage &Iy, const DImage &It,
+                const DImage &u, const DImage &v, const DImage &ur, const DImage &vr,
+                double as, double ap, int nIRLSIter, int nSORIter);
+    
 private:
     std::vector<double> lapPara;
 };

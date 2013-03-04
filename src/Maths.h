@@ -309,6 +309,14 @@ void gradY(Image<T> &res, const Image<T1> &src)
 }
 
 template <class T, class T1>
+void grad1st(Image<T> &gx, Image<T> &gy, const Image<T1> &src)
+{
+    static double filter[] = {1./12, -8./12, 0, 8./12, -1./12};
+    hfiltering(gx, src, filter, 2);
+    vfiltering(gy, src, filter, 2);
+}
+
+template <class T, class T1>
 void gradXX(Image<T> &res, const Image<T1> &src)
 {
     static double filter[] = {-1./12, 16./12, -30./12, 16./12, -1./12};
