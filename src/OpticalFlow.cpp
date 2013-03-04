@@ -98,8 +98,8 @@ void OpticalFlow::SORSolver(DImage &u, DImage &v, DImage &warp,
             weighted_lap(lapV, v, phi_1st);
             for (int i = 0; i < iyt.nElements(); ++i)
             {
-                ixt[i] = -ixt[i] - a_s * lapU[i];
-                iyt[i] = -iyt[i] - a_s * lapV[i];
+                ixt[i] = -ixt[i] + a_s * lapU[i];
+                iyt[i] = -iyt[i] + a_s * lapV[i];
             }
 
             // SOR iteration
@@ -123,41 +123,41 @@ void OpticalFlow::SORSolver(DImage &u, DImage &v, DImage &warp,
                             tmp = offset - width;
                             l_du += pphi[tmp] * pdu[tmp];
                             l_dv += pphi[tmp] * pdv[tmp];
-                            l += pphi[tmp];
+                            l -= pphi[tmp];
                         }
                         if (h < height-1)
                         {
                             tmp = offset + width;
                             l_du += pphi[offset] * pdu[tmp];
                             l_dv += pphi[offset] * pdv[tmp];
-                            l += pphi[offset];
+                            l -= pphi[offset];
                         }
                         if (w > 0)
                         {
                             tmp = offset - 1;
                             l_du += pphi[tmp] * pdu[tmp];
                             l_dv += pphi[tmp] * pdv[tmp];
-                            l += pphi[tmp];
+                            l -= pphi[tmp];
                         }
                         if (w < width-1)
                         {
                             tmp = offset + 1;
                             l_du += pphi[offset] * pdu[tmp];
                             l_dv += pphi[offset] * pdv[tmp];
-                            l += pphi[offset];
+                            l -= pphi[offset];
                         }
 
                         l *= a_s;
-                        l_du *= -a_s;
-                        l_dv *= -a_s;
+                        l_du *= a_s;
+                        l_dv *= a_s;
                         
                         // du
-                        l_du = pixt[offset] - l_du - pixy[offset] * pdv[offset];
-                        pdu[offset] = (1-omega)*pdu[offset]+omega/(pix2[offset]+l+a_s*0.05)*l_du;
+                        l_du = pixt[offset] + l_du - pixy[offset] * pdv[offset];
+                        pdu[offset] = (1-omega)*pdu[offset]+omega/(pix2[offset]-l)*l_du;
                         
                         // dv
-                        l_dv = piyt[offset] - l_dv - pixy[offset] * pdu[offset];
-                        pdv[offset] = (1-omega)*pdv[offset]+omega/(piy2[offset]+l+a_s*0.05)*l_dv;
+                        l_dv = piyt[offset] + l_dv - pixy[offset] * pdu[offset];
+                        pdv[offset] = (1-omega)*pdv[offset]+omega/(piy2[offset]-l)*l_dv;
                     }
                 }
 
@@ -348,7 +348,7 @@ void OpticalFlow::im2feature(DImage &feature, const DImage &im)
     
     feature.create(width, height, nchannels);
     double *pf = feature.ptr(), *pi = im.ptr();
-    int offset;
+    int offset, foffset;
     
     if (channels == 1)
     {
@@ -362,14 +362,42 @@ void OpticalFlow::im2feature(DImage &feature, const DImage &im)
             for (int w = 0; w < width; w++)
             {
                 offset = h * width + w;
-                pf[offset*nchannels] = pi[offset];
-                pf[offset*nchannels+1] = pgx[offset];
-                pf[offset*nchannels+2] = pgy[offset];
+                foffset = offset * nchannels;
+                pf[foffset] = pi[offset];
+                pf[foffset + 1] = pgx[offset];
+                pf[foffset + 2] = pgy[offset];
             }
         }
         
         return;
     }
+
+    // if (channels == 3)
+    // {
+    //     const double gamma = 1.0;
+    //     gradX(gx, im);
+    //     gradY(gy, im);
+    //     pgx = gx.ptr(), pgy = gy.ptr();
+        
+    //     // mix channels
+    //     for (int h = 0; h < height; ++h)
+    //     {
+    //         for (int w = 0; w < width; ++w)
+    //         {
+    //             offset = h * width + w;
+    //             foffset = offset * nchannels;
+    //             offset *= channels;
+    //             for (int k = 0; k < channels; ++k)
+    //             {
+    //                 pf[foffset + k] = pi[offset + k];
+    //                 pf[foffset + k + channels] = gamma * pgx[offset + k];
+    //                 pf[foffset + k + 2*channels] = gamma * pgx[offset + k];
+    //             }
+    //         }
+    //     }
+        
+    //     return;
+    // }
 
     if (channels == 3)
     {
@@ -388,11 +416,12 @@ void OpticalFlow::im2feature(DImage &feature, const DImage &im)
             for (int w = 0; w < width; ++w)
             {
                 offset = h * width + w;
-                pf[offset*nchannels] = pg[offset];
-                pf[offset*nchannels+1] = pgx[offset];
-                pf[offset*nchannels+2] = pgy[offset];
-                pf[offset*nchannels+3] = pi[offset*3+1] - pi[offset*3];
-                pf[offset*nchannels+4] = pi[offset*3+1] - pi[offset*3+2];
+                foffset = offset * nchannels;
+                pf[foffset] = pg[offset];
+                pf[foffset + 1] = pgx[offset];
+                pf[foffset + 2] = pgy[offset];
+                pf[foffset + 3] = pi[offset*3+1] - pi[offset*3];
+                pf[foffset + 4] = pi[offset*3+1] - pi[offset*3+2];
             }
         }
         
