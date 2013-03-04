@@ -7,7 +7,7 @@
 #include "Image.h"
 
 template <class T>
-void imread(Image<T> &im, const char * filename)
+void imread(Image<T> &im, const char *filename)
 {
     cv::Mat img = cv::imread(filename);
     
@@ -20,6 +20,16 @@ void imread(Image<T> &im, const char * filename)
     }
 
     im.convertFrom(img);
+}
+
+template <class T>
+void imreadf(Image <T> &im, const char *filename)
+{
+    cv::FileStorage fs(filename, cv::FileStorage::READ);
+    cv::Mat m;
+    fs["matrix"] >> m;
+    im.convertFrom(m);
+    fs.release();
 }
 
 template <class T>
@@ -36,6 +46,50 @@ void imwrite(const char *filename, const Image<T> &im)
     else im.convertTo(img);
     
     cv::imwrite(filename, img);
+}
+
+template <class T>
+void imwritef(const char *filename, const Image<T> &im)
+{
+    cv::FileStorage fs(filename, cv::FileStorage::WRITE);
+    cv::Mat m;
+    im.convertTo(m);
+    fs << "matrix" << m;
+    fs.release();
+}
+
+template <class T>
+void imprint(const Image<T> &im)
+{
+    T *p = im.ptr();
+    int width = im.nWidth(), height = im.nHeight(), channels = im.nChannels();
+    int offset;
+    std::cout << "[";
+    for (int h = 0; h < height; ++h)
+    {
+        if (h > 0)
+            std::cout << " ";
+
+        std::cout << "[";
+        
+        for (int w = 0; w < width; ++w)
+        {
+            offset = h * width + w;
+            for (int k = 0; k < channels; ++k)
+            {
+                std::cout << p[offset+k];
+                if (k < channels-1)
+                    std::cout << ", ";
+            }
+            if (w < width-1)
+                std::cout << "; ";
+        }
+
+        std::cout << "]";
+        if (h < height-1)
+            std::cout << "\n";
+    }
+    std::cout << "]\n";
 }
 
 template <class T>

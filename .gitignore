@@ -16,8 +16,10 @@
 tests/run_all_tests
 tests/flow2color
 tests/pyramid
-tests/improc
+tests/imop
 src/run
 
 *cscope.out
 *.jpg
+*.yml
+*.xml

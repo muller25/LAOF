@@ -19,8 +19,8 @@ int main(int argc, char *argv[])
     // init optical flow parameters
     const double a_s = 0.012;
     const double ratio = 0.75;
-    const int minWidth = 5;
-    const int nOutIter = 6;
+    const int minWidth = 20;
+    const int nOutIter = 7;
     const int nInIter = 1;
     const int nSORIter = 30;
 
@@ -29,6 +29,9 @@ int main(int argc, char *argv[])
     of.c2fFlow(u, v, im1, im2, a_s, ratio, minWidth,
                nOutIter, nInIter, nSORIter);
 
+    imwritef("u.yml", u);
+    imwritef("v.yml", v);
+    
     DImage warp;
     of.warpImage(warp, im1, im2, u, v);
     imwrite("warp.jpg", warp);
@@ -41,7 +44,7 @@ int main(int argc, char *argv[])
     imwrite("idxImg.jpg", idxImg);
     
     imshow("flow image", flowImg);
-    imshow("unknown flow index image", idxImg);
+//    imshow("unknown flow index image", idxImg);
     imwait(0);
     
     return 0;
