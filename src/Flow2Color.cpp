@@ -6,7 +6,7 @@ void flow2color(UCImage &flowImg, UCImage &idxImg, const DImage &u, const DImage
 
     const double thresh = 10e9;
     
-    int width = u.nWidth(), height = u.nHeight(), offset, ioffset;
+    int width = u.nWidth(), height = u.nHeight(), offset;
     double *pu = u.ptr(), *pv = v.ptr();
 
     // fix unknown flow
@@ -21,13 +21,12 @@ void flow2color(UCImage &flowImg, UCImage &idxImg, const DImage &u, const DImage
             if (pu[offset] >= thresh || pu[offset] <= -thresh)
             {
                 pu[offset] = 0;
-                pIdx[ioffset] = 255;
+                pIdx[offset] = 255;
             }
-            
             if (pv[offset] >= thresh || pv[offset] <= -thresh)
             {
                 pv[offset] = 0;
-                pIdx[ioffset] = 255;
+                pIdx[offset] = 255;
             }
         }
     }
@@ -46,8 +45,8 @@ void flow2color(UCImage &flowImg, UCImage &idxImg, const DImage &u, const DImage
     double maxrad = rad.max();
     
     printf("max flow: %.4f flow range: ", maxrad);
-    printf("u = %.3f .. %.3f; ", rad.max(), u.min(),  u.max());
-    printf("v = %.3f .. %.3f\n", v.min(), v.max());
+    printf("u = %.4f .. %.4f; ", u.min(), u.max());
+    printf("v = %.4f .. %.4f\n", v.min(), v.max());
 
     DImage nu, nv;
     if (fabs(maxrad) < ESP)
@@ -114,11 +113,11 @@ void computeColor(UCImage &im, const DImage &u, const DImage &v)
         }
     }
 
-    im.create(width, height, ncols);
+    int channels = wheel.nWidth();
+    im.create(width, height, channels);
     uchar *pi = im.ptr();
     double col0, col1, col;
     bool idx;
-    
     for (int h = 0; h < height; ++h)
     {
         for (int w = 0; w < width; ++w)
@@ -126,10 +125,10 @@ void computeColor(UCImage &im, const DImage &u, const DImage &v)
             offset = h * width + w;
             idx = (pr[offset] <= 1);
         
-            for (int k = 0; k < ncols; ++k)
+            for (int k = 0; k < channels; ++k)
             {
-                col0 = pw[pk[offset] * width + k] / 255;
-                col1 = pw[pk1[offset] * width + k] / 255;
+                col0 = pw[pk[offset] * channels + k] / 255;
+                col1 = pw[pk1[offset] * channels + k] / 255;
                 col = (1 - pf[offset]) * col0 + pf[offset] * col1;
 
                 // increase saturation with radius
@@ -137,7 +136,7 @@ void computeColor(UCImage &im, const DImage &u, const DImage &v)
                 // out of range
                 else col = col * 0.75;
 
-                pi[offset*ncols + k] = (uchar)floor(255 * col);
+                pi[offset*channels + k] = (uchar)floor(255 * col);
             }
         }
     }

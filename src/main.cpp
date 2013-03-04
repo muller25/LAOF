@@ -40,8 +40,9 @@ int main(int argc, char *argv[])
     imwrite("flow.jpg", flowImg);
     imwrite("idxImg.jpg", idxImg);
     
-//    imshow("flow image", flowImg);
-//    imshow("unknown flow index image", idxImg);
-
+    imshow("flow image", flowImg);
+    imshow("unknown flow index image", idxImg);
+    imwait(0);
+    
     return 0;
 }

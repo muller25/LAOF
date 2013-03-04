@@ -107,9 +107,11 @@ void gaussianBlur(Image<T> &dst, const Image<T1> &src, double sigma, int fsize)
 	delete []gFilter;
 }
 
-template <class T>
-void im2double(DImage &dst, const Image<T> &src)
+template <class T, class T1>
+void im2double(Image<T> &dst, const Image<T1> &src)
 {
+    assert(dst.isFloat());
+    
     if (src.isFloat())
     {
         src.copyTo(dst);
@@ -118,7 +120,7 @@ void im2double(DImage &dst, const Image<T> &src)
 
     dst.create(src.nWidth(), src.nHeight(), src.nChannels());
     for (int i = 0; i < src.nElements(); i++)
-        dst[i] = (double) src[i] / 255;
+        dst[i] = (T) src[i] / 255;
 }
 
 #endif

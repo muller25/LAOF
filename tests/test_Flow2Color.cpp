@@ -15,7 +15,7 @@ void test_flow2color();
 int main(int argc, char *argv[])
 {
     test_makeColorWheel();
-    test_computeFlowColor();
+    test_computeColor();
     test_flow2color();
     
     return 0;
@@ -58,8 +58,8 @@ void test_makeColorWheel()
             }
         }
     }
-    imshow("color wheel", wImg);
-    waitKey(0);
+    cv::imshow("color wheel", wImg);
+    cv::waitKey(0);
     cout << "done!" << endl;
 }
 
@@ -73,7 +73,8 @@ void test_computeColor()
     u.setTo(5), v.setTo(5);
     computeColor(fImg, u, v);
     imshow("flow image", fImg);
-
+    imwait(0);
+    
     cout << "done!" << endl;
 }
 
@@ -94,6 +95,7 @@ void test_flow2color()
     flow2color(flowImg, idxImg, u, v);
     imshow("flow2color flow image2", flowImg);
     imshow("flow2color idx image2", idxImg);
+    imwait(0);
     
     cout << "done!" << endl;
 }
