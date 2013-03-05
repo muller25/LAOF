@@ -32,7 +32,6 @@ void OpticalFlow::warpImage(DImage &warp, const DImage &im1, const DImage &im2,
     }
 }
 
-
 // calculate res = psi_1st((It + Ix * du + Iy * dv)^2)
 void OpticalFlow::psi_d(DImage &res, const DImage &Ix, const DImage &Iy,
                         const DImage &It, const DImage &du, const DImage &dv)
@@ -228,14 +227,50 @@ void OpticalFlow::im2feature(DImage &feature, const DImage &im)
     im.copyTo(feature);
 }
 
+// generate mask for pixels in mask1, moves in image boundary and mask2
+void OpticalFlow::genInImageMask(DImage &mask, const DImage &mask1, const DImage &mask2,
+                                 const DImage &u, const DImage &v)
+{
+    assert(mask1.match3D(mask2) && u.match3D(v) && u.match2D(mask1));
+    int width = mask1.nWidth(), height = mask1.nHeight();
+    double nu, nv;
+    int x, y, offset;
+    
+    mask.create(width, height);
+    for (int h = 0; h < height; ++h)
+    {
+        for (int w = 0; w < width; ++w)
+        {
+            offset = h * width + w;
+
+            // mask1[offset] == 0, pixel not in mask1
+            if (fabs(mask1[offset]) < ESP) continue;
+            
+            nu = w + u[offset];
+            nv = h + v[offset];
+            // gives another chance to evaluation motion of pixels that moves out of image boundary
+            if (nu < 0 || nu > width-1 || nv < 0 || nv > height-1)
+            {
+                mask[offset] = 1;
+                continue;
+            }
+
+            // pixel in mask2
+            x = nu, y = nv;
+            if (fabs(mask2[y*width+x]) > ESP)
+                mask[offset] = mask1[offset] * mask2[y*width+x];
+        }
+    }
+}
+
 void OpticalFlow::c2fFlow(DImage &u, DImage &v, const DImage &im1, const DImage &im2,
                           double as, double ratio, int minWidth,
                           int nOutIter, int nInIter, int nSORIter)
 {
     GaussianPyramid pyr1, pyr2;
 
-    pyr1.ConstructPyramid(im1, ratio, minWidth);
-    pyr2.ConstructPyramid(im2, ratio, minWidth);
+    pyr1.build(im1, ratio, minWidth);
+    pyr2.build(im2, ratio, minWidth);
 
     DImage tmp, fIm1, fIm2, warp;
     int width, height;
@@ -402,16 +437,19 @@ void OpticalFlow::SORSolver(DImage &u, DImage &v, DImage &warp,
 
 void OpticalFlow::biC2FFlow(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
                             const DImage &im1, const DImage &im2,
+                            const DImage &mask1, const DImage &mask2,
                             double as, double ap, double ratio, int minWidth,
                             int nBiIter, int nIRLSIter, int nSORIter)
 {
-    GaussianPyramid pyr1, pyr2;
+    GaussianPyramid pyr1, pyr2, mpyr1, mpyr2;
 
-    pyr1.ConstructPyramid(im1, ratio, minWidth);
-    pyr2.ConstructPyramid(im2, ratio, minWidth);
+    pyr1.build(im1, ratio, minWidth);
+    pyr2.build(im2, ratio, minWidth);
+    mpyr1.build(mask1, ratio, minWidth);
+    mpyr2.build(mask2, ratio, minWidth);
     printf("pyramid constructed\n");
     
-    DImage fIm1, fIm2, warpI1, warpI2, Ix, Iy, It;
+    DImage fIm1, fIm2, warpI1, warpI2, Ix, Iy, It, mask;
     DImage du1, dv1, du2, dv2, tmp;
     int width, height;
     
@@ -451,14 +489,18 @@ void OpticalFlow::biC2FFlow(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
             multiply(v2, tmp, 1./ratio);
             warpImage(warpI1, fIm2, fIm1, u2, v2);
         }
-
+        
         for (int l = 0; l < nBiIter; l++)
         {
+            // forward flow
             getGrads(Ix, Iy, It, fIm1, warpI2);
-            biIRLS(du1, dv1, Ix, Iy, It, u1, v1, u2, v2, as, ap, nIRLSIter, nSORIter);
+            genInImageMask(mask, mpyr1[k], mpyr2[k], u1, v1);
+            biIRLS(du1, dv1, Ix, Iy, It, mask, u1, v1, u2, v2, as, ap, nIRLSIter, nSORIter);
 
+            // backward flow
             getGrads(Ix, Iy, It, fIm2, warpI1);
-            biIRLS(du2, dv2, Ix, Iy, It, u2, v2, u1, v1, as*pow(ratio, k), ap, nIRLSIter, nSORIter);
+            genInImageMask(mask, mpyr2[k], mpyr1[k], u2, v2);
+            biIRLS(du2, dv2, Ix, Iy, It, mask, u2, v2, u1, v1, as*pow(ratio, k), ap, nIRLSIter, nSORIter);
 
             add(u1, du1);
             add(v1, dv1);
@@ -475,14 +517,14 @@ void OpticalFlow::biC2FFlow(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
 }
 
 void OpticalFlow::biIRLS(DImage &du, DImage &dv,
-                         const DImage &Ix, const DImage &Iy, const DImage &It,
+                         const DImage &Ix, const DImage &Iy, const DImage &It, const DImage &mask,
                          const DImage &u, const DImage &v,
                          const DImage &ur, const DImage &vr,
                          double as, double ap, int nIRLSIter, int nSORIter)
 {
     int width = Ix.nWidth(), height = Ix.nHeight();
     DImage psi_1st, phi_1st, Ix2, Iy2, Ixt, Iyt, Ixy, lapU, lapV;
-    DImage ix2, iy2, ixt, iyt, ixy;
+    DImage ix2, iy2, ixt, iyt, ixy, A11, A22, A12, b1, b2;
     DImage wur, wvr, urx, ury, vrx, vry, uu, vv;
     DImage wrx2(width, height), wry2(width, height);
     DImage wrxy(width, height), wrxt(width, height), wryt(width, height);
@@ -504,7 +546,7 @@ void OpticalFlow::biIRLS(DImage &du, DImage &dv,
         
         phi_d(phi_1st, uu, vv);
         psi_d(psi_1st, Ix, Iy, It, du, dv);
-
+        
         for (int i = 0; i < u.nElements(); ++i)
         {
             utmp = u[i]+du[i]+wur[i] + urx[i]*du[i] + ury[i]*dv[i];
@@ -521,30 +563,60 @@ void OpticalFlow::biIRLS(DImage &du, DImage &dv,
         // components for linear system
         multiply(Ix2, Ix, Ix, psi_1st);
         collapse(ix2, Ix2);
-        add(ix2, wrx2);
         
         multiply(Iy2, Iy, Iy, psi_1st);
         collapse(iy2, Iy2);
-        add(iy2, wry2);
         
         multiply(Ixy, Ix, Iy, psi_1st);
         collapse(ixy, Ixy);
-        add(ixy, wrxy);
         
         multiply(Ixt, It, Ix, psi_1st);
         collapse(ixt, Ixt);
-        add(ixt, wrxt);
         
         multiply(Iyt, It, Iy, psi_1st);
         collapse(iyt, Iyt);
-        add(iyt, wryt);
+
+        // apply mask
+        multiply(phi_1st, mask);
+        
+        multiply(A11, ix2, mask);
+//        multiply(ix2, mask);
+//        gaussianBlur(A11, ix2, 1.2, 3);
+        multiply(wrx2, mask);
+        add(A11, wrx2);
+        add(A11, as*0.05); // add epsilon to avoid dividing zero
+
+        multiply(A22, iy2, mask);
+//        multiply(iy2, mask);
+//        gSmooth(A22, iy2, 1.2, 3);
+        multiply(wry2, mask);        
+        add(A22, wry2);
+        add(A22, as*0.05); // add epsilon to avoid dividing zero
+
+        multiply(A12, ixy, mask);
+//        multiply(ixy, mask);
+//        gSmooth(A12, ixy, 1.2, 3);
+        multiply(wrxy, mask);
+        add(A12, wrxy);
+
+        multiply(b1, ixt, mask);
+//        multiply(ixt, mask);
+//        gSmooth(b1, ixt, 1.2, 3);
+        multiply(wrxt, mask);
+        add(b1, wrxt);
+
+        multiply(b2, iyt, mask);
+//        multiply(iyt, mask);
+//        gSmooth(b2, iyt, 1.2, 3);
+        multiply(wryt, mask);
+        add(b2, wryt);
         
         weighted_lap(lapU, u, phi_1st);
         weighted_lap(lapV, v, phi_1st);
         for (int i = 0; i < iyt.nElements(); ++i)
         {
-            ixt[i] = -ixt[i] + as * lapU[i];
-            iyt[i] = -iyt[i] + as * lapV[i];
+            b1[i] = -b1[i] + as * lapU[i];
+            b2[i] = -b2[i] + as * lapV[i];
         }
         
         // SOR iteration
@@ -597,15 +669,14 @@ void OpticalFlow::biIRLS(DImage &du, DImage &dv,
                     l_dv *= as;
                         
                     // du
-                    l_du = ixt[offset] + l_du - ixy[offset]*dv[offset];
-                    du[offset] = (1-omega)*du[offset]+omega/(ix2[offset]-l)*l_du;
+                    l_du = b1[offset] + l_du - A12[offset]*dv[offset];
+                    du[offset] = (1-omega)*du[offset]+omega/(A11[offset]-l)*l_du;
                         
                     // dv
-                    l_dv = iyt[offset] + l_dv - ixy[offset]*du[offset];
-                    dv[offset] = (1-omega)*dv[offset]+omega/(iy2[offset]-l)*l_dv;
+                    l_dv = b2[offset] + l_dv - A12[offset]*du[offset];
+                    dv[offset] = (1-omega)*dv[offset]+omega/(A22[offset]-l)*l_dv;
                 }
             }
-
         }
 //        printf("SOR: du: %.6f .. %.6f, dv: %.6f .. %.6f\n", du.min(), du.max(), dv.min(), dv.max());
     }

@@ -15,7 +15,10 @@ int main(int argc, char *argv[])
     DImage im1, im2, u, v, ur, vr;
     imread(im1, im1Name);
     imread(im2, im2Name);
-    
+
+    int width = im1.nWidth(), height = im1.nHeight();
+    DImage mask1(width, height, 1, 1), mask2(width, height, 1, 1);
+
     // init optical flow parameters
     const double as = 0.012;
     const double ap = 0.015;
@@ -30,7 +33,8 @@ int main(int argc, char *argv[])
     // of.c2fFlow(u, v, im1, im2, as, ratio, minWidth,
     //            nOutIter, nInIter, nSORIter);
 
-    of.biC2FFlow(u, v, ur, vr, im1, im2, as, ap, ratio, minWidth,
+    of.biC2FFlow(u, v, ur, vr, im1, im2, mask1, mask2,
+                 as, ap, ratio, minWidth,
                  nOutIter, nInIter, nSORIter);
     
     imwritef("u.yml", u);

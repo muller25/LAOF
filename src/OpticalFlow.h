@@ -32,7 +32,10 @@ public:
 
     void im2feature(DImage &feature, const DImage &im);
 
-// coarse to fine flow estimation
+    void genInImageMask(DImage &mask, const DImage &mask1, const DImage &mask2,
+                        const DImage &u, const DImage &v);
+
+    // coarse to fine flow estimation
     void c2fFlow(DImage &u, DImage &v, const DImage &im1, const DImage &im2,
                  double as=0.012, double ratio=0.75, int minWidth=20,
                  int nOutIter=7, int nInIter=1, int nSORIter=30);
@@ -43,14 +46,16 @@ public:
 
     void biC2FFlow(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
                    const DImage &im1, const DImage &im2,
+                   const DImage &mask1, const DImage &mask2,
                    double as=0.012, double ap=0.012, double ratio=0.75, int minWidth=20,
                    int nBiIter=7, int nIRLSIter=1, int nSORIter=30);
 
     void biIRLS(DImage &du, DImage &dv,
-                const DImage &Ix, const DImage &Iy, const DImage &It,
-                const DImage &u, const DImage &v, const DImage &ur, const DImage &vr,
+                const DImage &Ix, const DImage &Iy, const DImage &It, const DImage &mask,
+                const DImage &u, const DImage &v,
+                const DImage &ur, const DImage &vr,
                 double as, double ap, int nIRLSIter, int nSORIter);
-    
+        
 private:
     std::vector<double> lapPara;
 };

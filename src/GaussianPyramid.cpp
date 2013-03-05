@@ -1,6 +1,6 @@
 #include "GaussianPyramid.h"
 
-void GaussianPyramid::ConstructPyramid(const DImage &im, double ratio, int minWidth)
+void GaussianPyramid::build(const DImage &im, double ratio, int minWidth)
 {
 	// the ratio cannot be arbitrary numbers
 	if(ratio > 0.98 || ratio < 0.4)
@@ -28,12 +28,12 @@ void GaussianPyramid::ConstructPyramid(const DImage &im, double ratio, int minWi
 		if(i <= n)
 		{
 			sigma = baseSigma * i;
-            gaussianBlur(tmp, im, sigma, sigma*3);
+            gSmooth(tmp, im, sigma, sigma*3);
             imresize(pPyr[i], tmp, pow(ratio, i));
 		}
 		else
 		{
-            gaussianBlur(tmp, pPyr[i-n], nSigma, nSigma*3);
+            gSmooth(tmp, pPyr[i-n], nSigma, nSigma*3);
             rate = pow(ratio, i) * (double)im.nWidth() / tmp.nWidth();
             imresize(pPyr[i], tmp, rate);
 		}
