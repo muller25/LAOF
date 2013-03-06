@@ -292,6 +292,7 @@ void filtering(Image<T> &res, const Image<T1> &src, double *hfilter, int hfsize,
     vfiltering(res, tmp, vfilter, vfsize);
 }
 
+// central difference
 template <class T, class T1>
 void gradX(Image<T> &res, const Image<T1> &src)
 {
@@ -299,11 +300,20 @@ void gradX(Image<T> &res, const Image<T1> &src)
     hfiltering(res, src, filter, 2);
 }
 
+// central difference
 template <class T, class T1>
 void gradY(Image<T> &res, const Image<T1> &src)
 {
     static double filter[] = {1./12, -8./12, 0, 8./12, -1./12};
     vfiltering(res, src, filter, 2);
+}
+
+template <class T, class T1>
+void grad1st(Image<T> &gx, Image<T> &gy, const Image<T1> &src)
+{
+    static double filter[] = {1./12, -8./12, 0, 8./12, -1./12};
+    hfiltering(gx, src, filter, 2);
+    vfiltering(gy, src, filter, 2);
 }
 
 template <class T, class T1>
@@ -334,11 +344,12 @@ void gradXY(Image<T> &res, const Image<T1> &src)
     gradY(res, tmp);
 }
 
+// forward difference for u and backward difference for phi'
 template<class T, class T1, class T2>
 void weighted_lap(Image<T> &lap, const Image<T1> &flow, const Image<T2> &weight)
 {
     assert(flow.match3D(weight) && flow.nChannels() == 1);
-
+    
     int width = flow.nWidth(), height = flow.nHeight();
     T1 *pf = flow.ptr();
     T2 *pw = weight.ptr();
@@ -346,67 +357,23 @@ void weighted_lap(Image<T> &lap, const Image<T1> &flow, const Image<T2> &weight)
     lap.create(width, height);
 
     T *pl = lap.ptr();
-
-    DImage foo(width, height);
-    double *pfoo = foo.ptr();
-
     int offset;
-    for (int h = 0; h < height; ++h)
-    {
-        for (int w = 0; w < width-1; ++w)
-        {
-            offset = h * width + w;
-            pfoo[offset] = (pf[offset+1] - pf[offset]) * pw[offset];
-        }
-    }
+    
     for (int h = 0; h < height; ++h)
     {
         for (int w = 0; w < width; ++w)
         {
             offset = h * width + w;
             if (w < width-1)
-                pl[offset] -= pfoo[offset];
+                pl[offset] += pw[offset] * (pf[offset+1]-pf[offset]);
             if (w > 0)
-                pl[offset] += pfoo[offset-1];
-        }
-    }
-
-    foo.setTo(0);
-    for (int h = 0; h < height-1; ++h)
-    {
-        for (int w = 0; w < width; ++w)
-        {
-            offset = h * width + w;
-            pfoo[offset] = (pf[offset+width] - pf[offset]) * pw[offset];
-        }
-    }
-    for (int h = 0; h < height-1; ++h)
-    {
-        for (int w = 0; w < width; ++w)
-        {
-            offset = h * width + w;
+                pl[offset] -= pw[offset-1] * (pf[offset]-pf[offset-1]);
             if (h < height-1)
-                pl[offset] -= pfoo[offset];
+                pl[offset] += pw[offset] * (pf[offset+width]-pf[offset]);
             if (h > 0)
-                pl[offset] += pfoo[offset-width];
+                pl[offset] -= pw[offset-width] * (pf[offset]-pf[offset-width]);
         }
     }
-    
-    // for (int r = 0; r < rows; r++)
-    // {
-    //     for (int c = 0; c < cols; c++)
-    //     {
-    //         offset = r * step + c;
-    //         if (c < cols-1)
-    //             pl[offset] -= pw[offset] * (pf[offset+1]-pf[offset]);
-    //         if (c > 0)
-    //             pl[offset] += pw[offset-1] * (pf[offset]-pf[offset-1]);
-    //         if (r < rows-1)
-    //             pl[offset] -= pw[offset] * (pf[offset+step]-pf[offset]);
-    //         if (r > 0)
-    //             pl[offset] += pw[offset-step] * (pf[offset]-pf[offset-step]);
-    //     }
-    // }
 }
 
 /*void weighted_lap3D(const Mat &pflow, const Mat &flow, const Mat &nflow,

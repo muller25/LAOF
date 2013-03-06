@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
     // printf("done\n");
 
     // printf("gaussian blur...");
-    // gaussianBlur(blur, im, 3, 9);
+    // gSmooth(blur, im, 3, 9);
     // imshow("gaussian blur", blur);
     // imwait(0);
     // printf("done\n");

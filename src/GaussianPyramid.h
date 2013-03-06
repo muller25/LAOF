@@ -17,7 +17,7 @@ public:
         pPyr = NULL;
     }
 
-    void ConstructPyramid(const DImage &im, double ratio, int minWidth);
+    void build(const DImage &im, double ratio, int minWidth);
     
     inline DImage& operator[](int i){return pPyr[i];}
     inline int nLevels() const {return levels;}

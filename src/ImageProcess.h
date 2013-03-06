@@ -82,8 +82,9 @@ void desuarate(Image<T> &res, const Image<T1> &im)
     }
 }
 
+// gaussian smoothing
 template <class T, class T1>
-void gaussianBlur(Image<T> &dst, const Image<T1> &src, double sigma, int fsize)
+void gSmooth(Image<T> &dst, const Image<T1> &src, double sigma, int fsize)
 {
     // constructing the 1D gaussian filter
 	double* gFilter = new double[fsize * 2 + 1];

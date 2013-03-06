@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
     std::cout << "constructing pyramid\n";
     
     GaussianPyramid pyr;
-    pyr.ConstructPyramid(im, 0.75, 100);
+    pyr.build(im, 0.75, 100);
 
     std::cout << "show pyramid\n";
 
