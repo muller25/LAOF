@@ -1,6 +1,6 @@
 CXX				= g++
-CXXFLAGS  		= -O3 -Wall
-INCDIR			= .
+CXXFLAGS  		= -O3 -Wall 
+INCDIR			= `pkg-config --cflags opencv`
 
 LINK			= g++
 LFLAGS			= 
@@ -19,16 +19,16 @@ run: $(OBJS)
 	$(LINK) $(LFAGS) -o run $(OBJS) $(OPENCVLIBS)
 
 main.o: main.cpp
-	$(CXX) $(CFLAGS) -c main.cpp -o main.o
+	$(CXX) $(CFLAGS) $(INCDIR) -c main.cpp -o main.o
 
 OpticalFlow.o: OpticalFlow.cpp OpticalFlow.h Maths.h Image.h GaussianPyramid.h ImageProcess.h
-	$(CXX) $(CFLAGS) -c $< -o $@
+	$(CXX) $(CFLAGS) $(INCDIR) -c $< -o $@
 
 Flow2Color.o: Flow2Color.cpp Flow2Color.h Image.h
-	$(CXX) $(CFLAGS) -c $< -o $@
+	$(CXX) $(CFLAGS) $(INCDIR) -c $< -o $@
 
 %.o: %.cpp %.h
-	$(CXX) $(CFLAGS) -c $< -o $@
+	$(CXX) $(CFLAGS) $(INCDIR) -c $< -o $@
 
 .PHONY: clean
 clean:
