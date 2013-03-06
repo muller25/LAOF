@@ -55,7 +55,13 @@ public:
                 const DImage &u, const DImage &v,
                 const DImage &ur, const DImage &vr,
                 double as, double ap, int nIRLSIter, int nSORIter);
-        
+
+    void adIRLS(DImage &du, DImage &dv,
+                const DImage &Ix, const DImage &Iy, const DImage &It, const DImage &mask,
+                const DImage &u, const DImage &v,
+                const DImage &ur, const DImage &vr,
+                double as, double ap, int nIRLSIter, int nSORIter);
+
 private:
     std::vector<double> lapPara;
 };

@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
     DImage im1, im2, u, v, ur, vr;
     imread(im1, im1Name);
     imread(im2, im2Name);
-
+    
     int width = im1.nWidth(), height = im1.nHeight();
     DImage mask1(width, height, 1, 1), mask2(width, height, 1, 1);
 
@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
     const double ap = 0.015;
     const double ratio = 0.75;
     const int minWidth = 20;
-    const int nOutIter = 5;//7;
+    const int nOutIter = 5;//14;
     const int nInIter = 1;
     const int nSORIter = 10;//30;
     

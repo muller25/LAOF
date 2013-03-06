@@ -180,6 +180,16 @@ void substract(Image<T> &res, const T1 val)
         res[i] -= val;
 }
 
+// res -= val * m1
+template <class T, class T1>
+void substract(Image<T> &res, const Image<T1> &m1, const double val)
+{
+    assert(res.ptr() != NULL);
+    
+    for (int i = 0; i < res.nElements(); ++i)
+        res[i] -= m1[i] * val;
+}
+
 // res = m1 * val + m2 * val + val3
 template <class T, class T1, class T2>
 void addWeighted(Image<T> &res, const Image<T1> &m1, double val1,
