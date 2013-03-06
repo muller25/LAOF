@@ -146,6 +146,7 @@ void OpticalFlow::im2feature(DImage &feature, const DImage &im)
 {
     int height = im.nHeight(), width = im.nWidth(), channels = im.nChannels();
     const int nchannels = channels + 2;
+    const double gamma = 12./9;
     DImage gx, gy;    
     
     feature.create(width, height, nchannels);
@@ -164,8 +165,8 @@ void OpticalFlow::im2feature(DImage &feature, const DImage &im)
                 offset = h * width + w;
                 foffset = offset * nchannels;
                 pf[foffset] = im[offset];
-                pf[foffset + 1] = gx[offset];
-                pf[foffset + 2] = gy[offset];
+                pf[foffset + 1] = gx[offset] * gamma;
+                pf[foffset + 2] = gy[offset] * gamma;
             }
         }
         
@@ -174,7 +175,6 @@ void OpticalFlow::im2feature(DImage &feature, const DImage &im)
 
     // if (channels == 3)
     // {
-    //     const double gamma = 1.0;
     //     gradX(gx, im);
     //     gradY(gy, im);
     //     pgx = gx.ptr(), pgy = gy.ptr();
@@ -214,8 +214,8 @@ void OpticalFlow::im2feature(DImage &feature, const DImage &im)
                 offset = h * width + w;
                 foffset = offset * nchannels;
                 pf[foffset] = gray[offset];
-                pf[foffset + 1] = gx[offset];
-                pf[foffset + 2] = gy[offset];
+                pf[foffset + 1] = gx[offset] * gamma;
+                pf[foffset + 2] = gy[offset] * gamma;
                 pf[foffset + 3] = im[offset*3+1] - im[offset*3];
                 pf[foffset + 4] = im[offset*3+1] - im[offset*3+2];
             }
@@ -248,9 +248,9 @@ void OpticalFlow::genInImageMask(DImage &mask, const DImage &mask1, const DImage
             
             nu = w + u[offset];
             nv = h + v[offset];
-            // gives another chance to evaluation motion of pixels that moves out of image boundary
             if (nu < 0 || nu > width-1 || nv < 0 || nv > height-1)
             {
+                // give another chance to pixel moves out of boundary
                 mask[offset] = 1;
                 continue;
             }
@@ -517,6 +517,7 @@ void OpticalFlow::biC2FFlow(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
 
             printf("u1: %.6f .. %.6f, v1: %.6f .. %.6f\n", u1.min(), u1.max(), v1.min(), v1.max());
             printf("u2: %.6f .. %.6f, v2: %.6f .. %.6f\n", u2.min(), u2.max(), v2.min(), v2.max());
+            printf("********\n");
         }
     }
 }
@@ -700,9 +701,8 @@ void OpticalFlow::adIRLS(DImage &du, DImage &dv,
     DImage wur, wvr, urx, ury, vrx, vry, uu, vv, ux, uy, vx, vy;
     DImage wrx2(width, height), wry2(width, height);
     DImage wrxy(width, height), wrxt(width, height), wryt(width, height);
-    DImage Dd(width, height), D(width, height), DdPsi(width, height);
-    DImage psid(width, height, channels), psi(width, height, channels);
-    DImage thetad(width, height), phid(width, height);
+    DImage psid(width, height, channels), phid(width, height);
+    DImage thetad(width, height), D(width, height);
     DImage A11, A22, A12, b1, b2;
     
     du.create(width, height);//match size and set to 0
@@ -718,50 +718,20 @@ void OpticalFlow::adIRLS(DImage &du, DImage &dv,
     {
         add(uu, u, du);// uu = u + du
         add(vv, v, dv);// vv = v + dv
-        
-        // compute psi, psi'
-        const double psi_epsilon = 1e-6;
-        for (int h = 0; h < height; ++h)
-        {
-            for (int w = 0; w < width; ++w)
-            {
-                int of = h * width + w;
-                int iof = of * channels;
-                for (int k = 0; k < channels; ++k)
-                {
-                    double tmp = It[iof+k] + Ix[iof+k]*du[of] + Iy[iof+k]*dv[of];
-                    tmp = sqrt(tmp*tmp + psi_epsilon);
-                    psi[iof+k] = tmp;
-                    psid[iof+k] = 0.5 / tmp;
-                    // psi[iof+k] = tmp*tmp;
-                    // psid[iof+k] = tmp;
-                }
-            }
-        }
 
-        // compute phi'
-        const double phi_epsilon = 1e-6;
-        grad1st(ux, uy, uu);
-        grad1st(vx, vy, vv);
-        for (int i = 0; i < u.nElements(); ++i)
-        {
-            double tmp = ux[i]*ux[i] + vx[i]*vx[i] + uy[i]*uy[i] + vy[i]*vy[i];
-            phid[i] = 0.5 / sqrt(tmp + phi_epsilon);
-            // phid[i] = tmp;
-        }
+        phi_d(phid, uu, vv);
+        psi_d(psid, Ix, Iy, It, du, dv);
 
-        // compute D', Cadaptive, ap * theta'
-        const double gamma = 0.01;
+        // compute coefficient matrix D, ap * theta', wrx2, wry2, wrxy, wrxt, wryt
+        const double kapa = 1;
+        const double one = 1;
         for (int i = 0; i < u.nElements(); ++i)
         {
             double utmp = u[i]+du[i]+wur[i] + urx[i]*du[i] + ury[i]*dv[i];
             double vtmp = v[i]+dv[i]+wvr[i] + vrx[i]*du[i] + vry[i]*dv[i];
             double sym = utmp*utmp + vtmp*vtmp;
 
-            double tmp = 1 + gamma * sym;
-            Dd[i] = -gamma / (tmp*tmp);
-            D[i] = 1 / tmp;
-            // thetad[i] = ap * (1 - D[i]);
+            D[i] = one / sqrt(one + kapa * sym);
             thetad[i] = ap * 0.5 / sqrt(sym + 0.1);
             
             wrx2[i] = (urx[i]+1)*(urx[i]+1) + (vrx[i]*vrx[i]);
@@ -772,13 +742,7 @@ void OpticalFlow::adIRLS(DImage &du, DImage &dv,
         }
                
         // components for linear system
-        collapse(DdPsi, psi);
-        multiply(DdPsi, Dd);
-        add(DdPsi, thetad);
-
-//        printf("Dd: %.6f .. %.6f\n", Dd.min(), Dd.max());
-//        printf("D:  %.6f .. %.6f\n", D.min(), D.max());
-//        printf("DdPsi: %.6f .. %.6f\n", DdPsi.min(), DdPsi.max());
+        printf("D:  %.6f .. %.6f\n", D.min(), D.max());
         
         multiply(Ix2, Ix, Ix, psid);
         collapse(ix2, Ix2);
@@ -803,11 +767,11 @@ void OpticalFlow::adIRLS(DImage &du, DImage &dv,
         weighted_lap(lapU, u, phid);
         weighted_lap(lapV, v, phid);
         
-        multiply(wrx2, DdPsi);
-        multiply(wrxy, DdPsi);
-        multiply(wry2, DdPsi);
-        multiply(wrxt, DdPsi);
-        multiply(wryt, DdPsi);
+        multiply(wrx2, thetad);
+        multiply(wrxy, thetad);
+        multiply(wry2, thetad);
+        multiply(wrxt, thetad);
+        multiply(wryt, thetad);
 
         add(A11, wrx2, ix2);
         add(A22, wry2, iy2);
@@ -887,6 +851,6 @@ void OpticalFlow::adIRLS(DImage &du, DImage &dv,
                 }
             }
         }
-//        printf("SOR: du: %.6f .. %.6f, dv: %.6f .. %.6f\n", du.min(), du.max(), dv.min(), dv.max());
+        printf("SOR: du: %.6f .. %.6f, dv: %.6f .. %.6f\n", du.min(), du.max(), dv.min(), dv.max());
     }
 }

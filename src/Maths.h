@@ -7,6 +7,8 @@
 
 #define ESP 1e-6
 
+const double PI = atan(1.0) * 4;
+
 // res = m1 * m2 * m3
 template <class T, class T1, class T2, class T3>
 void multiply(Image<T> &res, const Image<T1> &m1, const Image<T2> &m2, const Image<T3> &m3)
