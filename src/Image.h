@@ -57,6 +57,10 @@ public:
                 typeid(T) == typeid(float) ||
                 typeid(T) == typeid(long double));
     }
+
+    template <typename T1>
+    inline Image<T>& operator=(Image<T1> &m);
+
     inline T& operator[](int idx){return pData[idx];}
     inline T& operator[](int idx) const{return pData[idx];}
     inline int nWidth() const{return width;}
@@ -204,6 +208,19 @@ template <typename T1>
 bool Image<T>::match3D(const Image<T1> &im) const
 {
     return (match2D(im) && channels == im.nChannels());
+}
+
+template <class T>
+template <typename T1>
+Image<T>& Image<T>::operator=(Image<T1> &m)
+{
+    int width = m.nWidth(), height = m.nHeight(), channels = m.nChannels();
+    if (!match3D(m)) create(width, height, channels);
+
+    for (int i = 0; i < elements; ++i)
+        pData[i] = m[i];
+
+    return *this;
 }
 
 typedef Image<double> DImage;

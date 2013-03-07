@@ -62,6 +62,24 @@ public:
                 const DImage &ur, const DImage &vr,
                 double as, double ap, int nIRLSIter, int nSORIter);
 
+    void stFlow(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
+                const DImage &im1, const DImage &im2,
+                const DImage &mask1, const DImage &mask2,
+                const DImage &pu, const DImage &pv,
+                const DImage &nu, const DImage &nv,
+                const DImage &pur, const DImage &pvr,
+                const DImage &nur, const DImage &nvr,
+                double as, double ap, int nBiIter, int nIRLSIter, int nSORIter);
+    
+    void adIRLS3(DImage &du, DImage &dv,
+                 const DImage &Ix, const DImage &Iy, const DImage &It,
+                 const DImage &mask, const DImage &pphid,
+                 const DImage &pu, const DImage &pv,
+                 const DImage &u, const DImage &v,
+                 const DImage &nu, const DImage &nv,
+                 const DImage &ur, const DImage &vr,
+                 double as, double ap, int nIRLSIter, int nSORIter);
+
 private:
     std::vector<double> lapPara;
 };

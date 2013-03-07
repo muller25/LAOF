@@ -9,7 +9,10 @@
 template <class T>
 void imread(Image<T> &im, const char *filename)
 {
+    printf("reading image %s\n", filename);
+    
     cv::Mat img = cv::imread(filename);
+    assert(img.data != NULL);
     
     if (im.isFloat())
     {

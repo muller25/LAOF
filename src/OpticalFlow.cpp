@@ -855,6 +855,11 @@ void OpticalFlow::adIRLS(DImage &du, DImage &dv,
     }
 }
 
+// spatio-temporal optical flow
+// given image im[t-1], im[t], im[t+1], im[t+2], flow f
+// f[t-1]: im[t-1] -> im[t], f[t]: im[t] -> im[t+1], f[t+1]: im[t+1] -> im[t+2]
+// reverse flow rf
+// f[t-1]: im[t] -> im[t-1], f[t]: im[t+1] -> im[t], f[t+1]: im[t+2] -> im[t+1]
 void OpticalFlow::stFlow(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
                          const DImage &im1, const DImage &im2,
                          const DImage &mask1, const DImage &mask2,
@@ -864,34 +869,51 @@ void OpticalFlow::stFlow(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
                          const DImage &nur, const DImage &nvr,
                          double as, double ap, int nBiIter, int nIRLSIter, int nSORIter)
 {
-    int width = im1.nWidth(), height = im1.nHeight();
     DImage Ix, Iy, It, du1, dv1, du2, dv2, pphid, pphidr, warpI1, warpI2, mask;
+    DImage fIm1, fIm2, wpu, wpv, wnu, wnv;
 
-    phi_d(pphid, pu, pv);
-    phi_d(pphidr, pur, pvr);
-    im1.copyTo(warpI1);
-    im2.copyTo(warpI2);
+    im2feature(fIm1, im1);
+    im2feature(fIm2, im2);
+
+    fIm1.copyTo(warpI1);
+    fIm2.copyTo(warpI2);
     for (int i = 0; i < nBiIter; ++i)
     {
-            // forward flow: im1 -> im2
-            getGrads(Ix, Iy, It, im1, warpI2);
-            genInImageMask(mask, mask1, mask2, u1, v1);
-            adIRLS3(du1, dv1, Ix, Iy, It, mask, pphid, pu, pv, cu, cv, nu, nv, u2, v2,
-                    as, ap, nIRLSIter, nSORIter);
+        // forward flow: im1 -> im2
+        warpImage(wpu, pu, pu, u1, v1);
+        warpImage(wpv, pv, pv, u1, v1);
+        warpImage(wnu, nu, nu, u1, v1);
+        warpImage(wnv, nv, nv, u1, v1);
+        phi_d(pphid, wpu, wpv);
+    
+        getGrads(Ix, Iy, It, fIm1, warpI2);
+        genInImageMask(mask, mask1, mask2, u1, v1);
+        adIRLS3(du1, dv1, Ix, Iy, It, mask, pphid, wpu, wpv, u1, v1, wnu, wnv, u2, v2,
+                as, ap, nIRLSIter, nSORIter);
 
-            // backward flow: cmask -> pmask
-            getGrads(Ix, Iy, It, im2, warpI1);
-            genInImageMask(mask, mask2, mask1, u2, v2);
-            adIRLS3(du2, dv2, Ix, Iy, It, mask, pphidr, pur, pvr, u2, v2, nur, nvr, u1, v1,
-                    as, ap, nIRLSIter, nSORIter);
+        // backward flow: cmask -> pmask
+        warpImage(wpu, pur, pur, u2, v2);
+        warpImage(wpv, pvr, pvr, u2, v2);
+        warpImage(wnu, nur, nur, u2, v2);
+        warpImage(wnv, nvr, nvr, u2, v2);
+        phi_d(pphid, wpu, wpv);
+        
+        getGrads(Ix, Iy, It, fIm2, warpI1);
+        genInImageMask(mask, mask2, mask1, u2, v2);
+        adIRLS3(du2, dv2, Ix, Iy, It, mask, pphid, wpu, wpv, u2, v2, wnu, wnv, u1, v1,
+                as, ap, nIRLSIter, nSORIter);
 
-            add(u1, du1);
-            add(v1, dv1);
-            add(u2, du2);
-            add(v2, dv2);
+        add(u1, du1);
+        add(v1, dv1);
+        add(u2, du2);
+        add(v2, dv2);
 
-            warpImage(warpI2, im1, im2, u1, v1);
-            warpImage(warpI1, im2, im1, u2, v2);
+        warpImage(warpI2, fIm1, fIm2, u1, v1);
+        warpImage(warpI1, fIm2, fIm1, u2, v2);
+
+        printf("u1: %.6f .. %.6f, v1: %.6f .. %.6f\n", u1.min(), u1.max(), v1.min(), v1.max());
+        printf("u2: %.6f .. %.6f, v2: %.6f .. %.6f\n", u2.min(), u2.max(), v2.min(), v2.max());
+        printf("********\n");
     }
 }
 
@@ -900,7 +922,7 @@ void OpticalFlow::adIRLS3(DImage &du, DImage &dv,
                           const DImage &Ix, const DImage &Iy, const DImage &It,
                           const DImage &mask, const DImage &pphid,
                           const DImage &pu, const DImage &pv,
-                          const DImage &cu, const DImage &cv,
+                          const DImage &u, const DImage &v,
                           const DImage &nu, const DImage &nv,
                           const DImage &ur, const DImage &vr,
                           double as, double ap, int nIRLSIter, int nSORIter)
@@ -972,11 +994,11 @@ void OpticalFlow::adIRLS3(DImage &du, DImage &dv,
         collapse(iyt, Iyt);
         multiply(iyt, D);
 
-        weighted_lap(lapU, u, phid);
-        add(lapU, udt); // spatio-temporal
+        // spatio-temporal
+        weighted_lap3(lapU, pu, u, nu, pphid, phid);
 
-        weighted_lap(lapV, v, phid); 
-        add(lapV, vdt); // spatio-temporal
+        // spatio-temporal
+        weighted_lap3(lapV, pu, v, nu, pphid, phid); 
         
         multiply(wrx2, thetad);
         multiply(wrxy, thetad);

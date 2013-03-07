@@ -2,6 +2,7 @@
 #define _Maths_H
 
 #include <cmath>
+#include <vector>
 
 #include "Image.h"
 
@@ -394,11 +395,11 @@ template<class T, class F>
 void weighted_lap3(Image<T> &lap, const Image<F> &pf, const Image<F> &cf,
                    const Image<F> &nf, const Image<T> &pw, const Image<T> &cw)
 {
-    assert(pf.match3D(cf) && cf.match3D(nf) && nf.match3D(weight) &&
-           weight.nChannels() == 1);
+    assert(pf.match3D(cf) && cf.match3D(nf) && nf.match3D(pw) && pw.match3D(cw) &&
+           cw.nChannels() == 1);
 
     weighted_lap(lap, cf, cw);
-    for (int i = 0; i < gt.nElements(); ++i)
+    for (int i = 0; i < lap.nElements(); ++i)
         lap[i] += cw[i] * (nf[i]-cf[i]) - pw[i] * (cf[i]-pf[i]);
 }
 
@@ -446,7 +447,7 @@ bool equal(Image<T> &m1, Image<T1> &m2)
 }
 
 template <class T>
-void split(vector< Image<T> > &arr, Image<T> &m)
+void split(std::vector< Image<T> > &arr, Image<T> &m)
 {
     assert(m.ptr() != NULL);
 
@@ -468,7 +469,7 @@ void split(vector< Image<T> > &arr, Image<T> &m)
 }
 
 template <class T>
-void merge(Image<T> &m, vector< Image<T> > &arr)
+void merge(Image<T> &m, std::vector< Image<T> > &arr)
 {
     assert(!arr.empty());
     int width = arr[0].nWidth(), height = arr[0].nHeight(), channels = arr.size(), offset;
