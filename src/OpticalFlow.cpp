@@ -854,3 +854,217 @@ void OpticalFlow::adIRLS(DImage &du, DImage &dv,
         printf("SOR: du: %.6f .. %.6f, dv: %.6f .. %.6f\n", du.min(), du.max(), dv.min(), dv.max());
     }
 }
+
+void OpticalFlow::stFlow(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
+                         const DImage &im1, const DImage &im2,
+                         const DImage &mask1, const DImage &mask2,
+                         const DImage &pu, const DImage &pv,
+                         const DImage &nu, const DImage &nv,
+                         const DImage &pur, const DImage &pvr,
+                         const DImage &nur, const DImage &nvr,
+                         double as, double ap, int nBiIter, int nIRLSIter, int nSORIter)
+{
+    int width = im1.nWidth(), height = im1.nHeight();
+    DImage Ix, Iy, It, du1, dv1, du2, dv2, pphid, pphidr, warpI1, warpI2, mask;
+
+    phi_d(pphid, pu, pv);
+    phi_d(pphidr, pur, pvr);
+    im1.copyTo(warpI1);
+    im2.copyTo(warpI2);
+    for (int i = 0; i < nBiIter; ++i)
+    {
+            // forward flow: im1 -> im2
+            getGrads(Ix, Iy, It, im1, warpI2);
+            genInImageMask(mask, mask1, mask2, u1, v1);
+            adIRLS3(du1, dv1, Ix, Iy, It, mask, pphid, pu, pv, cu, cv, nu, nv, u2, v2,
+                    as, ap, nIRLSIter, nSORIter);
+
+            // backward flow: cmask -> pmask
+            getGrads(Ix, Iy, It, im2, warpI1);
+            genInImageMask(mask, mask2, mask1, u2, v2);
+            adIRLS3(du2, dv2, Ix, Iy, It, mask, pphidr, pur, pvr, u2, v2, nur, nvr, u1, v1,
+                    as, ap, nIRLSIter, nSORIter);
+
+            add(u1, du1);
+            add(v1, dv1);
+            add(u2, du2);
+            add(v2, dv2);
+
+            warpImage(warpI2, im1, im2, u1, v1);
+            warpImage(warpI1, im2, im1, u2, v2);
+    }
+}
+
+// adaptive, spatio-temporal optical flow
+void OpticalFlow::adIRLS3(DImage &du, DImage &dv,
+                          const DImage &Ix, const DImage &Iy, const DImage &It,
+                          const DImage &mask, const DImage &pphid,
+                          const DImage &pu, const DImage &pv,
+                          const DImage &cu, const DImage &cv,
+                          const DImage &nu, const DImage &nv,
+                          const DImage &ur, const DImage &vr,
+                          double as, double ap, int nIRLSIter, int nSORIter)
+{
+    int width = Ix.nWidth(), height = Ix.nHeight(), channels = Ix.nChannels();
+    DImage Ix2, Iy2, Ixt, Iyt, Ixy, lapU, lapV, ix2, iy2, ixt, iyt, ixy, psid, phid;
+    DImage wur, wvr, urx, ury, vrx, vry, uu, vv, ux, uy, vx, vy;
+    DImage wrx2(width, height), wry2(width, height);
+    DImage wrxy(width, height), wrxt(width, height), wryt(width, height);
+    DImage thetad(width, height), D(width, height);
+    DImage A11, A22, A12, b1, b2;
+    
+    du.create(width, height);//match size and set to 0
+    dv.create(width, height);
+    
+    // symetric term
+    warpImage(wur, ur, ur, u, v);
+    warpImage(wvr, vr, vr, u, v);
+    grad1st(urx, ury, wur);
+    grad1st(vrx, vry, wvr);
+    
+    for (int irls = 0; irls < nIRLSIter; ++irls)
+    {
+        add(uu, u, du);// uu = u + du
+        add(vv, v, dv);// vv = v + dv
+
+        phi_d(phid, uu, vv);
+        psi_d(psid, Ix, Iy, It, du, dv);
+
+        // compute coefficient matrix D, ap * theta', wrx2, wry2, wrxy, wrxt, wryt
+        const double kapa = 1;
+        const double one = 1;
+        for (int i = 0; i < u.nElements(); ++i)
+        {
+            double utmp = u[i]+du[i]+wur[i] + urx[i]*du[i] + ury[i]*dv[i];
+            double vtmp = v[i]+dv[i]+wvr[i] + vrx[i]*du[i] + vry[i]*dv[i];
+            double sym = utmp*utmp + vtmp*vtmp;
+
+            D[i] = one / sqrt(one + kapa * sym);
+            thetad[i] = ap * 0.5 / sqrt(sym + 0.1);
+            
+            wrx2[i] = (urx[i]+1)*(urx[i]+1) + (vrx[i]*vrx[i]);
+            wry2[i] = (vry[i]+1)*(vry[i]+1) + (ury[i]*ury[i]);
+            wrxy[i] = (urx[i]+1)*ury[i] + vrx[i]*(vry[i]+1);
+            wrxt[i] = (urx[i]+1)*(u[i]+wur[i]) + vrx[i]*(v[i]+wvr[i]);
+            wryt[i] = (vry[i]+1)*(v[i]+wvr[i]) + ury[i]*(u[i]+wur[i]);
+        }
+               
+        // components for linear system
+        printf("D:  %.6f .. %.6f\n", D.min(), D.max());
+        
+        multiply(Ix2, Ix, Ix, psid);
+        collapse(ix2, Ix2);
+        multiply(ix2, D);
+        
+        multiply(Iy2, Iy, Iy, psid);
+        collapse(iy2, Iy2);
+        multiply(iy2, D);
+        
+        multiply(Ixy, Ix, Iy, psid);
+        collapse(ixy, Ixy);
+        multiply(ixy, D);
+        
+        multiply(Ixt, It, Ix, psid);
+        collapse(ixt, Ixt);
+        multiply(ixt, D);
+        
+        multiply(Iyt, It, Iy, psid);
+        collapse(iyt, Iyt);
+        multiply(iyt, D);
+
+        weighted_lap(lapU, u, phid);
+        add(lapU, udt); // spatio-temporal
+
+        weighted_lap(lapV, v, phid); 
+        add(lapV, vdt); // spatio-temporal
+        
+        multiply(wrx2, thetad);
+        multiply(wrxy, thetad);
+        multiply(wry2, thetad);
+        multiply(wrxt, thetad);
+        multiply(wryt, thetad);
+
+        add(A11, wrx2, ix2);
+        add(A22, wry2, iy2);
+        add(A12, wrxy, ixy);
+        add(b1, wrxt, ixt);
+        substract(b1, lapU, as); // b1 -= as * lapU
+        add(b2, wryt, iyt);
+        substract(b2, lapV, as); // b2 -= as * lapV
+        
+        // apply mask
+        multiply(phid, mask);
+        multiply(A11, mask);
+        multiply(A22, mask);
+        multiply(A12, mask);
+        multiply(b1, mask);
+        multiply(b2, mask);
+        
+        add(A11, as*0.05); // add epsilon to avoid dividing zero        
+        add(A22, as*0.05); // add epsilon to avoid dividing zero
+        
+        // SOR iteration
+        du.setTo(0);
+        dv.setTo(0);
+        const double omega = 1.8;
+        double l, l_du, l_dv;
+        int offset, tmp;
+
+        for (int siter = 0; siter < nSORIter; siter++)
+        {
+            for (int h = 0; h < height; ++h)
+            {
+                for (int w = 0; w < width; ++w)
+                {
+                    offset = h * width + w;
+                    l_du = 0, l_dv = 0, l = 0;
+                        
+                    if (h > 0)
+                    {
+                        tmp = offset - width;
+                        l_du += phid[tmp] * du[tmp];
+                        l_dv += phid[tmp] * dv[tmp];
+                        l -= phid[tmp];
+                    }
+                    if (h < height-1)
+                    {
+                        tmp = offset + width;
+                        l_du += phid[offset] * du[tmp];
+                        l_dv += phid[offset] * dv[tmp];
+                        l -= phid[offset];
+                    }
+                    if (w > 0)
+                    {
+                        tmp = offset - 1;
+                        l_du += phid[tmp] * du[tmp];
+                        l_dv += phid[tmp] * dv[tmp];
+                        l -= phid[tmp];
+                    }
+                    if (w < width-1)
+                    {
+                        tmp = offset + 1;
+                        l_du += phid[offset] * du[tmp];
+                        l_dv += phid[offset] * dv[tmp];
+                        l -= phid[offset];
+                    }
+
+                    // spatio-temporal divergence
+                    l -= (phid[offset] + pphid[offset] * mask[offset]);
+                    
+                    l *= as;
+                    l_du *= as;
+                    l_dv *= as;
+                        
+                    // du
+                    l_du = -b1[offset] + l_du - A12[offset]*dv[offset];
+                    du[offset] = (1-omega)*du[offset]+omega/(A11[offset]-l)*l_du;
+                        
+                    // dv
+                    l_dv = -b2[offset] + l_dv - A12[offset]*du[offset];
+                    dv[offset] = (1-omega)*dv[offset]+omega/(A22[offset]-l)*l_dv;
+                }
+            }
+        }
+        printf("SOR: du: %.6f .. %.6f, dv: %.6f .. %.6f\n", du.min(), du.max(), dv.min(), dv.max());
+    }
+}

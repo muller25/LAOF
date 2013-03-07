@@ -388,68 +388,19 @@ void weighted_lap(Image<T> &lap, const Image<T1> &flow, const Image<T2> &weight)
     }
 }
 
-/*void weighted_lap3D(const Mat &pflow, const Mat &flow, const Mat &nflow,
-  const Mat &weight, const Mat &nweight)
-  {
-  // assert(match(pflow, flow, true) && match(flow, nflow, true) && flow.channels() == 2 &&
-  //        match(weight, nweight, true) && weight.channels() == 1 && 
-  //        flow.size() == weight.size() &&
-  //        weight.depth() == CV_64F && flow.depth() == CV_64F);
-    
-  int rows = flow.rows;
-  int cols = flow.cols;
-  int channels = flow.channels();
-  int step = 0;//flow.step / get_step(flow.depth());
-  int wstep = 0;//weight.step / get_step(weight.depth());
-  int r, c, k, offset, nr, nc, noffset, woffset;
-  double *pfptr, *fptr, *nfptr, *wptr, *nwptr, *l3ptr;
+// laplacian operator for spatial-temporal
+// pf = previous flow, f(t-1), cf = current flow, f(t), nf = next flow, f(t+1)
+template<class T, class F>
+void weighted_lap3(Image<T> &lap, const Image<F> &pf, const Image<F> &cf,
+                   const Image<F> &nf, const Image<T> &pw, const Image<T> &cw)
+{
+    assert(pf.match3D(cf) && cf.match3D(nf) && nf.match3D(weight) &&
+           weight.nChannels() == 1);
 
-  Mat lap3d = weighted_lap<double, double>(flow, weight);
-  l3ptr = (double *)lap3d.data;
-  pfptr = (double *)pflow.data;
-  fptr = (double *)flow.data;
-  nfptr = (double *)nflow.data;
-  wptr = (double *)weight.data;
-  nwptr = (double *)nweight.data;
-
-  for (r = 0; r < rows; r++)
-  {
-  for (c = 0; c < cols; c++)
-  {
-  offset = r * step + c * channels;
-  nr = r + pfptr[offset];
-  nc = c + pfptr[offset+1];
-  if (nr < 0 || nr >= rows || nc >= cols || nc < 0) continue;
-
-  woffset = r * wstep + c;
-  for (k = 0; k < channels; k++)
-  {
-  noffset = nr * step + nc * channels + k;
-  l3ptr[noffset] -= wptr[woffset] * (fptr[noffset] - pfptr[offset+k]);
-  }
-  }
-  }
-
-  for (r = 0; r < rows; r++)
-  {
-  for (c = 0; c < cols; c++)
-  {
-  offset = r * step + c * channels;
-  nr = fptr[offset] + r;
-  nc = fptr[offset+1] + c;
-  if (nr < 0 || nr >= rows || nc >= cols || nc < 0) continue;
-
-  noffset = nr * step + nc * channels;
-  woffset = nr * wstep + nc;
-  for (k = 0; k < channels; k++)
-  l3ptr[offset+k] += nwptr[woffset] * (nfptr[noffset+k] - fptr[offset+k]);
-  }
-  }
-    
-  return lap3d;
-  }
-*/
-
+    weighted_lap(lap, cf, cw);
+    for (int i = 0; i < gt.nElements(); ++i)
+        lap[i] += cw[i] * (nf[i]-cf[i]) - pw[i] * (cf[i]-pf[i]);
+}
 
 template <class T, class T1>
 void collapse(Image<T> &dst, const Image<T1> &src)
@@ -484,16 +435,54 @@ void collapse(Image<T> &dst, const Image<T1> &src)
     }
 }
 
-/*
-  [description]
-  计算二维矩阵im中位置(x,y)的双线性插值结果,并保存到res
-  [params]
-  im - 二维矩阵，可以多通道
-  x - 目标位置的横坐标
-  y - 目标位置的竖坐标
-  res - 插值结果，通道数应该和im一致
-  [return]
-  无
-*/
+template <class T, class T1>
+bool equal(Image<T> &m1, Image<T1> &m2)
+{
+    assert(m1.match3D(m2));
+    for (int i = 0; i < m1.nElements(); ++i)
+        if (fabs(m1[i] - m2[i]) > ESP) return false;
+
+    return true;
+}
+
+template <class T>
+void split(vector< Image<T> > &arr, Image<T> &m)
+{
+    assert(m.ptr() != NULL);
+
+    int width = m.nWidth(), height = m.nHeight(), channels = m.nChannels(), offset;
+    
+    arr.clear();
+    for (int k = 0; k < channels; ++k)
+        arr.push_back(Image<T>(width, height));
+    
+    for (int h = 0; h < height; ++h)
+    {
+        for (int w = 0; w < width; ++w)
+        {
+            offset = h * width + w;
+            for (int k = 0; k < channels; ++k)
+                arr[k][offset] = m[offset*channels+k];
+        }
+    }
+}
+
+template <class T>
+void merge(Image<T> &m, vector< Image<T> > &arr)
+{
+    assert(!arr.empty());
+    int width = arr[0].nWidth(), height = arr[0].nHeight(), channels = arr.size(), offset;
+
+    m.create(width, height, channels);
+    for (int h = 0; h < height; ++h)
+    {
+        for (int w = 0; h < width; ++w)
+        {
+            offset = h * width + w;
+            for (int k = 0; k < channels; ++k)
+                m[offset*channels+k] = arr[k][offset];
+        }
+    }
+}
 
 #endif
