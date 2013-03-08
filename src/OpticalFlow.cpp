@@ -515,9 +515,9 @@ void OpticalFlow::biC2FFlow(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
             warpImage(warpI2, fIm1, fIm2, u1, v1);
             warpImage(warpI1, fIm2, fIm1, u2, v2);
 
-            printf("u1: %.6f .. %.6f, v1: %.6f .. %.6f\n", u1.min(), u1.max(), v1.min(), v1.max());
-            printf("u2: %.6f .. %.6f, v2: %.6f .. %.6f\n", u2.min(), u2.max(), v2.min(), v2.max());
-            printf("********\n");
+            // printf("u1: %.6f .. %.6f, v1: %.6f .. %.6f\n", u1.min(), u1.max(), v1.min(), v1.max());
+            // printf("u2: %.6f .. %.6f, v2: %.6f .. %.6f\n", u2.min(), u2.max(), v2.min(), v2.max());
+            // printf("********\n");
         }
     }
 }
@@ -742,7 +742,7 @@ void OpticalFlow::adIRLS(DImage &du, DImage &dv,
         }
                
         // components for linear system
-        printf("D:  %.6f .. %.6f\n", D.min(), D.max());
+        // printf("D:  %.6f .. %.6f\n", D.min(), D.max());
         
         multiply(Ix2, Ix, Ix, psid);
         collapse(ix2, Ix2);
@@ -851,7 +851,7 @@ void OpticalFlow::adIRLS(DImage &du, DImage &dv,
                 }
             }
         }
-        printf("SOR: du: %.6f .. %.6f, dv: %.6f .. %.6f\n", du.min(), du.max(), dv.min(), dv.max());
+        // printf("SOR: du: %.6f .. %.6f, dv: %.6f .. %.6f\n", du.min(), du.max(), dv.min(), dv.max());
     }
 }
 

@@ -6,7 +6,9 @@
 
 #include "Image.h"
 
+#ifndef ESP
 #define ESP 1e-6
+#endif
 
 const double PI = atan(1.0) * 4;
 

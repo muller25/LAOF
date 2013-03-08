@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
 
     char buf[256];
     DImage im[3], u[3], v[3], ur[3], vr[3], mask[3], warp;
-    DImage bu, bv, bur, bur, error;
+    DImage bu, bv, bur, bvr, error;
     UCImage flowImg, idxImg;
     OpticalFlow of;
     int count;
@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
         sprintf(buf, outFile, "ru", i);
         if (imreadf(ur[i], buf)) ++count;
         sprintf(buf, outFile, "rv", i);
-        if (imreadf(ur[i], buf)) ++count;
+        if (imreadf(vr[i], buf)) ++count;
         if (count >= 4) {
             printf("flow exists, no need to run\n");
             continue;
@@ -151,19 +151,23 @@ int main(int argc, char *argv[])
     mask[1] = mask[2];
     for (int i = 3; i < 6; ++i)
     {
+        sprintf(buf, inName, i);
+        imread(im[2], buf);
+
         count = 0;
         sprintf(buf, outFile, "u", i-1);
         if (imreadf(u[2], buf)) ++count;
+
         sprintf(buf, outFile, "v", i-1);
         if (imreadf(v[2], buf)) ++count;
+
         sprintf(buf, outFile, "ru", i-1);
         if (imreadf(ur[2], buf)) ++count;
+
         sprintf(buf, outFile, "rv", i-1);
-        if (imreadf(ur[2], buf)) ++count;
+        if (imreadf(vr[2], buf)) ++count;
+
         if (count < 4) {
-            sprintf(buf, inName, i);
-            imread(im[2], buf);
-        
             of.biC2FFlow(u[2], v[2], ur[2], vr[2], im[1], im[2], mask[1], mask[2],
                          as, ap, ratio, minWidth,
                          nOutIter, nInIter, nSORIter);

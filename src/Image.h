@@ -3,6 +3,10 @@
 
 #include <cv.h>
 
+#ifndef ESP
+#define ESP 1e-6
+#endif
+
 template <class T>
 class Image
 {
