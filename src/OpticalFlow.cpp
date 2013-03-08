@@ -870,21 +870,32 @@ void OpticalFlow::stFlow(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
                          double as, double ap, int nBiIter, int nIRLSIter, int nSORIter)
 {
     DImage Ix, Iy, It, du1, dv1, du2, dv2, pphid, pphidr, warpI1, warpI2, mask;
-    DImage fIm1, fIm2, wpu, wpv, wnu, wnv;
+    DImage fIm1, fIm2, wpu, wpv, wpur, wpvr, wnu, wnv, tmpu, tmpv;
 
     im2feature(fIm1, im1);
     im2feature(fIm2, im2);
 
     fIm1.copyTo(warpI1);
     fIm2.copyTo(warpI2);
+
+    // u(p-w) = u[t-1]
+    multiply(tmpu, pu, -1);
+    multiply(tmpv, pv, -1);
+    warpImage(wpu, pu, pu, tmpu, tmpv);
+    warpImage(wpv, pv, pv, tmpu, tmpv);
+    phi_d(pphid, wpu, wpv);
+
+    // ur(p-w) = ur[t-1]
+    multiply(tmpu, pur, -1);
+    multiply(tmpv, pvr, -1);
+    warpImage(wpur, pur, pur, tmpu, tmpv);
+    warpImage(wpvr, pvr, pvr, tmpu, tmpv);
+    phi_d(pphidr, wpur, wpvr);
     for (int i = 0; i < nBiIter; ++i)
     {
         // forward flow: im1 -> im2
-        warpImage(wpu, pu, pu, u1, v1);
-        warpImage(wpv, pv, pv, u1, v1);
         warpImage(wnu, nu, nu, u1, v1);
         warpImage(wnv, nv, nv, u1, v1);
-        phi_d(pphid, wpu, wpv);
     
         getGrads(Ix, Iy, It, fIm1, warpI2);
         genInImageMask(mask, mask1, mask2, u1, v1);
@@ -892,15 +903,12 @@ void OpticalFlow::stFlow(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
                 as, ap, nIRLSIter, nSORIter);
 
         // backward flow: cmask -> pmask
-        warpImage(wpu, pur, pur, u2, v2);
-        warpImage(wpv, pvr, pvr, u2, v2);
         warpImage(wnu, nur, nur, u2, v2);
         warpImage(wnv, nvr, nvr, u2, v2);
-        phi_d(pphid, wpu, wpv);
         
         getGrads(Ix, Iy, It, fIm2, warpI1);
         genInImageMask(mask, mask2, mask1, u2, v2);
-        adIRLS3(du2, dv2, Ix, Iy, It, mask, pphid, wpu, wpv, u2, v2, wnu, wnv, u1, v1,
+        adIRLS3(du2, dv2, Ix, Iy, It, mask, pphidr, wpur, wpvr, u2, v2, wnu, wnv, u1, v1,
                 as, ap, nIRLSIter, nSORIter);
 
         add(u1, du1);
@@ -911,9 +919,9 @@ void OpticalFlow::stFlow(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
         warpImage(warpI2, fIm1, fIm2, u1, v1);
         warpImage(warpI1, fIm2, fIm1, u2, v2);
 
-        printf("u1: %.6f .. %.6f, v1: %.6f .. %.6f\n", u1.min(), u1.max(), v1.min(), v1.max());
-        printf("u2: %.6f .. %.6f, v2: %.6f .. %.6f\n", u2.min(), u2.max(), v2.min(), v2.max());
-        printf("********\n");
+        // printf("u1: %.6f .. %.6f, v1: %.6f .. %.6f\n", u1.min(), u1.max(), v1.min(), v1.max());
+        // printf("u2: %.6f .. %.6f, v2: %.6f .. %.6f\n", u2.min(), u2.max(), v2.min(), v2.max());
+        // printf("********\n");
     }
 }
 
@@ -972,7 +980,7 @@ void OpticalFlow::adIRLS3(DImage &du, DImage &dv,
         }
                
         // components for linear system
-        printf("D:  %.6f .. %.6f\n", D.min(), D.max());
+        // printf("D:  %.6f .. %.6f\n", D.min(), D.max());
         
         multiply(Ix2, Ix, Ix, psid);
         collapse(ix2, Ix2);
@@ -1087,6 +1095,6 @@ void OpticalFlow::adIRLS3(DImage &du, DImage &dv,
                 }
             }
         }
-        printf("SOR: du: %.6f .. %.6f, dv: %.6f .. %.6f\n", du.min(), du.max(), dv.min(), dv.max());
+        // printf("SOR: du: %.6f .. %.6f, dv: %.6f .. %.6f\n", du.min(), du.max(), dv.min(), dv.max());
     }
 }

@@ -486,4 +486,17 @@ void merge(Image<T> &m, std::vector< Image<T> > &arr)
     }
 }
 
+template <class T>
+double averError(Image<T> &m1, Image<T> &m2)
+{
+    assert(m1.match3D(m2));
+    
+    double error = 0;
+    for (int i = 0; i < m1.nElements(); ++i)
+        error += fabs(m1[i] - m2[i]);
+
+    error /= m1.nElements();
+    return error;
+}
+
 #endif

@@ -26,13 +26,21 @@ void imread(Image<T> &im, const char *filename)
 }
 
 template <class T>
-void imreadf(Image <T> &im, const char *filename)
+bool imreadf(Image <T> &im, const char *filename)
 {
     cv::FileStorage fs(filename, cv::FileStorage::READ);
     cv::Mat m;
+
+    if (!fs.isOpened())
+    {
+        fs.release();
+        return false;
+    }
+    
     fs["matrix"] >> m;
     im.convertFrom(m);
     fs.release();
+    return true;
 }
 
 template <class T>

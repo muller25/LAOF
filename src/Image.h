@@ -61,6 +61,7 @@ public:
     template <typename T1>
     inline Image<T>& operator=(Image<T1> &m);
 
+    inline int nonZeros() const;
     inline T& operator[](int idx){return pData[idx];}
     inline T& operator[](int idx) const{return pData[idx];}
     inline int nWidth() const{return width;}
@@ -174,6 +175,16 @@ void Image<T>::threshold(T minVal, T maxVal)
         if (pData[i] < minVal) pData[i] = minVal;
         if (pData[i] > maxVal) pData[i] = maxVal;
     }
+}
+
+template <class T>
+int Image<T>::nonZeros() const
+{
+    int count = 0;
+    for (int i = 0; i < elements; ++i)
+        if (fabs(pData[i]) < ESP) ++count;
+
+    return count;
 }
 
 template <class T>
