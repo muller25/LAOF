@@ -501,4 +501,15 @@ double averError(Image<T> &m1, Image<T> &m2)
     return error;
 }
 
+// Euclidean distance
+template <class T>
+inline double dist2(T *p1, T *p2, int size)
+{
+    double d = 0;
+    for (int i = 0; i < size; ++i)
+        d += (p1[i] - p2[i]) * (p1[i] - p2[i]);
+
+    return sqrt(d);
+}
+
 #endif

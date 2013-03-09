@@ -65,9 +65,11 @@ public:
     template <typename T1>
     inline Image<T>& operator=(Image<T1> &m);
 
+    inline bool isEmpty() const {return (elements == 0);}
     inline int nonZeros() const;
     inline T& operator[](int idx){return pData[idx];}
     inline T& operator[](int idx) const{return pData[idx];}
+    inline int nSize() const {return width*height;}
     inline int nWidth() const{return width;}
     inline int nHeight() const{return height;}
     inline int nChannels() const{return channels;}

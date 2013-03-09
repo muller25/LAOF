@@ -11,22 +11,31 @@ DEL				= rm -rf
 
 LAOF			= ../src
 OBJS			= test_Maths.o test_OpticalFlow.o
-TARGET 			= run_all_tests flow2color pyramid imop
+TARGET 			= flow2color pyramid imop kmeans #run_all_tests
 
-all: pyramid imop flow2color
+all: $(TARGET)
 	@echo "DONE"
 
-run_all_tests: $(OBJS) $(LAOF)/OpticalFlow.o $(LAOF)/Maths.o $(LAOF)/GaussianPyramid.o
+run_all_tests: $(OBJS) $(LAOF)/OpticalFlow.o $(LAOF)/GaussianPyramid.o
 	$(LINK) $(LFLAGS) -o $@ $^ -L$(LIBDIR) -lgtest -lgtest_main -lpthread $(OPENCVLIBS)
 
-flow2color: test_Flow2Color.o $(LAOF)/Maths.h $(LAOF)/Flow2Color.o
-	$(LINK) $(LFLAGS) -o $@ $^ $(OPENCVLIBS) $(INCDIR)
+flow2color: test_Flow2Color.o $(LAOF)/Flow2Color.o
+	$(LINK) $(LFLAGS) -o $@ $^ $(OPENCVLIBS)
 
 pyramid: test_GaussianPyramid.o $(LAOF)/GaussianPyramid.o
-	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS)
+	$(LINK) $(LFLAGS) -o $@ $^ $(OPENCVLIBS)
 
-imop: test_ImageOP.o $(LAOF)/ImageProcess.h $(LAOF)/ImageIO.h $(LAOF)/Image.h
-	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS) $(INCDIR)
+test_ImageOP.o: test_ImageOP.cpp $(LAOF)/ImageProcess.h $(LAOF)/ImageIO.h
+	$(CXX) $(CXXFLAGS) $(INCDIR) -I$(LAOF) -c $< -o $@
+
+imop: test_ImageOP.o 
+	$(LINK) $(LFLAGS) -o $@ $^ $(OPENCVLIBS)
+
+test_kmeans.o: test_kmeans.cpp $(LAOF)/ML.h
+	$(CXX) $(CXXFLAGS) $(INCDIR) -I$(LAOF) -c $< -o $@
+
+kmeans: test_kmeans.o 
+	$(LINK) $(LFLAGS) -o $@ $^ $(OPENCVLIBS)
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) $(INCDIR) -I$(LAOF) -c $< -o $@

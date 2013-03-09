@@ -75,32 +75,35 @@ void imprint(const Image<T> &im)
     T *p = im.ptr();
     int width = im.nWidth(), height = im.nHeight(), channels = im.nChannels();
     int offset;
-    std::cout << "[";
+    bool isFloat = im.isFloat();
+    
+    printf("[");
     for (int h = 0; h < height; ++h)
     {
         if (h > 0)
-            std::cout << " ";
+            printf(" ");
 
-        std::cout << "[";
+        printf("[");
         
         for (int w = 0; w < width; ++w)
         {
             offset = h * width + w;
             for (int k = 0; k < channels; ++k)
             {
-                std::cout << p[offset+k];
+                if (isFloat) printf("%.2f", p[offset+k]);
+                else printf("%d", p[offset+k]);
                 if (k < channels-1)
-                    std::cout << ", ";
+                    printf(", ");
             }
             if (w < width-1)
-                std::cout << "; ";
+                printf("; ");
         }
 
-        std::cout << "]";
+        printf("]");
         if (h < height-1)
-            std::cout << "\n";
+            printf("\n");
     }
-    std::cout << "]\n";
+    printf("]\n");
 }
 
 template <class T>

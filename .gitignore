@@ -17,6 +17,7 @@ tests/run_all_tests
 tests/flow2color
 tests/pyramid
 tests/imop
+tests/kmeans
 src/run
 
 *cscope.out
