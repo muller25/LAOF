@@ -6,9 +6,9 @@
 
 int main(int argc, char *argv[])
 {
-    int height = 10, width = 2, clusters = 3, offset;
+    int height = 20, width = 2, clusters = 10, offset;
     DImage samples(width, height);
-    DImage centers(width, clusters);
+    DImage centers;
     UCImage labels;
     
     srand(time(NULL));
@@ -16,26 +16,22 @@ int main(int argc, char *argv[])
     {
         offset = i * width;
         for (int w = 0; w < width; ++w)
-            samples[offset+w] = (int)rand() % 10;
-    }
-
-    for (int i = 0; i < clusters; ++i)
-    {
-        offset = i * width;
-        for (int w = 0; w < width; ++w)
-            centers[offset+w] = (int)rand() % 10;
+            samples[offset+w] = rand() % height;
     }
 
     printf("samples:\n");
     imprint(samples);
     
-    printf("centers:\n");
-    imprint(centers);
+    // printf("centers:\n");
+    // imprint(centers);
 
-    double compactness = kmeans(centers, labels, samples, clusters);
-
+    // double compactness = kmeans(centers, labels, samples, clusters);
+    clusters = kmeans2(centers, labels, samples, 2, 20);
+    
     printf("********\n");
-    printf("compactness: %.6f\n", compactness);
+    printf("final clustesr: %d\n", clusters);
+    
+    // printf("compactness: %.6f\n", compactness);
 
     printf("final centers:\n");
     imprint(centers);
