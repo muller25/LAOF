@@ -13,8 +13,8 @@ int main(int argc, char *argv[])
     char buf[256];
     DImage u, v, layers, flow, rflow, centers, im;
     UCImage flowImg;
-    int idx = 1;
-    std::vector<DImage> vec, rvec;
+    int idx = 2;
+    std::vector<DImage> vec;
 
     sprintf(buf, inIm, idx);
     imread(im, buf);
@@ -26,24 +26,26 @@ int main(int argc, char *argv[])
     vec.push_back(u);
     vec.push_back(v);
     mergec(flow, vec);
+    vec.clear();
     
     sprintf(buf, inFile, "ru", idx-1);
     imreadf(u, buf);
     sprintf(buf, inFile, "rv", idx-1);
     imreadf(v, buf);
 
-    rvec.push_back(u);
-    rvec.push_back(v);
-    mergec(rflow, rvec);
+    vec.push_back(u);
+    vec.push_back(v);
+    mergec(rflow, vec);
+    vec.clear();
     
     MotionLayers ml;
     int clusters;
-    clusters = ml.flowCluster(centers, layers, im, flow, rflow);
+    clusters = ml.cluster(centers, layers, im, flow, rflow);
 
     printf("clusters: %d\n", clusters);
     flow2color(flowImg, layers, layers);
 
-    sprintf(buf, outFlow, "layers", 0);
+    sprintf(buf, outFlow, "layers", idx);
     imwrite(buf, flowImg);
     
     return 0;

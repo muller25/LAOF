@@ -575,17 +575,6 @@ double averError(Image<T> &m1, Image<T> &m2)
     return error;
 }
 
-// Euclidean distance
-template <class T>
-inline double dist2(T *p1, T *p2, int size)
-{
-    double d = 0;
-    for (int i = 0; i < size; ++i)
-        d += (p1[i] - p2[i]) * (p1[i] - p2[i]);
-
-    return sqrt(d);
-}
-
 // normalize each channels seperately
 template <class T>
 void normalizeChannels(Image<T> &res, const Image<T> &m)
@@ -634,6 +623,65 @@ void normalize(Image<T> &res, const Image<T> &m)
     res.create(m.nWidth(), m.nHeight(), m.nChannels());
     for (int i = 0; i < m.nElements(); ++i)
         res[i] = (m[i] - minm) / (maxm - minm);
+}
+
+// Euclidean distance
+// calculate range [start, end)
+template <class T>
+inline double dist2(T *p1, T *p2, int start, int end)
+{
+    double d = 0;
+    for (int i = start; i < end; ++i)
+        d += (p1[i] - p2[i]) * (p1[i] - p2[i]);
+
+    return sqrt(d);
+}
+
+// city block distance
+template <class T>
+inline double dist1(T *p1, T *p2, int start, int end)
+{
+    double dist = 0;
+    for (int i = start; i < end; ++i)
+        dist += fabs(p1[i] - p2[i]);
+
+    return dist;
+}
+
+// Minkowski distance
+template <class T>
+inline double distp(T *p1, T *p2, double p, int start, int end)
+{
+    double dist = 0;
+
+    for (int i = start; i < end; ++i)
+        dist += pow(fabs(p1[i]-p2[i]), p);
+    
+    return pow(dist, 1./p);
+}
+
+// vector similarity from start to end, end is exclusive
+// using cos as measurement
+template <class T>
+double similarity(T *v1, T *v2, int start, int end)
+{
+    T a, b, ab;
+    a = b = ab = 0;
+    for (int i = start; i < end; ++i)
+    {
+        a += v1[i] * v1[i];
+        b += v2[i] * v2[i];
+        ab += v1[i] * v2[i];
+    }
+
+    a = sqrt(a), b = sqrt(b);
+    if (fabs(a) < ESP) // a == 0
+        return b;
+    
+    if (fabs(b) < ESP) // b == 0
+        return a;
+
+    return (double)ab / (a * b);
 }
 
 #endif

@@ -9,7 +9,7 @@
 template<class T>
 void findClusterCenters(Image<T> &centers, const Image<T> &samples, int clusters,
                         double *dist, double sum, int *target, int need2deter,
-                        double (*distance)(T*, T*, int))
+                        double (*distance)(T*, T*, int, int))
 {
     // printf("find cluster centers...");
     
@@ -38,7 +38,7 @@ void findClusterCenters(Image<T> &centers, const Image<T> &samples, int clusters
             // find minimum distance to cluster centers
             for (curSum = 0, h = 0; h < height; ++h)
             {
-                tmp = (*distance)(ps+h*width, ps+curIdx*width, width);
+                tmp = (*distance)(ps+h*width, ps+curIdx*width, 0, width);
                 curDist[h] = std::min(dist[h], tmp);
                 curSum += curDist[h];
             }
@@ -66,7 +66,7 @@ void findClusterCenters(Image<T> &centers, const Image<T> &samples, int clusters
 
 template<class T>
 void initClusterCenters(Image<T> &centers, const Image<T> &samples, int clusters,
-                        double (*distance)(T*, T*, int))
+                        double (*distance)(T*, T*, int, int))
 {
     // printf("using kmeans++ to init cluster centers...\n");
     
@@ -87,7 +87,7 @@ void initClusterCenters(Image<T> &centers, const Image<T> &samples, int clusters
     sum = 0;
     for (int h = 0; h < height; ++h)
     {
-        dist[h] = (*distance)(ps+h*width, pc, width);
+        dist[h] = (*distance)(ps+h*width, pc, 0, width);
         sum += dist[h];
     }
 
@@ -111,7 +111,7 @@ void initClusterCenters(Image<T> &centers, const Image<T> &samples, int clusters
 template <class T>
 double kmeans(Image<T> &centers, UCImage &labels, const Image<T> &samples,
               int clusters,
-              double (*distance)(T*, T*, int)=dist2)
+              double (*distance)(T*, T*, int, int)=dist2)
 {
     // printf("running kmeans...\n");
     assert(samples.nChannels() == 1 && clusters > 0 && distance != NULL);
@@ -149,7 +149,7 @@ double kmeans(Image<T> &centers, UCImage &labels, const Image<T> &samples,
             idx = -1;
             for (int c = 0; c < clusters; ++c)
             {
-                tmp = (*distance)(ps+h*width, pc+c*width, width);
+                tmp = (*distance)(ps+h*width, pc+c*width, 0, width);
                 if (tmp < dist)
                 {
                     dist = tmp;
@@ -185,7 +185,7 @@ double kmeans(Image<T> &centers, UCImage &labels, const Image<T> &samples,
                 for (int c = 0; c < clusters; ++c)
                 {
                     if (counters[c] <= 0) continue;
-                    tmp = (*distance)(ps+h*width, pc+c*width, width);
+                    tmp = (*distance)(ps+h*width, pc+c*width, 0, width);
                     distArr[h] = std::min(distArr[h], tmp);
                 }
                 sum += distArr[h];
@@ -214,7 +214,7 @@ double kmeans(Image<T> &centers, UCImage &labels, const Image<T> &samples,
         // calc compactness of clusters
         compactness = 0;
         for (int h = 0; h < height; ++h)
-            compactness += (*distance)(ps+h*width, pc+labels[h]*width, width);
+            compactness += (*distance)(ps+h*width, pc+labels[h]*width, 0, width);
 
         if (compactness < best_comp)
         {
@@ -242,7 +242,7 @@ double kmeans(Image<T> &centers, UCImage &labels, const Image<T> &samples,
 template <class T>
 int kmeans2(Image<T> &centers, UCImage &labels, const Image<T> &samples,
             int start = 2, int end = 20, double na = 2,
-            double (*distance)(T*, T*, int)=dist2)
+            double (*distance)(T*, T*, int, int)=dist2)
 {
     int width = samples.nWidth(), height = samples.nHeight();
     int bestClusters = -1;

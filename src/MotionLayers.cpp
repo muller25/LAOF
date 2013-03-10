@@ -1,60 +1,84 @@
 #include "MotionLayers.h"
 
-void MotionLayers::im2feature(DImage &features, const DImage &im)
+// extract spatial info from image
+void MotionLayers::spatialInfo(DImage &info, const DImage &im)
 {
-    int size = im.nSize(), channels = im.nChannels(), offset;
+    int width = im.nWidth(), height = im.nHeight(), offset;
+    info.create(sWidth, width*height);
 
-    features.create(channels, size);
+    for (int h = 0; h < height; ++h)
+    {
+        for (int w = 0; w < width; ++w)
+        {
+            offset = (h * width + w) * sWidth;
+            info[offset] = (double)h / (height-1);
+            info[offset+1] = (double)w / (width-1);
+        }
+    }
+}
+
+// extract intensity info from image
+void MotionLayers::imInfo(DImage &info, const DImage &im)
+{
+    int size = im.nSize();
+
+    DImage gray;
+    desuarate(gray, im);
+    
+    info.create(iWidth, size);
+    for (int i = 0; i < size; ++i)
+        info[i] = gray[i];
+}
+
+// extract motion strength from flow
+void MotionLayers::flowInfo(DImage &info, const DImage &flow)
+{
+    assert(flow.nChannels() == fWidth);
+    int size = flow.nSize(), channels = flow.nChannels(), offset;
+    DImage nf;
+    
+    normalizeChannels(nf, flow); // normalize is better
+    // flow.copyTo(nf);
+
+    info.create(channels, size);
     for (int i = 0; i < size; ++i)
     {
         offset = i * channels;
-        for (int k = 0; k < channels; ++k)
-            features[offset+k] = im[offset+k];
+        for (int k = 0; k < channels; k++)
+            info[offset+k] = nf[offset+k];
     }
 }
 
-void MotionLayers::flow2feature(DImage &features,
-                                const DImage &flow, const DImage &rflow)
+int MotionLayers::cluster(DImage &centers, DImage &layers, const DImage &im,
+                          const DImage &flow, const DImage &rflow)
 {
-    assert(flow.match3D(rflow) && flow.nChannels() == 2);
-    
-    int size = flow.nSize(), offset, foffset;
-    DImage nf, nrf;
-    
-    normalizeChannels(nf, flow);
-    normalizeChannels(nrf, rflow);
-//    flow.copyTo(nf);
-//    rflow.copyTo(nrf);
-    features.create(4, size);
-    for (int i = 0; i < size; ++i)
-    {
-        offset = i * 2;
-        foffset = i * 4;
-
-        features[foffset] = nf[offset];
-        features[foffset+1] = nf[offset+1];
-        features[foffset+2] = nrf[offset];
-        features[foffset+3] = nrf[offset+1];
-    }
-}
-
-int MotionLayers::flowCluster(DImage &centers, DImage &layers, const DImage &im,
-                              const DImage &flow, const DImage &rflow)
-{
-    assert(flow.match3D(rflow));
-    
     const int start = 2;
     const int end = 10;
-    const double na = 4;
+    const double na = 10;
     
     DImage features;
     UCImage labels;
     int clusters;
+    DImage fInfo, rfInfo;
+    std::vector<DImage> vec;
 
-    // flow2feature(features, flow, rflow);
-    im2feature(features, im);
+    // DImage sInfo;
+    // spatialInfo(sInfo, im);
+    // vec.push_back(sInfo);
+
+    // DImage iInfo;
+    // imInfo(iInfo, im);
+    // vec.push_back(iInfo);
+
+    flowInfo(fInfo, flow);
+    vec.push_back(fInfo);
+
+    flowInfo(rfInfo, rflow);
+    vec.push_back(rfInfo);
+    
+    mergew(features, vec);
     clusters = kmeans2(centers, labels, features, start, end, na,
-                       MotionLayers::mdist);
+                       MotionLayers::mydist);
 
     // count number of elements in each cluster
     int *count = new int[clusters];
