@@ -18,6 +18,8 @@ tests/flow2color
 tests/pyramid
 tests/imop
 tests/kmeans
+tests/image
+tests/layers
 src/run
 
 *cscope.out

@@ -13,7 +13,7 @@ void findClusterCenters(Image<T> &centers, const Image<T> &samples, int clusters
 {
     // printf("find cluster centers...");
     
-    const int trials = 3;
+    const int trials = 5;
     int width = samples.nWidth(), height = samples.nHeight();
     int curIdx, bestIdx, h;
     T *ps = samples.ptr(), *pc = centers.ptr();
@@ -118,7 +118,8 @@ double kmeans(Image<T> &centers, UCImage &labels, const Image<T> &samples,
     int width = samples.nWidth(), height = samples.nHeight(), idx, need2deter;
     const int maxIter = 1000;
     const double threshold = 0.001 * width;
-    double best_comp = DBL_MAX, max_shift = DBL_MAX, preshift = DBL_MAX, precomp = DBL_MAX;
+    double best_comp = DBL_MAX, precomp = DBL_MAX;
+    double max_shift = DBL_MAX, preshift = DBL_MAX;
     double compactness, shift, dist, tmp, sum;
     double *distArr = new double[height];
     int *counters = new int[clusters];
@@ -139,7 +140,7 @@ double kmeans(Image<T> &centers, UCImage &labels, const Image<T> &samples,
     {
         // calc data point to nearest cluster center
         // printf("calc data point to nearest cluster center\n");
-        nCenters.setTo(0);
+        nCenters.set(0);
         memset(counters, 0, sizeof(int) * clusters);
         for (int h = 0; h < height; ++h)
         {
@@ -239,17 +240,17 @@ double kmeans(Image<T> &centers, UCImage &labels, const Image<T> &samples,
 // adaptive kmeans, try serverl cluster number and get the best one
 template <class T>
 int kmeans2(Image<T> &centers, UCImage &labels, const Image<T> &samples,
-            int start = 2, int end = 20,
+            int start = 2, int end = 20, double na = 2,
             double (*distance)(T*, T*, int)=dist2)
 {
-    int width = samples.nWidth(), height = samples.nHeight(), clusters, bestClusters;
+    int width = samples.nWidth(), height = samples.nHeight();
+    int bestClusters = -1;
     double error, preerror = DBL_MAX;
     Image<T> bestCenters;
     UCImage bestLabels(1, height);
     const double logR = log(height);
-    const double na = 0.8;
     
-    for (clusters = start; clusters <= end; ++clusters)
+    for (int clusters = start; clusters <= end; ++clusters)
     {
         centers.release();
         error = kmeans(centers, labels, samples, clusters, distance);

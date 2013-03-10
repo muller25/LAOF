@@ -27,14 +27,14 @@ TEST(TestOpticalFlow, TestPsiD)
         duVal = low + (double)rand()/(RAND_MAX/range);
         dvVal = low + (double)rand()/(RAND_MAX/range);
         
-        ix.setTo(ixVal);
-        iy.setTo(iyVal);
-        it.setTo(itVal);
-        du.setTo(duVal);
-        dv.setTo(dvVal);
+        ix.set(ixVal);
+        iy.set(iyVal);
+        it.set(itVal);
+        du.set(duVal);
+        dv.set(dvVal);
         tmp = ixVal * duVal + iyVal * dvVal + itVal;
         tmp *= tmp;
-        exp.setTo(of.psi_d(tmp));
+        exp.set(of.psi_d(tmp));
         of.psi_d(ix, iy, it, du, dv, res);
         EXPECT_TRUE(matrix_match<double>(exp, res));
     }
@@ -102,7 +102,7 @@ TEST(TestOpticalFlow, TestWarpImage)
         vVal = low + rand() / (RAND_MAX/range);
 
 //        cout << "uVal: " << uVal << ", vVal: " << vVal << endl;
-        u.setTo(uVal), v.setTo(vVal);
+        u.set(uVal), v.set(vVal);
         if (uVal >= 0)
         {
             for (int c = 0; c < cols-1; c++)

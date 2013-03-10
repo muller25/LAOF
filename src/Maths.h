@@ -14,7 +14,7 @@ const double PI = atan(1.0) * 4;
 
 // res = m1 * m2 * m3
 template <class T, class T1, class T2, class T3>
-void multiply(Image<T> &res, const Image<T1> &m1, const Image<T2> &m2, const Image<T3> &m3)
+inline void multiply(Image<T> &res, const Image<T1> &m1, const Image<T2> &m2, const Image<T3> &m3)
 {
     assert(m1.match3D(m2) && m2.match3D(m3));
 
@@ -25,7 +25,7 @@ void multiply(Image<T> &res, const Image<T1> &m1, const Image<T2> &m2, const Ima
 
 // res = m1 * m2
 template <class T, class T1, class T2>
-void multiply(Image<T> &res, const Image<T1> &m1, const Image<T2> &m2)
+inline void multiply(Image<T> &res, const Image<T1> &m1, const Image<T2> &m2)
 {
     assert(m1.match3D(m2));
 
@@ -36,7 +36,7 @@ void multiply(Image<T> &res, const Image<T1> &m1, const Image<T2> &m2)
 
 // res = m1 * val
 template <class T, class T1, class T2>
-void multiply(Image<T> &res, const Image<T1> &m1, const T2 val)
+inline void multiply(Image<T> &res, const Image<T1> &m1, const T2 val)
 {
     res.create(m1.nWidth(), m1.nHeight(), m1.nChannels());
     for (int i = 0; i < m1.nElements(); ++i)
@@ -45,7 +45,7 @@ void multiply(Image<T> &res, const Image<T1> &m1, const T2 val)
 
 // res *= m1
 template <class T, class T1>
-void multiply(Image<T> &res, const Image<T1> &m1)
+inline void multiply(Image<T> &res, const Image<T1> &m1)
 {
     assert(res.match3D(m1));
     
@@ -55,7 +55,7 @@ void multiply(Image<T> &res, const Image<T1> &m1)
 
 // res *= val
 template <class T, class T1>
-void multiply(Image<T> &res, const T1 val)
+inline void multiply(Image<T> &res, const T1 val)
 {
     assert(res.ptr() != NULL);
 
@@ -65,7 +65,7 @@ void multiply(Image<T> &res, const T1 val)
 
 // res = m1 / m2
 template <class T, class T1, class T2>
-void divide(Image<T> &res, const Image<T1> &m1, const Image<T2> &m2)
+inline void divide(Image<T> &res, const Image<T1> &m1, const Image<T2> &m2)
 {
     assert(m1.match3D(m2));
 
@@ -76,7 +76,7 @@ void divide(Image<T> &res, const Image<T1> &m1, const Image<T2> &m2)
 
 // res = m1 / val
 template <class T, class T1, class T2>
-void divide(Image<T> &res, const Image<T1> &m1, const T2 val)
+inline void divide(Image<T> &res, const Image<T1> &m1, const T2 val)
 {
     assert(val != 0);
 
@@ -87,7 +87,7 @@ void divide(Image<T> &res, const Image<T1> &m1, const T2 val)
 
 // res /= m1
 template <class T, class T1>
-void divide(Image<T> &res, const Image<T1> &m1)
+inline void divide(Image<T> &res, const Image<T1> &m1)
 {
     assert(res.match3D(m1));
 
@@ -97,7 +97,7 @@ void divide(Image<T> &res, const Image<T1> &m1)
 
 // res /= val
 template <class T, class T1>
-void divide(Image<T> &res, const T1 val)
+inline void divide(Image<T> &res, const T1 val)
 {
     assert(val != 0 && res.ptr() != NULL);
 
@@ -107,7 +107,7 @@ void divide(Image<T> &res, const T1 val)
 
 // res = m1 + m2
 template <class T, class T1, class T2>
-void add(Image<T> &res, const Image<T1> &m1, const Image<T2> &m2)
+inline void add(Image<T> &res, const Image<T1> &m1, const Image<T2> &m2)
 {
     assert(m1.match3D(m2));
 
@@ -118,7 +118,7 @@ void add(Image<T> &res, const Image<T1> &m1, const Image<T2> &m2)
 
 // res = m1 + val
 template <class T, class T1, class T2>
-void add(Image<T> &res, const Image<T1> &m1, const T2 val)
+inline void add(Image<T> &res, const Image<T1> &m1, const T2 val)
 {
     res.create(m1.nWidth(), m1.nHeight(), m1.nChannels());
     for (int i = 0; i < m1.nElements(); ++i)
@@ -127,7 +127,7 @@ void add(Image<T> &res, const Image<T1> &m1, const T2 val)
 
 // res += m1
 template <class T, class T1>
-void add(Image<T> &res, const Image<T1> &m1)
+inline void add(Image<T> &res, const Image<T1> &m1)
 {
     assert(res.match3D(m1));
 
@@ -137,7 +137,7 @@ void add(Image<T> &res, const Image<T1> &m1)
 
 // res += val
 template <class T, class T1>
-void add(Image<T> &res, const T1 val)
+inline void add(Image<T> &res, const T1 val)
 {
     assert(res.ptr() != NULL);
     
@@ -147,7 +147,7 @@ void add(Image<T> &res, const T1 val)
 
 // res = m1 - m2
 template <class T, class T1, class T2>
-void substract(Image<T> &res, const Image<T1> &m1, const Image<T2> &m2)
+inline void substract(Image<T> &res, const Image<T1> &m1, const Image<T2> &m2)
 {
     assert(m1.match3D(m2));
 
@@ -158,7 +158,7 @@ void substract(Image<T> &res, const Image<T1> &m1, const Image<T2> &m2)
 
 // res = m1 - val
 template <class T, class T1, class T2>
-void substract(Image<T> &res, const Image<T1> &m1, const T2 val)
+inline void substract(Image<T> &res, const Image<T1> &m1, const T2 val)
 {
     res.create(m1.nWidth(), m1.nHeight(), m1.nChannels());
     for (int i = 0; i < m1.nElements(); ++i)
@@ -167,7 +167,7 @@ void substract(Image<T> &res, const Image<T1> &m1, const T2 val)
 
 // res -= m1
 template <class T, class T1>
-void substract(Image<T> &res, const Image<T1> &m1)
+inline void substract(Image<T> &res, const Image<T1> &m1)
 {
     assert(res.match3D(m1));
 
@@ -177,7 +177,7 @@ void substract(Image<T> &res, const Image<T1> &m1)
 
 // res -= val
 template <class T, class T1>
-void substract(Image<T> &res, const T1 val)
+inline void substract(Image<T> &res, const T1 val)
 {
     assert(res.ptr() != NULL);
     
@@ -187,7 +187,7 @@ void substract(Image<T> &res, const T1 val)
 
 // res -= val * m1
 template <class T, class T1>
-void substract(Image<T> &res, const Image<T1> &m1, const double val)
+inline void substract(Image<T> &res, const Image<T1> &m1, const double val)
 {
     assert(res.ptr() != NULL);
     
@@ -197,8 +197,8 @@ void substract(Image<T> &res, const Image<T1> &m1, const double val)
 
 // res = m1 * val + m2 * val + val3
 template <class T, class T1, class T2>
-void addWeighted(Image<T> &res, const Image<T1> &m1, double val1,
-                 const Image<T2> &m2, double val2, T val3=0)
+inline void addWeighted(Image<T> &res, const Image<T1> &m1, double val1,
+                        const Image<T2> &m2, double val2, T val3=0)
 {
     assert(m1.match3D(m2));
 
@@ -263,7 +263,6 @@ void hfiltering(Image<T> &res, const Image<T1> &src, double *filter, int fsize)
                 soffset = (h * width + ww) * channels;
                 for (int k = 0; k < channels; ++k)
                     pr[roffset+k] += ps[soffset+k] * factor;
-
             }
         }
     }
@@ -439,7 +438,7 @@ void collapse(Image<T> &dst, const Image<T1> &src)
 }
 
 template <class T, class T1>
-bool equal(Image<T> &m1, Image<T1> &m2)
+inline bool equal(Image<T> &m1, Image<T1> &m2)
 {
     assert(m1.match3D(m2));
     for (int i = 0; i < m1.nElements(); ++i)
@@ -470,21 +469,96 @@ void split(std::vector< Image<T> > &arr, Image<T> &m)
     }
 }
 
+// merge channels
 template <class T>
-void merge(Image<T> &m, std::vector< Image<T> > &arr)
+void mergec(Image<T> &m, std::vector< Image<T> > &arr)
 {
-    assert(!arr.empty());
-    int width = arr[0].nWidth(), height = arr[0].nHeight(), channels = arr.size(), offset;
-
-    m.create(width, height, channels);
-    for (int h = 0; h < height; ++h)
+    int vsize = arr.size();
+    int nchannels = arr[0].nChannels();
+    for (int i = 1; i < vsize; ++i)
     {
-        for (int w = 0; h < width; ++w)
+        assert(arr[0].match2D(arr[i]));
+        nchannels += arr[i].nChannels();
+    }
+
+    int size = arr[0].nSize(), channels, o, mo, c = 0;
+
+    m.create(arr[0].nWidth(), arr[0].nHeight(), nchannels);
+    for (int i = 0; i < vsize; ++i)
+    {
+        channels = arr[i].nChannels();
+        for (int s = 0; s < size; ++s)
         {
-            offset = h * width + w;
+            mo = s * nchannels;
+            o = s * channels;
             for (int k = 0; k < channels; ++k)
-                m[offset*channels+k] = arr[k][offset];
+                m[mo+k+c] = arr[i][o+k];
         }
+        c += channels;
+    }
+}
+
+template <class T>
+void mergew(Image<T> &m, std::vector< Image<T> > &arr)
+{
+    int height = arr[0].nHeight(), channels = arr[0].nChannels();
+    int nwidth = arr[0].nWidth(), ww, width, o, mo;
+    int vsize = arr.size();
+    for (int v = 1; v < vsize; ++v)
+    {
+        assert(height == arr[v].nHeight() && channels == arr[v].nChannels());
+        nwidth += arr[v].nWidth();
+    }
+
+    m.create(nwidth, height, channels);
+    ww = 0;
+    for (int v = 0; v < vsize; ++v)
+    {
+        width = arr[v].nWidth();
+        for (int h = 0; h < height; ++h)
+        {
+            for (int w = 0; w < width; ++w)
+            {
+                o = (h * width + w) * channels;
+                mo = (h * nwidth + w + ww) * channels;
+                for (int k = 0; k < channels; ++k)
+                    m[mo+k] = arr[v][o+k];
+            }
+        }
+        
+        ww += arr[v].nWidth();
+    }
+}
+
+template <class T>
+void mergeh(Image<T> &m, std::vector< Image<T> > &arr)
+{
+    int width = arr[0].nWidth(), channels = arr[0].nChannels();
+    int nheight = arr[0].nHeight(), hh, height, o, mo;
+    int vsize = arr.size();
+    for (int v = 1; v < vsize; ++v)
+    {
+        assert(width == arr[v].nHeight() && channels == arr[v].nChannels());
+        nheight += arr[v].nHeight();
+    }
+
+    m.create(width, nheight, channels);
+    hh = 0;
+    for (int v = 0; v < vsize; ++v)
+    {
+        height = arr[v].nHeight();
+        for (int h = 0; h < height; ++h)
+        {
+            for (int w = 0; w < width; ++w)
+            {
+                o = (h * width + w) * channels;
+                mo = ((h + hh) * width + w) * channels;
+                for (int k = 0; k < channels; ++k)
+                    m[mo+k] = arr[v][o+k];
+            }
+        }
+        
+        hh += arr[v].nHeight();
     }
 }
 
@@ -510,6 +584,56 @@ inline double dist2(T *p1, T *p2, int size)
         d += (p1[i] - p2[i]) * (p1[i] - p2[i]);
 
     return sqrt(d);
+}
+
+// normalize each channels seperately
+template <class T>
+void normalizeChannels(Image<T> &res, const Image<T> &m)
+{
+    int width = m.nWidth(), height = m.nHeight(), channels = m.nChannels();
+    int size = width*height, offset;
+    T *mins = new T[channels], *maxs = new T[channels];
+
+    res.create(width, height, channels);
+    // init
+    for (int k = 0; k < channels; ++k)
+    {
+        mins[k] = m[k];
+        maxs[k] = m[k];
+    }
+
+    // get max and min of each channel
+    for (int i = 1; i < size; ++i)
+    {
+        offset = i * channels;
+        for (int k = 0; k < channels; ++k)
+        {
+            mins[k] = std::min(m[offset+k], mins[k]);
+            maxs[k] = std::max(m[offset+k], maxs[k]);
+        }
+    }
+
+    // normalize
+    for (int i = 0; i < size; ++i)
+    {
+        offset = i * channels;
+        for (int k = 0; k < channels; ++k)
+            res[offset+k] = (m[offset+k] - mins[k]) / (maxs[k] - mins[k]);
+    }
+    
+    delete []mins;
+    delete []maxs;
+}
+
+// normalize
+template <class T>
+void normalize(Image<T> &res, const Image<T> &m)
+{
+    T maxm = m.max(), minm = m.min();
+    
+    res.create(m.nWidth(), m.nHeight(), m.nChannels());
+    for (int i = 0; i < m.nElements(); ++i)
+        res[i] = (m[i] - minm) / (maxm - minm);
 }
 
 #endif

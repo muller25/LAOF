@@ -28,6 +28,8 @@ void imread(Image<T> &im, const char *filename)
 template <class T>
 bool imreadf(Image <T> &im, const char *filename)
 {
+    printf("reading file %s\n", filename);
+    
     cv::FileStorage fs(filename, cv::FileStorage::READ);
     cv::Mat m;
 

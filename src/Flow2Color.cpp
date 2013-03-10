@@ -1,5 +1,11 @@
 #include "Flow2Color.h"
 
+void flow2color(UCImage &flowImg, const DImage &u, const DImage &v)
+{
+    UCImage idxImg;
+    flow2color(flowImg, idxImg, u, v);
+}
+
 void flow2color(UCImage &flowImg, UCImage &idxImg, const DImage &u, const DImage &v)
 {
     assert(u.match3D(v) && u.nChannels() == 1);

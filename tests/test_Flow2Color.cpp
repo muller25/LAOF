@@ -70,7 +70,7 @@ void test_computeColor()
     DImage u(300, 300), v(300, 300);
     UCImage fImg;
     
-    u.setTo(5), v.setTo(5);
+    u.set(5), v.set(5);
     computeColor(fImg, u, v);
     imshow("flow image", fImg);
     imwait(0);
@@ -85,13 +85,13 @@ void test_flow2color()
 
     cout << "test flow to color..." << endl;
 
-    u.setTo(5), v.setTo(10);
+    u.set(5), v.set(10);
     flow2color(flowImg, idxImg, u, v);
     imshow("flow2color flow image", flowImg);
     imshow("flow2color idx image", idxImg);
 
     // test idx image
-    u.setTo(DBL_MAX), v.setTo(DBL_MAX);
+    u.set(DBL_MAX), v.set(DBL_MAX);
     flow2color(flowImg, idxImg, u, v);
     imshow("flow2color flow image2", flowImg);
     imshow("flow2color idx image2", idxImg);

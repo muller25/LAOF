@@ -20,8 +20,10 @@ public:
     Image(int _width, int _height, int _channels=1, T val=0);
 
     template <typename T1>
-    Image(Image<T1> &im):pData(NULL),width(0),height(0),channels(0){copyTo(im);}
-        
+    Image(const Image<T1> &im):pData(NULL){copyFrom(im);};
+
+    Image(const Image<T> &im):pData(NULL){copyFrom(im);}
+    
     virtual ~Image(){release();}
 
     inline void create(int _width, int _height, int _channels=1, T val=0);
@@ -30,6 +32,7 @@ public:
     {
         if (pData != NULL)
             delete []pData;
+        
         pData = NULL;
         width = height = channels = elements = 0;
     }
@@ -38,7 +41,7 @@ public:
     void convertFrom(const cv::Mat &im);
     
     template <typename T1>
-    inline void setTo(T1 val)
+    inline void set(T1 val)
     {
         for (int i = 0; i < elements; ++i)
             pData[i] = (T)val;
@@ -47,6 +50,9 @@ public:
     template <typename T1>
     inline void copyTo(Image<T1> &im) const;
 
+    template <typename T1>
+    inline void copyFrom(const Image<T1> &im);
+    
     void threshold(T minVal, T maxVal);
     
     template <typename T1>
@@ -62,13 +68,15 @@ public:
                 typeid(T) == typeid(long double));
     }
 
+    inline T& operator[](int idx){return pData[idx];}
+    inline T& operator[](int idx) const{return pData[idx];}
+
     template <typename T1>
-    inline Image<T>& operator=(Image<T1> &m);
+    inline Image<T>& operator=(const Image<T1> &m);
+    inline Image<T>& operator=(const Image<T> &m);
 
     inline bool isEmpty() const {return (elements == 0);}
     inline int nonZeros() const;
-    inline T& operator[](int idx){return pData[idx];}
-    inline T& operator[](int idx) const{return pData[idx];}
     inline int nSize() const {return width*height;}
     inline int nWidth() const{return width;}
     inline int nHeight() const{return height;}
@@ -78,6 +86,7 @@ public:
     inline T* ptr() const {return pData;}
     inline T min() const;
     inline T max() const;
+    inline void normalize();
 
 private:
     T * pData;
@@ -156,6 +165,16 @@ void Image<T>::copyTo(Image<T1> &im) const
 }
 
 template <class T>
+template <typename T1>
+void Image<T>::copyFrom(const Image<T1> &im)
+{
+    create(im.nWidth(), im.nHeight(), im.nChannels());
+
+    for (int i = 0; i < elements; ++i)
+        pData[i] = im[i];
+}
+
+template <class T>
 void Image<T>::create(int _width, int _height, int _channels, T val)
 {
     if (width != _width || height != _height || channels != _channels ||
@@ -170,7 +189,7 @@ void Image<T>::create(int _width, int _height, int _channels, T val)
         assert(pData != NULL);
     }
 
-    setTo(val);
+    set(val);
 }
 
 template <class T>
@@ -214,6 +233,14 @@ T Image<T>::max() const
 }
 
 template <class T>
+void Image<T>::normalize()
+{
+    T maxm = max(), minm = min();
+    for (int i = 0; i < elements; ++i)
+        pData[i] = (pData[i] - minm) / (maxm - minm);
+}
+
+template <class T>
 template <typename T1>
 bool Image<T>::match2D(const Image<T1> &im) const
 {
@@ -229,14 +256,16 @@ bool Image<T>::match3D(const Image<T1> &im) const
 
 template <class T>
 template <typename T1>
-Image<T>& Image<T>::operator=(Image<T1> &m)
+Image<T>& Image<T>::operator=(const Image<T1> &m)
 {
-    int width = m.nWidth(), height = m.nHeight(), channels = m.nChannels();
-    if (!match3D(m)) create(width, height, channels);
+    copyFrom(m);
+    return *this;
+}
 
-    for (int i = 0; i < elements; ++i)
-        pData[i] = m[i];
-
+template <class T>
+Image<T>& Image<T>::operator=(const Image<T> &m)
+{
+    copyFrom(m);
     return *this;
 }
 

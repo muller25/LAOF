@@ -332,8 +332,8 @@ void OpticalFlow::SORSolver(DImage &u, DImage &v, DImage &warp,
         getGrads(Ix, Iy, It, im1, warp);
 
         // inner fixed point iteration for du, dv
-        du.setTo(0);
-        dv.setTo(0);
+        du.set(0);
+        dv.set(0);
         for (int iiter = 0; iiter < nInIter; iiter++)
         {
             add(uu, u, du);// uu = u + du
@@ -366,8 +366,8 @@ void OpticalFlow::SORSolver(DImage &u, DImage &v, DImage &warp,
             }
 
             // SOR iteration
-            du.setTo(0);
-            dv.setTo(0);
+            du.set(0);
+            dv.set(0);
             const double omega = 1.8;
             double l, l_du, l_dv;
             int offset, tmp;
@@ -627,8 +627,8 @@ void OpticalFlow::biIRLS(DImage &du, DImage &dv,
         }
         
         // SOR iteration
-        du.setTo(0);
-        dv.setTo(0);
+        du.set(0);
+        dv.set(0);
         const double omega = 1.8;
         double l, l_du, l_dv;
         int offset, tmp;
@@ -793,8 +793,8 @@ void OpticalFlow::adIRLS(DImage &du, DImage &dv,
         add(A22, as*0.05); // add epsilon to avoid dividing zero
         
         // SOR iteration
-        du.setTo(0);
-        dv.setTo(0);
+        du.set(0);
+        dv.set(0);
         const double omega = 1.8;
         double l, l_du, l_dv;
         int offset, tmp;
@@ -935,7 +935,7 @@ void OpticalFlow::adIRLS3(DImage &du, DImage &dv,
                           const DImage &ur, const DImage &vr,
                           double as, double ap, int nIRLSIter, int nSORIter)
 {
-    int width = Ix.nWidth(), height = Ix.nHeight(), channels = Ix.nChannels();
+    int width = Ix.nWidth(), height = Ix.nHeight();
     DImage Ix2, Iy2, Ixt, Iyt, Ixy, lapU, lapV, ix2, iy2, ixt, iyt, ixy, psid, phid;
     DImage wur, wvr, urx, ury, vrx, vry, uu, vv, ux, uy, vx, vy;
     DImage wrx2(width, height), wry2(width, height);
@@ -1034,8 +1034,8 @@ void OpticalFlow::adIRLS3(DImage &du, DImage &dv,
         add(A22, as*0.05); // add epsilon to avoid dividing zero
         
         // SOR iteration
-        du.setTo(0);
-        dv.setTo(0);
+        du.set(0);
+        dv.set(0);
         const double omega = 1.8;
         double l, l_du, l_dv;
         int offset, tmp;
