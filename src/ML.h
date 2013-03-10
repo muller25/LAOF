@@ -33,7 +33,7 @@ void findClusterCenters(Image<T> &centers, const Image<T> &samples, int clusters
             for (curIdx = 0; curIdx < height; ++curIdx)
                 if ((curSum -= dist[curIdx]) <= 0) break;
 
-            assert(curIdx < height);
+             assert(curIdx < height);
             
             // find minimum distance to cluster centers
             for (curSum = 0, h = 0; h < height; ++h)
@@ -91,6 +91,7 @@ void initClusterCenters(Image<T> &centers, const Image<T> &samples, int clusters
         sum += dist[h];
     }
 
+    assert(!isnan(sum));
     for (int c = 1; c < clusters; ++c)
         target[c-1] = c;
     

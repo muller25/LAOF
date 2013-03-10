@@ -8,8 +8,10 @@
 class MotionLayers
 {
 public:
+    void im2feature(DImage &features, const DImage &im);
     void flow2feature(DImage &features, const DImage &flow, const DImage &rflow);
-    int flowCluster(DImage &centers, DImage &layers, const DImage &flow, const DImage &rflow);
+    int flowCluster(DImage &centers, DImage &layers, const DImage &im,
+                    const DImage &flow, const DImage &rflow);
     
     template <class T>
     static double mdist(T *p1, T *p2, int size);
@@ -19,8 +21,9 @@ template <class T>
 double MotionLayers::mdist(T *p1, T *p2, int size)
 {
     double dist = dist2(p1, p2, size);
-    T a, b, ab;
 
+    // vector similarity
+    T a, b, ab;
     a = b = ab = 0;
     for (int i = 0; i < size; ++i)
     {
@@ -30,7 +33,12 @@ double MotionLayers::mdist(T *p1, T *p2, int size)
     }
 
     a = sqrt(a), b = sqrt(b);
-    dist += (1 - ab / (a * b));
+    if (fabs(a) < ESP) // a == 0
+        dist += b;
+    else if (fabs(b) < ESP) // b == 0
+        dist += a;
+    else
+        dist += (1 - ab / (a * b));
     
     return dist;
 }

@@ -5,6 +5,7 @@
 #include <highgui.h>
 
 #include "Image.h"
+#include "ImageProcess.h"
 
 template <class T>
 void imread(Image<T> &im, const char *filename)
