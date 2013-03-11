@@ -6,20 +6,31 @@
 
 int main(int argc, char *argv[])
 {
-    DImage im, blur;
+    DImage guide, im, blur;
 
-    im.create(3, 3, 3, 0.5);
-    imprint(im);
-    
-    printf("imwritef()...");
-    imwritef("imwritef.yml", im);
-    printf("done\n");
-    
-    printf("imread()...");
-    imreadf(im, "imwritef.yml");
-    printf("done\n");
+    imread(im, "../toy-mask.bmp", GRAY);
+    imread(guide, "../toy.bmp");
 
-    imprint(im);
+    imshow("guide", guide);
+    imshow("before GF", im);    
+
+    GuidedFilterColor(blur, im, guide, 60, 1e-6);
+    imshow("after GF", blur);
+
+    imwait(0);
+    
+    // im.create(3, 3, 3, 0.5);
+    // imprint(im);
+    
+    // printf("imwritef()...");
+    // imwritef("imwritef.yml", im);
+    // printf("done\n");
+    
+    // printf("imread()...");
+    // imreadf(im, "imwritef.yml");
+    // printf("done\n");
+
+    // imprint(im);
     
     // printf("imread()...");
     // imread(im, "../car1.jpg");

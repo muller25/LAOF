@@ -54,3 +54,27 @@ TEST(TestCross, cross)
     EXPECT_EQ(2, res.nWidth());
     EXPECT_EQ(2, res.nHeight());
 }
+
+TEST(TestSplit, split)
+{
+    int height = 100, width = 100, channels = 10, offset;
+    DImage im(width, height, channels);
+    std::vector<DImage> vec;
+
+    for (int i = 0; i < 10; ++i)
+    {
+        randFill(im, -1000., 1000.);
+        vec.clear();
+        split(vec, im);
+
+        for (int h = 0; h < height; ++h)
+        {
+            for (int w = 0; w < width; ++w)
+            {
+                offset = h * width + w;
+                for (int k = 0; k < channels; ++k)
+                    EXPECT_EQ(im[offset*channels+k], vec[k][offset]);
+            }
+        }
+    }
+}

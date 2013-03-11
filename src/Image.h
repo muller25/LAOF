@@ -7,6 +7,10 @@
 #define ESP 1e-6
 #endif
 
+#define R 2
+#define G 1
+#define B 0
+
 template <class T>
 class Image
 {

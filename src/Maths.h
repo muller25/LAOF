@@ -192,7 +192,7 @@ inline void substract(Image<T> &res, const Image<T1> &m1)
     assert(res.match3D(m1));
 
     for (int i = 0; i < res.nElements(); ++i)
-        res[i] += m1[i];
+        res[i] -= m1[i];
 }
 
 // res -= val
@@ -465,28 +465,6 @@ inline bool equal(const Image<T> &m1, const Image<T1> &m2)
         if (fabs(m1[i] - m2[i]) > ESP) return false;
 
     return true;
-}
-
-template <class T>
-void split(std::vector< Image<T> > &arr, Image<T> &m)
-{
-    assert(m.ptr() != NULL);
-
-    int width = m.nWidth(), height = m.nHeight(), channels = m.nChannels(), offset;
-    
-    arr.clear();
-    for (int k = 0; k < channels; ++k)
-        arr.push_back(Image<T>(width, height));
-    
-    for (int h = 0; h < height; ++h)
-    {
-        for (int w = 0; w < width; ++w)
-        {
-            offset = h * width + w;
-            for (int k = 0; k < channels; ++k)
-                arr[k][offset] = m[offset*channels+k];
-        }
-    }
 }
 
 // merge channels

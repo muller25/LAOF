@@ -7,12 +7,24 @@
 #include "Image.h"
 #include "ImageProcess.h"
 
+enum ImageType{GRAY, COLOR};
+    
 template <class T>
-void imread(Image<T> &im, const char *filename)
+void imread(Image<T> &im, const char *filename, ImageType it=COLOR)
 {
     printf("reading image %s\n", filename);
+    cv::Mat img;
     
-    cv::Mat img = cv::imread(filename);
+    switch (it)
+    {
+    case GRAY:
+        img = cv::imread(filename, CV_LOAD_IMAGE_GRAYSCALE);
+        break;
+    case COLOR:
+        img = cv::imread(filename, CV_LOAD_IMAGE_COLOR);
+        break;
+    }
+    
     assert(img.data != NULL);
     
     if (im.isFloat())

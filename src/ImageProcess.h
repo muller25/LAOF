@@ -98,6 +98,28 @@ void im2double(Image<T> &dst, const Image<T1> &src)
         dst[i] = (T) src[i] / 255;
 }
 
+template <class T>
+void split(std::vector< Image<T> > &arr, const Image<T> &m)
+{
+    assert(m.ptr() != NULL);
+
+    int width = m.nWidth(), height = m.nHeight(), channels = m.nChannels(), offset;
+    
+    arr.clear();
+    for (int k = 0; k < channels; ++k)
+        arr.push_back(Image<T>(width, height));
+    
+    for (int h = 0; h < height; ++h)
+    {
+        for (int w = 0; w < width; ++w)
+        {
+            offset = h * width + w;
+            for (int k = 0; k < channels; ++k)
+                arr[k][offset] = m[offset*channels+k];
+        }
+    }
+}
+
 // filters
 // gaussian smoothing
 template <class T, class T1>
@@ -184,23 +206,22 @@ void GuidedFilterColor(Image<T> &dst, const Image<T1> &im, const Image<T2> &guid
 
     DImage meanIr, meanIg, meanIb, meanp, meanIpr, meanIpg, meanIpb, tmp;
     DImage covIpr, covIpg, covIpb;
-    std::vector<DImage> g3;
+    std::vector< Image<T2> > g3;
 
     split(g3, guide); // BGR
-    
-    BoxFilter(meanIb, g3[0], r, r); // meanI = mean (guide)
-    BoxFilter(meanIg, g3[1], r, r);
-    BoxFilter(meanIr, g3[2], r, r);
+    BoxFilter(meanIb, g3[B], r, r); // meanI = mean (guide)
+    BoxFilter(meanIg, g3[G], r, r);
+    BoxFilter(meanIr, g3[R], r, r);
     BoxFilter(meanp, im, r, r);    // meanp = mean (im)
     
-    multiply(tmp, g3[0], im);
-    BoxFilter(meanIpb, tmp, r, r); // meanIpb = mean (g3[b])
+    multiply(tmp, g3[B], im);
+    BoxFilter(meanIpb, tmp, r, r); // meanIpb = mean (g3[b] * im)
 
-    multiply(tmp, g3[1], im);
-    BoxFilter(meanIpg, tmp, r, r); // meanIpg = mean (g3[g])
+    multiply(tmp, g3[G], im);
+    BoxFilter(meanIpg, tmp, r, r); // meanIpg = mean (g3[g] * im)
 
-    multiply(tmp, g3[2], im);
-    BoxFilter(meanIpr, tmp, r, r); // meanIpr = mean (g3[r])
+    multiply(tmp, g3[R], im);
+    BoxFilter(meanIpr, tmp, r, r); // meanIpr = mean (g3[r] * im)
     
     // covariance of (I, p) in each local patch.
     multiply(tmp, meanIr, meanp);
@@ -215,37 +236,37 @@ void GuidedFilterColor(Image<T> &dst, const Image<T1> &im, const Image<T2> &guid
     DImage varIr2, varIrg, varIrb, varIg2, varIgb, varIb2;
 
     // varIr2 = mean (g[r] .* g[r]) - meanIr .* meanIr
-    multiply(tmp, g3[2], g3[2]);
+    multiply(tmp, g3[R], g3[R]);
     BoxFilter(varIr2, tmp, r, r);
     multiply(tmp, meanIr, meanIr);
     substract(varIr2, tmp); 
 
     // varIrg = mean (g[r] .* g[g]) - meanIr .* meanIg
-    multiply(tmp, g3[2], g3[1]);
+    multiply(tmp, g3[R], g3[G]);
     BoxFilter(varIrg, tmp, r, r);
     multiply(tmp, meanIr, meanIg);
     substract(varIrg, tmp); 
 
     // varIrb = mean (g[r] .* g[b]) - meanIr .* meanIb
-    multiply(tmp, g3[2], g3[0]);
+    multiply(tmp, g3[R], g3[B]);
     BoxFilter(varIrb, tmp, r, r);
     multiply(tmp, meanIr, meanIb);
     substract(varIrb, tmp); 
 
     // varIg2 = mean (g[g] .* g[g]) - meanIg .* meanIg
-    multiply(tmp, g3[1], g3[1]);
+    multiply(tmp, g3[G], g3[G]);
     BoxFilter(varIg2, tmp, r, r);
     multiply(tmp, meanIg, meanIg);
     substract(varIg2, tmp); 
 
     // varIgb = mean (g[g] .* g[b]) - meanIg .* meanIb
-    multiply(tmp, g3[1], g3[0]);
+    multiply(tmp, g3[G], g3[B]);
     BoxFilter(varIgb, tmp, r, r);
     multiply(tmp, meanIg, meanIb);
     substract(varIgb, tmp); 
 
     // varIb2 = mean (g[b] .* g[b]) - meanIb .* meanIb
-    multiply(tmp, g3[0], g3[0]);
+    multiply(tmp, g3[B], g3[B]);
     BoxFilter(varIb2, tmp, r, r);
     multiply(tmp, meanIb, meanIb);
     substract(varIb2, tmp);
@@ -256,7 +277,7 @@ void GuidedFilterColor(Image<T> &dst, const Image<T1> &im, const Image<T2> &guid
     //   Sigma = rg, gg, gb
     //           rb, gb, bb
     int width = im.nWidth(), height = im.nHeight(), offset;
-    DImage sigma(3, 3), covIp(3, 1), a(width, height, 3), b, inv;
+    DImage sigma(3, 3), a(width, height, 3), b, inv;
     
     for (int h = 0; h < height; ++h)
     {
@@ -266,23 +287,22 @@ void GuidedFilterColor(Image<T> &dst, const Image<T1> &im, const Image<T2> &guid
             sigma[0] = varIr2[offset] + eps;
             sigma[1] = varIrg[offset];
             sigma[2] = varIrb[offset];
+            
             sigma[3] = varIrg[offset];
             sigma[4] = varIg2[offset] + eps;
             sigma[5] = varIgb[offset];
+            
             sigma[6] = varIrb[offset];
             sigma[7] = varIgb[offset];
             sigma[8] = varIb2[offset] + eps;
             sigma.invTo(inv);
 
             // covIp = [covIpr, covIpg, covIpb]
-            covIp[0] = covIpr[offset];
-            covIp[1] = covIpg[offset];
-            covIp[2] = covIpb[offset];
-
             // a = covIp * inv(sigma + eps * eyes(3))
-            for (int j = 0; j < 3; ++j)
-                for (int k = 0; k < 3; ++k)
-                    a[offset+j] += covIp[k] * inv[k*3+j];
+            for (int k = 0; k < 3; ++k)
+                a[offset*3+k] = covIpr[offset] * inv[k] +
+                                covIpg[offset] * inv[3+k] +
+                                covIpb[offset] * inv[6+k];
         }
     }
 
@@ -299,19 +319,19 @@ void GuidedFilterColor(Image<T> &dst, const Image<T1> &im, const Image<T2> &guid
     multiply(tmp, a3[2], meanIb);
     substract(b, tmp); 
 
-    // dst = mean(a[0]) * g[r] + mean(a[1]) * g[b] + mean(a[2]) * g[b] + mean(b)
-    BoxFilter(tmp, a3[0], r, r);
-    multiply(dst, tmp, g3[2]);
+    BoxFilter(dst, b, r, r);
 
+    // dst = mean(a[0]) * g[r] + mean(a[1]) * g[g] + mean(a[2]) * g[b] + mean(b)
+    BoxFilter(tmp, a3[0], r, r);
+    multiply(tmp, g3[R]);
+    add(dst, tmp);
+    
     BoxFilter(tmp, a3[1], r, r);
-    multiply(tmp, g3[1]);
+    multiply(tmp, g3[G]);
     add(dst, tmp);
 
     BoxFilter(tmp, a3[2], r, r);
-    multiply(tmp, g3[0]);
-    add(dst, tmp);
-
-    BoxFilter(tmp, b, r, r);
+    multiply(tmp, g3[B]);
     add(dst, tmp);
 }
 
