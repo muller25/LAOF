@@ -124,4 +124,5 @@ void im2double(Image<T> &dst, const Image<T1> &src)
         dst[i] = (T) src[i] / 255;
 }
 
+
 #endif

@@ -13,7 +13,7 @@
 *.a
 
 # executable files
-tests/run_all_tests
+tests/tests
 tests/flow2color
 tests/pyramid
 tests/imop

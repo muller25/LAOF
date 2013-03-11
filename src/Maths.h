@@ -438,7 +438,7 @@ void collapse(Image<T> &dst, const Image<T1> &src)
 }
 
 template <class T, class T1>
-inline bool equal(Image<T> &m1, Image<T1> &m2)
+inline bool equal(const Image<T> &m1, const Image<T1> &m2)
 {
     assert(m1.match3D(m2));
     for (int i = 0; i < m1.nElements(); ++i)
@@ -682,6 +682,129 @@ double similarity(T *v1, T *v2, int start, int end)
         return a;
 
     return (double)ab / (a * b);
+}
+
+// O(1) time rectangular sum, independent of window size
+// use border replicate for pixel out of boundary
+// each element is mean of window 2*wsize+1, 2*hsize+1
+template <class T, class T1>
+void rectSum(Image<T> &dst, const Image<T1> &src, int wsize=1, int hsize=1)
+{
+    int width = src.nWidth(), height = src.nHeight(), channels = src.nChannels();
+    int offset, idx, last;
+    Image<T> cumSum(width, height, channels);
+
+    dst.create(width, height, channels);
+    
+    // cumulative sum over y axis
+    for (int w = 0; w < width; ++w)
+    {
+        idx= w * channels;
+        for (int k = 0; k < channels; ++k)
+            cumSum[idx+k] = (hsize+1) * src[idx+k];
+    }
+
+    offset = width * channels;
+    for (int h = 1; h < height; ++h)
+    {
+        for (int w = 0; w < width; ++w)
+        {
+            idx = (h * width + w) * channels;
+            for (int k = 0; k < channels; ++k)
+                cumSum[idx+k] = src[idx+k] + cumSum[idx-offset+k];
+        }
+    }
+    
+    offset = hsize * width * channels; // corresponding row in cumSum
+    last = (height-1) * width;         // last row
+    for (int h = 0; h < height; ++h)
+    {
+        for (int w = 0; w < width; ++w)
+        {
+            idx = (h * width + w) * channels;
+            for (int k = 0; k < channels; ++k)
+            {
+                if (h <= hsize)
+                    dst[idx+k] = cumSum[idx+k] - src[w*channels+k]*h;
+                else if (h > hsize && h + hsize < height)
+                    dst[idx+k] = cumSum[idx+k] - cumSum[idx-offset+k];
+                else // h + hsize >= height
+                    dst[idx+k] = cumSum[idx+k] - cumSum[idx-offset+k] +
+                        (h+hsize-height+1) * src[(last+w)*channels+k];
+            }
+        }
+    }
+
+    printf("after cumulative over y axis\n");
+    imprint(cumSum);
+    
+    // cumulative sum over x axis
+    for (int h = 0; h < height; ++h)
+    {
+        idx = h * width * channels;
+        for (int k = 0; k < channels; ++k)
+            cumSum[idx+k] = (wsize+1) * dst[idx+k];
+    }
+
+    for (int h = 0; h < height; ++h)
+    {
+        for (int w = 1; w < width; ++w)
+        {
+            idx = (h * width + w) * channels;
+            for (int k = 0; k < channels; ++k)
+                cumSum[idx+k] = dst[idx+k] + cumSum[idx-channels+k];
+        }
+    }
+
+    offset = wsize * channels;
+    last = (width-1) * channels; // last column
+    for (int h = 0; h < height; ++h)
+    {
+        for (int w = 0; w < width; ++w)
+        {
+            idx = (h * width + w) * channels;
+            for (int k = 0; k < channels; ++k)
+            {
+                if (w <= wsize)
+                    dst[idx+k] = cumSum[idx+k] - dst[h*width*channels+k];
+                else if (w > wsize && w + wsize < width)
+                    dst[idx+k] = cumSum[idx+k] - cumSum[idx-offset+k];
+                else // w + wsize >= width
+                    dst[idx+k] = cumSum[idx+k] - cumSum[idx-offset+k] +
+                        (w+wsize-width+1) * dst[(h*width*channels)+last+k];
+            }
+        }
+    }
+}
+
+// brute force to calculate rectangular sum
+template <class T, class T1>
+void rectSumBF(Image<T> &dst, const Image<T1> &src, int wsize=1, int hsize=1)
+{
+    double *hfilter = new double[2 * hsize + 1];
+    double *wfilter = new double[2 * wsize + 1];
+    for (int i = 0; i < hsize; ++i)
+        hfilter[i] = 1;
+    for (int i = 0; i < wsize; ++i)
+        wfilter[i] = 1;
+
+    filtering(dst, src, wfilter, wsize, hfilter, hsize);
+}
+
+template <class T>
+void randFill(Image<T> &m, T minV, T maxV)
+{
+    assert(m.ptr() != NULL);
+    srand(time(NULL));
+    
+    T range = maxV - minV;
+    for (int i = 0; i < m.nElements(); ++i)
+    {
+        if (m.isFloat())
+            m[i] = minV + (double)rand() / RAND_MAX * range;
+        else
+            m[i] = minV + rand() % (int)(range+1);
+    }
 }
 
 #endif
