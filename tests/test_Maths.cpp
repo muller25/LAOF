@@ -27,18 +27,11 @@ TEST(TestRandFill, randFill)
 
 TEST(TestRectSum, rectSum)
 {
-    IImage im(5, 5), dst, dstBF;
-    randFill(im, 0, 2);
+    DImage im(10, 10, 10), dst, dstBF;
+    randFill(im, -10., 10.);
 
     rectSum(dst, im);
     rectSumBF(dstBF, im);
-
-    imprint(im);
-    printf("O(1)\n");
-    imprint(dst);
-
-    printf("brute force\n");
-    imprint(dstBF);
     
     EXPECT_TRUE(equal(dst, dstBF));
 }

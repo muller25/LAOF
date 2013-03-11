@@ -691,9 +691,9 @@ template <class T, class T1>
 void rectSum(Image<T> &dst, const Image<T1> &src, int wsize=1, int hsize=1)
 {
     int width = src.nWidth(), height = src.nHeight(), channels = src.nChannels();
-    int offset, idx, last;
-    Image<T> cumSum(width, height, channels);
-
+    int offset, idx, last, wc = width * channels;
+    Image<T> cumSum(width, height, channels), tmp(width, height, channels);
+    
     dst.create(width, height, channels);
     
     // cumulative sum over y axis
@@ -704,14 +704,13 @@ void rectSum(Image<T> &dst, const Image<T1> &src, int wsize=1, int hsize=1)
             cumSum[idx+k] = (hsize+1) * src[idx+k];
     }
 
-    offset = width * channels;
     for (int h = 1; h < height; ++h)
     {
         for (int w = 0; w < width; ++w)
         {
             idx = (h * width + w) * channels;
             for (int k = 0; k < channels; ++k)
-                cumSum[idx+k] = src[idx+k] + cumSum[idx-offset+k];
+                cumSum[idx+k] = src[idx+k] + cumSum[idx-wc+k];
         }
     }
     
@@ -725,25 +724,22 @@ void rectSum(Image<T> &dst, const Image<T1> &src, int wsize=1, int hsize=1)
             for (int k = 0; k < channels; ++k)
             {
                 if (h <= hsize)
-                    dst[idx+k] = cumSum[idx+k] - src[w*channels+k]*h;
+                    tmp[idx+k] = cumSum[idx+offset+k] - src[w*channels+k]*h;
                 else if (h > hsize && h + hsize < height)
-                    dst[idx+k] = cumSum[idx+k] - cumSum[idx-offset+k];
+                    tmp[idx+k] = cumSum[idx+offset+k] - cumSum[idx-offset-wc+k];
                 else // h + hsize >= height
-                    dst[idx+k] = cumSum[idx+k] - cumSum[idx-offset+k] +
+                    tmp[idx+k] = cumSum[(last+w)*channels+k] - cumSum[idx-offset-wc+k] +
                         (h+hsize-height+1) * src[(last+w)*channels+k];
             }
         }
     }
 
-    printf("after cumulative over y axis\n");
-    imprint(cumSum);
-    
     // cumulative sum over x axis
     for (int h = 0; h < height; ++h)
     {
         idx = h * width * channels;
         for (int k = 0; k < channels; ++k)
-            cumSum[idx+k] = (wsize+1) * dst[idx+k];
+            cumSum[idx+k] = (wsize+1) * tmp[idx+k];
     }
 
     for (int h = 0; h < height; ++h)
@@ -752,10 +748,10 @@ void rectSum(Image<T> &dst, const Image<T1> &src, int wsize=1, int hsize=1)
         {
             idx = (h * width + w) * channels;
             for (int k = 0; k < channels; ++k)
-                cumSum[idx+k] = dst[idx+k] + cumSum[idx-channels+k];
+                cumSum[idx+k] = tmp[idx+k] + cumSum[idx-channels+k];
         }
     }
-
+    
     offset = wsize * channels;
     last = (width-1) * channels; // last column
     for (int h = 0; h < height; ++h)
@@ -766,12 +762,12 @@ void rectSum(Image<T> &dst, const Image<T1> &src, int wsize=1, int hsize=1)
             for (int k = 0; k < channels; ++k)
             {
                 if (w <= wsize)
-                    dst[idx+k] = cumSum[idx+k] - dst[h*width*channels+k];
+                    dst[idx+k] = cumSum[idx+offset+k] - tmp[h*width*channels+k]*w;
                 else if (w > wsize && w + wsize < width)
-                    dst[idx+k] = cumSum[idx+k] - cumSum[idx-offset+k];
+                    dst[idx+k] = cumSum[idx+offset+k] - cumSum[idx-offset-channels+k];
                 else // w + wsize >= width
-                    dst[idx+k] = cumSum[idx+k] - cumSum[idx-offset+k] +
-                        (w+wsize-width+1) * dst[(h*width*channels)+last+k];
+                    dst[idx+k] = cumSum[h*width*channels+last+k] - cumSum[idx-offset-channels+k] +
+                        (w+wsize-width+1) * tmp[(h*width*channels)+last+k];
             }
         }
     }
@@ -781,14 +777,27 @@ void rectSum(Image<T> &dst, const Image<T1> &src, int wsize=1, int hsize=1)
 template <class T, class T1>
 void rectSumBF(Image<T> &dst, const Image<T1> &src, int wsize=1, int hsize=1)
 {
-    double *hfilter = new double[2 * hsize + 1];
-    double *wfilter = new double[2 * wsize + 1];
-    for (int i = 0; i < hsize; ++i)
-        hfilter[i] = 1;
-    for (int i = 0; i < wsize; ++i)
-        wfilter[i] = 1;
-
-    filtering(dst, src, wfilter, wsize, hfilter, hsize);
+    int width = src.nWidth(), height = src.nHeight(), channels = src.nChannels();
+    int hh, ww, offset;
+    
+    dst.create(width, height, channels);
+    for (int h = 0; h < height; ++h)
+    {
+        for (int w = 0; w < width; ++w)
+        {
+            offset = (h * width + w) * channels;
+            for (int hs = -hsize; hs <= hsize; ++hs)
+            {
+                hh = enforceRange(h+hs, 0, height-1);
+                for (int ws = -wsize; ws <= wsize; ++ws)
+                {
+                    ww = enforceRange(w+ws, 0, width-1);
+                    for (int k = 0; k < channels; ++k)
+                        dst[offset+k] += src[(hh*width+ww)*channels+k];
+                }
+            }
+        }
+    }
 }
 
 template <class T>

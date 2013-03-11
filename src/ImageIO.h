@@ -94,7 +94,7 @@ void imprint(const Image<T> &im)
             for (int k = 0; k < channels; ++k)
             {
                 if (isFloat) printf("%.2f", p[offset+k]);
-                else printf("%d", p[offset+k]);
+                else printf("%3d", p[offset+k]);
                 if (k < channels-1)
                     printf(", ");
             }
