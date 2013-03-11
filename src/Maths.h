@@ -63,6 +63,26 @@ inline void multiply(Image<T> &res, const T1 val)
         res[i] *= val;
 }
 
+// res = m1 cross product m2
+template <class T, class T1, class T2>
+inline void cross(Image<T> &res, const Image<T1> &m1, const Image<T2> &m2)
+{
+    int width1 = m1.nWidth(), height1 = m1.nHeight();
+    int width2 = m2.nWidth(), height2 = m2.nHeight();
+    
+    assert(width1 == height2 && m1.nChannels() == m2.nChannels() && m1.nChannels() == 1);
+
+    res.create(width2, height1);
+    for (int i = 0; i < height1; ++i)
+    {
+        for (int k = 0; k < width1; ++k)
+        {
+            for (int j = 0; j < width2; ++j)
+                res[i*width2+j] += m1[i*width1+k] * m2[k*width2+j];
+        }
+    }
+}
+
 // res = m1 / m2
 template <class T, class T1, class T2>
 inline void divide(Image<T> &res, const Image<T1> &m1, const Image<T2> &m2)

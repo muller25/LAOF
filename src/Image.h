@@ -75,6 +75,9 @@ public:
     inline Image<T>& operator=(const Image<T1> &m);
     inline Image<T>& operator=(const Image<T> &m);
 
+    template <typename T1>
+    void invTo(Image<T1> &m) const;
+    
     inline bool isEmpty() const {return (elements == 0);}
     inline int nonZeros() const;
     inline int nSize() const {return width*height;}
@@ -267,6 +270,17 @@ Image<T>& Image<T>::operator=(const Image<T> &m)
 {
     copyFrom(m);
     return *this;
+}
+
+template <class T>
+template <typename T1>
+void Image<T>::invTo(Image<T1> &m) const
+{
+    cv::Mat mat;
+    convertTo(mat);
+
+    // invert only accept float point matrix
+    m.convertFrom(mat.inv(cv::DECOMP_SVD));
 }
 
 typedef Image<double> DImage;
