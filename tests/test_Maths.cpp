@@ -4,7 +4,7 @@
 #include "Maths.h"
 #include "ImageIO.h"
 
-TEST(TestRandFill, randFill)
+TEST(TestMaths, randFill)
 {
     IImage im(3, 3);
     randFill(im, 0, 1);
@@ -25,7 +25,7 @@ TEST(TestRandFill, randFill)
         EXPECT_TRUE((dm[i] <= 0) && (dm[i] >= -1));
 }
 
-TEST(TestRectSum, rectSum)
+TEST(TestMaths, rectSum)
 {
     DImage im(10, 10, 10), dst, dstBF;
     randFill(im, -10., 10.);
@@ -36,7 +36,7 @@ TEST(TestRectSum, rectSum)
     EXPECT_TRUE(equal(dst, dstBF));
 }
 
-TEST(TestCross, cross)
+TEST(TestMaths, cross)
 {
     // 2 X 3, 3 X 2
     IImage im1(3, 2), im2(2, 3), res;
@@ -55,7 +55,7 @@ TEST(TestCross, cross)
     EXPECT_EQ(2, res.nHeight());
 }
 
-TEST(TestSplit, split)
+TEST(TestImageProcess, split)
 {
     int height = 100, width = 100, channels = 10, offset;
     DImage im(width, height, channels);

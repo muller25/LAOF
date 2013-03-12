@@ -1,5 +1,12 @@
 #include "Flow2Color.h"
 
+void flow2color(UCImage &flowImg, const DImage &flow)
+{
+    std::vector<DImage> vec;
+    split(vec, flow);
+    flow2color(flowImg, vec[0], vec[1]);
+}
+
 void flow2color(UCImage &flowImg, const DImage &u, const DImage &v)
 {
     UCImage idxImg;
@@ -120,6 +127,7 @@ void computeColor(UCImage &im, const DImage &u, const DImage &v)
     }
 
     int channels = wheel.nWidth();
+
     im.create(width, height, channels);
     uchar *pi = im.ptr();
     double col0, col1, col;

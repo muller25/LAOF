@@ -107,6 +107,7 @@ void initClusterCenters(Image<T> &centers, const Image<T> &samples, int clusters
     // printf("done\n");
 }
 
+
 // each row contains one sample
 template <class T>
 double kmeans(Image<T> &centers, UCImage &labels, const Image<T> &samples,
@@ -128,7 +129,7 @@ double kmeans(Image<T> &centers, UCImage &labels, const Image<T> &samples,
     Image<T> nCenters(width, clusters);
     bool empty;
     
-    if (centers.isEmpty())
+    if (centers.isEmpty() || centers.nHeight() != clusters)
         initClusterCenters(centers, samples, clusters, distance);// kmeans++
 
     // debug
@@ -253,7 +254,6 @@ int kmeans2(Image<T> &centers, UCImage &labels, const Image<T> &samples,
     
     for (int clusters = start; clusters <= end; ++clusters)
     {
-        centers.release();
         error = kmeans(centers, labels, samples, clusters, distance);
         printf("clusters: %d, compactness: %.6f\n", clusters, error);
 

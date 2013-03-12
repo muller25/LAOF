@@ -1,19 +1,29 @@
+#include "gtest/gtest.h"
 #include "Image.h"
 
-#include <vector>
-
-int main(int argc, char *argv[])
+TEST(TestImage, isEmpty)
 {
-    DImage src(10, 10);
-    DImage dst(src);
-    DImage eq = src;
-    std::vector<DImage> v;
-
-    printf("start to push...");
-    v.push_back(src);
-    v.push_back(dst);
-    v.push_back(eq);
-    printf("done\n");
+    DImage dm;
+    IImage im;
     
-    return 0;
+    EXPECT_TRUE(dm.isEmpty());
+
+    dm.create(1, 1);
+    EXPECT_FALSE(dm.isEmpty());
+
+    dm.create(3, 3);
+    EXPECT_FALSE(dm.isEmpty());
+    
+    dm.release();
+    EXPECT_TRUE(dm.isEmpty());
+
+    im.create(3, 3);
+    im.copyTo(dm);
+    EXPECT_FALSE(dm.isEmpty());
+
+    im.release();
+    EXPECT_TRUE(im.isEmpty());
+
+    im.copyFrom(dm);
+    EXPECT_FALSE(dm.isEmpty());
 }

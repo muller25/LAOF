@@ -13,40 +13,17 @@ public:
     void imInfo(DImage &info, const DImage &im);
     void flowInfo(DImage &info, const DImage &flow);
     int cluster(DImage &centers, DImage &layers, const DImage &im,
-                const DImage &flow, const DImage &rflow);
-    
-    template <class T>
-    static double mydist(T *p1, T *p2, int start, int end);
+                const DImage &flow, const DImage &rflow,
+                int start=2, int end=10, double na=15);
+    int cluster(DImage &centers, DImage &layers,
+                const DImage &features,
+                int width, int height, int start=2, int end=10, double na=15);
+
+    static double mydist(double *p1, double *p2, int start, int end);
 private:
     const static int sWidth = 2;// spatial info width
     const static int iWidth = 1;// image info width
     const static int fWidth = 2;// flow info width
 };
-
-template <class T>
-double MotionLayers::mydist(T *p1, T *p2, int start, int end)
-{
-    double dist = 0;
-    int idx = 0;
-    
-    // spatial info
-    // dist += dist2(p1, p2, idx, idx+sWidth);
-    // idx += sWidth;
-    
-    // image info
-    // dist += dist2(p1, p2, idx, idx+iWidth);
-    // idx += iWidth;
-    
-    // flow info
-    dist += dist2(p1, p2, idx, idx+fWidth);
-    dist += (1 - similarity(p1, p2, idx, idx+fWidth));
-    idx += fWidth;
-    
-    // reverse flow info
-    dist += dist2(p1, p2, idx, idx+fWidth);
-    dist += (1 - similarity(p1, p2, idx, idx+fWidth));
-
-    return dist;
-}
 
 #endif

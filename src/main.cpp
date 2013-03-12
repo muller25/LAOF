@@ -1,7 +1,7 @@
 #include "OpticalFlow.h"
 #include "Flow2Color.h"
 #include "ImageIO.h"
-
+#include "LAOF.h"
 #include <iostream>
 #include <ctime>
 using namespace std;
@@ -65,6 +65,7 @@ imwait(0);
 return 0;
 }
 */
+/*
 int main(int argc, char *argv[])
 {
     const char *inName = "/home/iaml/Projects/exp/lena/in/lena.avi.%03d.bmp";
@@ -106,9 +107,9 @@ int main(int argc, char *argv[])
         if (imreadf(u[i], buf)) ++count;
         sprintf(buf, outFile, "v", i);
         if (imreadf(v[i], buf)) ++count;
-        sprintf(buf, outFile, "ru", i);
+        sprintf(buf, outFile, "ru", i+1);
         if (imreadf(ur[i], buf)) ++count;
-        sprintf(buf, outFile, "rv", i);
+        sprintf(buf, outFile, "rv", i+1);
         if (imreadf(vr[i], buf)) ++count;
         if (count >= 4) {
             printf("flow exists, no need to run\n");
@@ -124,16 +125,16 @@ int main(int argc, char *argv[])
         imwrite(buf, warp);
 
         of.warpImage(warp, im[i+1], im[i], ur[i], vr[i]);
-        sprintf(buf, outWarp, "r", i);
+        sprintf(buf, outWarp, "r", i+1);
         imwrite(buf, warp);
 
         sprintf(buf, outFile, "u", i);
         imwritef(buf, u[i]);
         sprintf(buf, outFile, "v", i);
         imwritef(buf, v[i]);
-        sprintf(buf, outFile, "ru", i);
+        sprintf(buf, outFile, "ru", i+1);
         imwritef(buf, ur[i]);
-        sprintf(buf, outFile, "rv", i);
+        sprintf(buf, outFile, "rv", i+1);
         imwritef(buf, vr[i]);
         
         flow2color(flowImg, idxImg, u[i], v[i]);
@@ -141,7 +142,7 @@ int main(int argc, char *argv[])
         imwrite(buf, flowImg);
         
         flow2color(flowImg, idxImg, ur[i], vr[i]);
-        sprintf(buf, outFlow, "r", i);
+        sprintf(buf, outFlow, "r", i+1);
         imwrite(buf, flowImg);
     }
         
@@ -149,7 +150,7 @@ int main(int argc, char *argv[])
     im[1] = im[2];
     mask[0] = mask[1];
     mask[1] = mask[2];
-    for (int i = 3; i < 6; ++i)
+    for (int i = 3; i < 11; ++i)
     {
         sprintf(buf, inName, i);
         imread(im[2], buf);
@@ -161,10 +162,10 @@ int main(int argc, char *argv[])
         sprintf(buf, outFile, "v", i-1);
         if (imreadf(v[2], buf)) ++count;
 
-        sprintf(buf, outFile, "ru", i-1);
+        sprintf(buf, outFile, "ru", i);
         if (imreadf(ur[2], buf)) ++count;
 
-        sprintf(buf, outFile, "rv", i-1);
+        sprintf(buf, outFile, "rv", i);
         if (imreadf(vr[2], buf)) ++count;
 
         if (count < 4) {
@@ -177,16 +178,16 @@ int main(int argc, char *argv[])
             imwrite(buf, warp);
 
             of.warpImage(warp, im[2], im[1], ur[2], vr[2]);
-            sprintf(buf, outWarp, "r", i-1);
+            sprintf(buf, outWarp, "r", i);
             imwrite(buf, warp);
 
             sprintf(buf, outFile, "u", i-1);
             imwritef(buf, u[2]);
             sprintf(buf, outFile, "v", i-1);
             imwritef(buf, v[2]);
-            sprintf(buf, outFile, "ru", i-1);
+            sprintf(buf, outFile, "ru", i);
             imwritef(buf, ur[2]);
-            sprintf(buf, outFile, "rv", i-1);
+            sprintf(buf, outFile, "rv", i);
             imwritef(buf, vr[2]);
         
             flow2color(flowImg, idxImg, u[2], v[2]);
@@ -194,7 +195,7 @@ int main(int argc, char *argv[])
             imwrite(buf, flowImg);
 
             flow2color(flowImg, idxImg, ur[2], vr[2]);
-            sprintf(buf, outFlow, "r", i-1);
+            sprintf(buf, outFlow, "r", i);
             imwrite(buf, flowImg);
         }
         else printf("flow exists, no need to run\n");
@@ -223,16 +224,16 @@ int main(int argc, char *argv[])
         imwrite(buf, warp);
 
         of.warpImage(warp, im[1], im[0], ur[1], vr[1]);
-        sprintf(buf, outWarp, "tr", i-2);
+        sprintf(buf, outWarp, "tr", i-1);
         imwrite(buf, warp);
 
         sprintf(buf, outFile, "tu", i-2);
         imwritef(buf, u[1]);
         sprintf(buf, outFile, "tv", i-2);
         imwritef(buf, v[1]);
-        sprintf(buf, outFile, "tru", i-2);
+        sprintf(buf, outFile, "tru", i-1);
         imwritef(buf, ur[1]);
-        sprintf(buf, outFile, "trv", i-2);
+        sprintf(buf, outFile, "trv", i-1);
         imwritef(buf, vr[1]);
         
         flow2color(flowImg, idxImg, u[1], v[1]);
@@ -240,7 +241,7 @@ int main(int argc, char *argv[])
         imwrite(buf, flowImg);
 
         flow2color(flowImg, idxImg, ur[1], vr[1]);
-        sprintf(buf, outFlow, "tr", i-2);
+        sprintf(buf, outFlow, "tr", i-1);
         imwrite(buf, flowImg);
 
         // move time window forward
@@ -255,5 +256,34 @@ int main(int argc, char *argv[])
         }
     }
     
+    return 0;
+}
+*/
+
+int main(int argc, char *argv[])
+{
+    const char *inName = "/home/iaml/Projects/exp/lena/in/lena.avi.%03d.bmp";
+    const char *outFile = "/home/iaml/Projects/exp/lena/out/%s%03d.yml";
+
+    char buf[256];
+    DImage im0, im1, u1, v1, u2, v2, mask1, mask2;
+    int idx=0;
+    
+    sprintf(buf, inName, idx);
+    imread(im0, buf);
+    sprintf(buf, inName, idx+1);
+    imread(im1, buf);
+
+    LAOF::EM(u1, v1, u2, v2, mask1, mask2, im0, im1, 3);
+
+    sprintf(buf, outFile, "u", idx);
+    imwritef(buf, u1);
+    sprintf(buf, outFile, "v", idx);
+    imwritef(buf, v1);
+    sprintf(buf, outFile, "ru", idx+1);
+    imwritef(buf, u2);
+    sprintf(buf, outFile, "rv", idx+1);
+    imwritef(buf, v2);
+   
     return 0;
 }

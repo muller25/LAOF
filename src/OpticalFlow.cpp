@@ -925,6 +925,45 @@ void OpticalFlow::stFlow(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
     }
 }
 
+void OpticalFlow::stFlow(std::vector<DImage> &u, std::vector<DImage> &v,
+                         std::vector<DImage> &ur, std::vector<DImage> &vr,
+                         std::vector<DImage> &mask, const std::vector<DImage> &im,
+                         int idx, double as, double ap, int nBiIter, int nIRLSIter, int nSORIter)
+{
+    int i0 = idx, i1 = (idx+1) % 3, i2 = (idx+2) % 3;
+    int width = im[0].nWidth(), height = im[0].nHeight();
+    
+    for (int i = 0; i < mask.size(); ++i)
+        if (mask[i].isEmpty()) mask[i].create(width, height, 1, 1);
+    
+    // im0 -> im1
+    if (u[i0].isEmpty() || v[i0].isEmpty() || ur[i0].isEmpty() || vr[i0].isEmpty())
+    {
+        biC2FFlow(u[i0], v[i0], ur[i0], vr[i0], im[i0], im[i1], mask[i0], mask[i1],
+                  as, ap, nBiIter, nIRLSIter, nSORIter);
+    }
+    
+    // im1 -> im2
+    if (u[i1].isEmpty() || v[i1].isEmpty() || ur[i1].isEmpty() || vr[i1].isEmpty())
+    {
+        biC2FFlow(u[i1], v[i1], ur[i1], vr[i1], im[i1], im[i2], mask[i1], mask[i2],
+                  as, ap, nBiIter, nIRLSIter, nSORIter);
+    }
+
+    DImage fIm1, fIm2, du, dv, warpI1, warpI2, pphid, rphid, pu, pv, tmpv, tmpu;
+    DImage pur, pvr;
+    
+    im2feature(fIm1, im[i1]);
+    im2feature(fIm2, im[i2]);
+    fIm1.copyTo(warpI1);
+    fIm2.copyTo(warpI2);
+
+    warpImage(pu, u[i0], u[i0], ur[i0], vr[i0]);
+    warpImage(pv, v[i0], v[i0], ur[i0], vr[i0]);
+    phi_d(pphid, pu, pv);
+
+}
+
 // adaptive, spatio-temporal optical flow
 void OpticalFlow::adIRLS3(DImage &du, DImage &dv,
                           const DImage &Ix, const DImage &Iy, const DImage &It,

@@ -82,7 +82,7 @@ public:
     template <typename T1>
     void invTo(Image<T1> &m) const;
     
-    inline bool isEmpty() const {return (elements == 0);}
+    inline bool isEmpty() const {return (pData==NULL || width==0 || height==0 || channels==0);}
     inline int nonZeros() const;
     inline int nSize() const {return width*height;}
     inline int nWidth() const{return width;}

@@ -62,6 +62,11 @@ public:
                 const DImage &ur, const DImage &vr,
                 double as, double ap, int nIRLSIter, int nSORIter);
 
+    void stFlow(std::vector<DImage> &u, std::vector<DImage> &v,
+                std::vector<DImage> &ur, std::vector<DImage> &vr,
+                std::vector<DImage> &mask, const std::vector<DImage> &im,
+                int idx, double as, double ap, int nBiIter, int nIRLSIter, int nSORIter);
+    
     void stFlow(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
                 const DImage &im1, const DImage &im2,
                 const DImage &mask1, const DImage &mask2,

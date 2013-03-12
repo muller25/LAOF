@@ -11,8 +11,8 @@ void MotionLayers::spatialInfo(DImage &info, const DImage &im)
         for (int w = 0; w < width; ++w)
         {
             offset = (h * width + w) * sWidth;
-            info[offset] = (double)h / (height-1);
-            info[offset+1] = (double)w / (width-1);
+            info[offset] = h;
+            info[offset+1] = w;
         }
     }
 }
@@ -39,7 +39,7 @@ void MotionLayers::flowInfo(DImage &info, const DImage &flow)
     
     normalizeChannels(nf, flow); // normalize is better
     // flow.copyTo(nf);
-
+    
     info.create(channels, size);
     for (int i = 0; i < size; ++i)
     {
@@ -50,12 +50,9 @@ void MotionLayers::flowInfo(DImage &info, const DImage &flow)
 }
 
 int MotionLayers::cluster(DImage &centers, DImage &layers, const DImage &im,
-                          const DImage &flow, const DImage &rflow)
+                          const DImage &flow, const DImage &rflow,
+                          int start, int end, double na)
 {
-    const int start = 2;
-    const int end = 10;
-    const double na = 10;
-    
     DImage features;
     UCImage labels;
     int clusters;
@@ -81,15 +78,15 @@ int MotionLayers::cluster(DImage &centers, DImage &layers, const DImage &im,
                        MotionLayers::mydist);
 
     // count number of elements in each cluster
-    int *count = new int[clusters];
-    memset(count, 0, sizeof(int) * clusters);
-    for (int i = 0; i < labels.nElements(); ++i)
-        count[labels[i]]++;
+    // int *count = new int[clusters];
+    // memset(count, 0, sizeof(int) * clusters);
+    // for (int i = 0; i < labels.nElements(); ++i)
+    //     count[labels[i]]++;
 
-    for (int i = 0; i < clusters; ++i)
-        printf("label %d: %d\n", i, count[i]);
+    // for (int i = 0; i < clusters; ++i)
+    //     printf("label %d: %d\n", i, count[i]);
 
-    delete []count;
+    // delete []count;
     
     // change label map to layer image
     layers.create(flow.nWidth(), flow.nHeight());
@@ -97,4 +94,46 @@ int MotionLayers::cluster(DImage &centers, DImage &layers, const DImage &im,
         layers[i] = (double)labels[i];
     
     return clusters;
+}
+
+int MotionLayers::cluster(DImage &centers, DImage &layers, const DImage &features,
+                          int width, int height, int start, int end, double na)
+{
+    int clusters;
+    UCImage labels;
+    
+    clusters = kmeans2(centers, labels, features, start, end, na,
+                       MotionLayers::mydist);
+
+    // change label map to layer image
+    layers.create(width, height);
+    for (int i = 0; i < labels.nSize(); i++)
+        layers[i] = (double)labels[i];
+
+    return clusters;
+}
+
+double MotionLayers::mydist(double *p1, double *p2, int start, int end)
+{
+    double dist = 0;
+    int idx = 0;
+    
+    // spatial info
+    // dist += dist2(p1, p2, idx, idx+sWidth);
+    // idx += sWidth;
+    
+    // image info
+    // dist += dist2(p1, p2, idx, idx+iWidth);
+    // idx += iWidth;
+    
+    // flow info
+    dist += dist2(p1, p2, idx, idx+fWidth);
+    dist += (1 - similarity(p1, p2, idx, idx+fWidth));
+    idx += fWidth;
+    
+    // reverse flow info
+    // dist += dist2(p1, p2, idx, idx+fWidth);
+    // dist += (1 - similarity(p1, p2, idx, idx+fWidth));
+    
+    return dist;
 }
