@@ -39,4 +39,4 @@ LAOF.o: LAOF.cpp LAOF.h Image.h OpticalFlow.h MotionLayers.h
 
 .PHONY: clean
 clean:
-	-$(DEL) $(OBJS) $(TARGET) cscope.out
+	-$(DEL) $(OBJS) $(TARGET) cscope.out *.yml

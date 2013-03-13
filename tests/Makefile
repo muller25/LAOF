@@ -11,7 +11,7 @@ DEL				= rm -rf
 
 GC				= ../gc
 LAOF			= ../src
-TARGET 			= flow2color pyramid imop kmeans layers tests gc
+TARGET 			= flow2color pyramid imop kmeans layers tests gc seg
 
 all: $(TARGET)
 	@echo "DONE"
@@ -53,6 +53,12 @@ test_gc.o: test_gc.cpp
 	$(CXX) $(CXXFLAGS) $(INCDIR) -I$(LAOF) -I$(GC) -c $< -o $@
 
 gc: test_gc.o $(GC)/GCoptimization.o $(GC)/LinkedBlockList.o
+	$(LINK) $(LFLAGS) -o $@ $^ $(OPENCVLIBS)
+
+test_segment.o: test_segment.cpp $(LAOF)/SegmentImage.h $(LAOF)/SegmentGraph.h
+	$(CXX) $(CXXFLAGS) $(INCDIR) -I$(LAOF) -c $< -o $@
+
+seg: test_segment.o $(LAOF)/Flow2Color.o
 	$(LINK) $(LFLAGS) -o $@ $^ $(OPENCVLIBS)
 
 %.o: %.cpp

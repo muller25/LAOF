@@ -21,6 +21,7 @@ tests/kmeans
 tests/image
 tests/layers
 tests/gc
+tests/seg
 src/run
 gc/*
 
