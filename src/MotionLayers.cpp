@@ -128,7 +128,7 @@ double MotionLayers::mydist(double *p1, double *p2, int start, int end)
     
     // flow info
     dist += dist2(p1, p2, idx, idx+fWidth);
-    dist += (1 - similarity(p1, p2, idx, idx+fWidth));
+    dist += (1 - (similarity(p1, p2, idx, idx+fWidth) + 1) / 2);
     idx += fWidth;
     
     // reverse flow info

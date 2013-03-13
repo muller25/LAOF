@@ -9,8 +9,9 @@ OPENCVLIBS		= `pkg-config --libs opencv`
 
 DEL				= rm -rf
 
+GC				= ../gc
 LAOF			= ../src
-TARGET 			= flow2color pyramid imop kmeans layers tests
+TARGET 			= flow2color pyramid imop kmeans layers tests gc
 
 all: $(TARGET)
 	@echo "DONE"
@@ -48,9 +49,15 @@ test_MotionLayers.o: test_MotionLayers.cpp $(LAOF)/MotionLayers.h
 layers: test_MotionLayers.o $(LAOF)/MotionLayers.o $(LAOF)/Flow2Color.o
 	$(LINK) $(LFLAGS) -o $@ $^ $(OPENCVLIBS)
 
+test_gc.o: test_gc.cpp
+	$(CXX) $(CXXFLAGS) $(INCDIR) -I$(LAOF) -I$(GC) -c $< -o $@
+
+gc: test_gc.o $(GC)/GCoptimization.o $(GC)/LinkedBlockList.o
+	$(LINK) $(LFLAGS) -o $@ $^ $(OPENCVLIBS)
+
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) $(INCDIR) -I$(LAOF) -c $< -o $@
 
 .PHONY: clean
 clean:
-	-$(DEL) *.o $(TARGET) *.jpg *.yml
+	-$(DEL) *.o $(TARGET) *.jpg *.yml cscope.out

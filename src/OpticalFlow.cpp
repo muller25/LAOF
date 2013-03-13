@@ -933,7 +933,7 @@ void OpticalFlow::stFlow(std::vector<DImage> &u, std::vector<DImage> &v,
     int i0 = idx, i1 = (idx+1) % 3, i2 = (idx+2) % 3;
     int width = im[0].nWidth(), height = im[0].nHeight();
     
-    for (int i = 0; i < mask.size(); ++i)
+    for (size_t i = 0; i < mask.size(); ++i)
         if (mask[i].isEmpty()) mask[i].create(width, height, 1, 1);
     
     // im0 -> im1

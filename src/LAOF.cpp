@@ -14,8 +14,8 @@ void LAOF::EM(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
     const int nSORIter = 10;//30;
 
     int width = im1.nWidth(), height = im1.nHeight();
-    DImage tmpu1, tmpv1, tmpu2, tmpv2;
-    DImage centers, layers1, layers2, flow, rflow, fInfo, flowf, rflowf;
+    DImage tmpu1, tmpv1, tmpu2, tmpv2, flow, rflow;
+    DImage centers, layers1, layers2, fInfo, flowf, rflowf;
     UCImage flowImg;
     int clusters, l, i, iter;
     OpticalFlow of;
@@ -24,7 +24,7 @@ void LAOF::EM(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
     char buf[256];
     const char *out = "/home/iaml/Projects/exp/lena/out/iter%d-layer%d-%s.jpg";
     const char *outWarp = "/home/iaml/Projects/exp/lena/out/%swarp%03d.jpg";
-    
+
     layers1.create(width, height);
     layers2.create(width, height);
     mask1.create(width, height);
@@ -99,41 +99,27 @@ void LAOF::EM(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
         ml.flowInfo(flowf, flow);
         ml.flowInfo(rflowf, rflow);
 
-        for (int j = 0; j < 2; ++j)
+        if (centers.isEmpty())
         {
-            printf("clustering iteration: %d\n", j);
-
-            if (centers.isEmpty())
-            {
-                printf("first time to run cluster, automatically determine # clusters\n");
-                clusters = ml.cluster(centers, layers1, flowf, width, height, 2, 5);
-            }
-            else
-                ml.cluster(centers, layers1, flowf, width, height, clusters, clusters);
-            
-            transferLabel(layers2, layers1, flow);
-            createCenterByLabel(centers, clusters, layers2, rflowf);
-
-            sprintf(buf, out, iter, j, "layers1");
-            flow2color(flowImg, layers1, layers1);
-            imwrite(buf, flowImg);
-
-            sprintf(buf, out, iter, j, "layers2t");
-            flow2color(flowImg, layers2, layers2);
-            imwrite(buf, flowImg);
-        
-            ml.cluster(centers, layers2, rflowf, width, height, clusters, clusters);
-            transferLabel(layers1, layers2, rflow);
+            printf("first time to run cluster, automatically determine # clusters\n");
+            clusters = ml.cluster(centers, layers1, flowf, width, height, 2, 2);
+        } else {
             createCenterByLabel(centers, clusters, layers1, flowf);
-
-            sprintf(buf, out, iter, j, "layers2");
-            flow2color(flowImg, layers2, layers2);
-            imwrite(buf, flowImg);
-
-            sprintf(buf, out, iter, j, "layers1t");
-            flow2color(flowImg, layers1, layers1);
-            imwrite(buf, flowImg);
+            ml.cluster(centers, layers1, flowf, width, height, clusters, clusters);
         }
+        
+        transferLabel(layers2, layers1, flow);
+        createCenterByLabel(centers, clusters, layers2, rflowf);
+
+        sprintf(buf, out, iter, 0, "layers1");
+        flow2color(flowImg, layers1, layers1);
+        imwrite(buf, flowImg);
+        
+        ml.cluster(centers, layers2, rflowf, width, height, clusters, clusters);
+
+        sprintf(buf, out, iter, 0, "layers2");
+        flow2color(flowImg, layers2, layers2);
+        imwrite(buf, flowImg);
     }
 
     u1.create(width, height), v1.create(width, height);

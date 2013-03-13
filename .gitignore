@@ -20,7 +20,9 @@ tests/imop
 tests/kmeans
 tests/image
 tests/layers
+tests/gc
 src/run
+gc/*
 
 *cscope.out
 *.jpg

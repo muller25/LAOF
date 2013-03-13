@@ -91,6 +91,8 @@ void imprint(const Image<T> &im)
     int width = im.nWidth(), height = im.nHeight(), channels = im.nChannels();
     int offset;
     bool isFloat = im.isFloat();
+    const char *iFmt = "%3d";
+    const char *dFmt = "%.2f";
     
     printf("[");
     for (int h = 0; h < height; ++h)
@@ -105,8 +107,8 @@ void imprint(const Image<T> &im)
             offset = h * width + w;
             for (int k = 0; k < channels; ++k)
             {
-                if (isFloat) printf("%.2f", p[offset+k]);
-                else printf("%3d", p[offset+k]);
+                if (isFloat) printf(dFmt, p[offset+k]);
+                else printf(iFmt, p[offset+k]);
                 if (k < channels-1)
                     printf(", ");
             }
