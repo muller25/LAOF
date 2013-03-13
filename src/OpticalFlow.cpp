@@ -91,15 +91,20 @@ void OpticalFlow::phi_d(DImage &res, const DImage &u, const DImage &v)
 void OpticalFlow::getGrads(DImage &Ix, DImage &Iy, DImage &It,
                            const DImage &im1, const DImage &im2)
 {
-    double filter[5] = {0.02, 0.11, 0.74, 0.11, 0.02};
+    // double filter[5] = {0.02, 0.11, 0.74, 0.11, 0.02};
+    // DImage sIm1, sIm2, im;
 
-    DImage sIm1, sIm2, im;
-    filtering(sIm1, im1, filter, 2, filter, 2);
-    filtering(sIm2, im2, filter, 2, filter, 2);
+    // filtering(sIm1, im1, filter, 2, filter, 2);
+    // filtering(sIm2, im2, filter, 2, filter, 2);
+    // addWeighted(im, sIm1, 0.4, sIm2, 0.6);
+    // grad1st(Ix, Iy, im);
+    // substract(It, sIm2, sIm1);
 
-    addWeighted(im, sIm1, 0.4, sIm2, 0.6);
+    // suppose we use Guided Filter before, hence we don't use any filter here
+    DImage im;
+    addWeighted(im, im1, 0.4, im2, 0.6);
     grad1st(Ix, Iy, im);
-    substract(It, sIm2, sIm1);
+    substract(It, im2, im1);
 }
 
 void OpticalFlow::estLapNoise(const DImage &im1, const DImage &im2)
@@ -155,7 +160,9 @@ void OpticalFlow::im2feature(DImage &feature, const DImage &im)
     
     if (channels == 1)
     {
-        grad1st(gx, gy, im);
+        DImage gray;
+        GuidedFilter(gray, im, im, 2, 0.01);
+        grad1st(gx, gy, gray);
         
         // mix channels
         for (int h = 0; h < height; ++h)
@@ -164,7 +171,7 @@ void OpticalFlow::im2feature(DImage &feature, const DImage &im)
             {
                 offset = h * width + w;
                 foffset = offset * nchannels;
-                pf[foffset] = im[offset];
+                pf[foffset] = gray[offset];
                 pf[foffset + 1] = gx[offset] * gamma;
                 pf[foffset + 2] = gy[offset] * gamma;
             }
@@ -201,9 +208,11 @@ void OpticalFlow::im2feature(DImage &feature, const DImage &im)
 
     if (channels == 3)
     {
-        DImage gray;
+        DImage gray, tmp;
 
-        desuarate(gray, im);
+        desuarate(tmp, im);
+
+        GuidedFilter(gray, tmp, tmp, 2, 0.01);
         grad1st(gx, gy, gray);
         
         // mix channels
