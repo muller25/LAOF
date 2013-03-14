@@ -84,6 +84,7 @@ public:
     
     inline bool isEmpty() const {return (pData==NULL || width==0 || height==0 || channels==0);}
     inline int nonZeros() const;
+    inline bool isZero(int idx) const;
     inline int nSize() const {return width*height;}
     inline int nWidth() const{return width;}
     inline int nHeight() const{return height;}
@@ -214,9 +215,22 @@ int Image<T>::nonZeros() const
 {
     int count = 0;
     for (int i = 0; i < elements; ++i)
-        if (fabs(pData[i]) < ESP) ++count;
-
+        if (!isZero(i)) count++;
+    
     return count;
+}
+
+template <class T>
+bool Image<T>::isZero(int idx) const
+{
+    if (isFloat())
+    {
+        if (fabs(pData[idx]) < ESP) return true;
+
+        return false;
+    }
+
+    return !pData[idx];
 }
 
 template <class T>
@@ -290,5 +304,6 @@ void Image<T>::invTo(Image<T1> &m) const
 typedef Image<double> DImage;
 typedef Image<uchar> UCImage;
 typedef Image<int> IImage;
+typedef Image<bool> BImage;
 
 #endif

@@ -22,7 +22,10 @@ test_Image.o: test_Image.cpp $(LAOF)/Image.h
 test_Maths.o: test_Maths.cpp $(LAOF)/Maths.h
 	$(CXX) $(CXXFLAGS) $(INCDIR) -I$(LAOF) -c $< -o $@
 
-tests: test_Maths.o test_Image.o
+test_hist.o: test_hist.cpp $(LAOF)/Histogram.h
+	$(CXX) $(CXXFLAGS) $(INCDIR) -I$(LAOF) -c $< -o $@
+
+tests: test_Maths.o test_Image.o test_hist.o
 	$(LINK) $(LFLAGS) -o $@ $^ -L$(LIBDIR) -lgtest -lgtest_main -lpthread
 
 flow2color: test_Flow2Color.o $(LAOF)/Flow2Color.o
