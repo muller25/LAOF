@@ -49,7 +49,7 @@ kmeans: test_kmeans.o
 test_MotionLayers.o: test_MotionLayers.cpp $(LAOF)/MotionLayers.h
 	$(CXX) $(CXXFLAGS) $(INCDIR) -I$(LAOF) -c $< -o $@
 
-layers: test_MotionLayers.o $(LAOF)/MotionLayers.o $(LAOF)/Flow2Color.o
+layers: test_MotionLayers.o $(LAOF)/MotionLayers.o $(LAOF)/Flow2Color.o $(GC)/GCoptimization.o $(GC)/LinkedBlockList.o
 	$(LINK) $(LFLAGS) -o $@ $^ $(OPENCVLIBS)
 
 test_gc.o: test_gc.cpp

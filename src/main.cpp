@@ -280,10 +280,15 @@ int main(int argc, char *argv[])
     imwritef(buf, u1);
     sprintf(buf, outFile, "v", idx);
     imwritef(buf, v1);
+    sprintf(buf, outFile, "layers", idx);
+    imwritef(buf, mask1);
+
     sprintf(buf, outFile, "ru", idx+1);
     imwritef(buf, u2);
     sprintf(buf, outFile, "rv", idx+1);
     imwritef(buf, v2);
-   
+    sprintf(buf, outFile, "layersr", idx+1);
+    imwritef(buf, mask2);
+    
     return 0;
 }

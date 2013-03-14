@@ -1,3 +1,4 @@
+#include "GCoptimization.h"
 #include "MotionLayers.h"
 
 // extract spatial info from image
@@ -20,14 +21,12 @@ void MotionLayers::spatialInfo(DImage &info, const DImage &im)
 // extract intensity info from image
 void MotionLayers::imInfo(DImage &info, const DImage &im)
 {
-    int size = im.nSize();
-
-    DImage gray;
-    desuarate(gray, im);
+    int size = im.nSize(), channels = im.nChannels();
+    assert(iWidth == channels);
     
-    info.create(iWidth, size);
-    for (int i = 0; i < size; ++i)
-        info[i] = gray[i];
+    info.create(channels, size);
+    for (int i = 0; i < im.nElements(); ++i)
+        info[i] = im[i];
 }
 
 // extract motion strength from flow
@@ -77,17 +76,9 @@ int MotionLayers::cluster(DImage &centers, DImage &layers, const DImage &im,
     clusters = kmeans2(centers, labels, features, start, end, na,
                        MotionLayers::mydist);
 
-    // count number of elements in each cluster
-    // int *count = new int[clusters];
-    // memset(count, 0, sizeof(int) * clusters);
-    // for (int i = 0; i < labels.nElements(); ++i)
-    //     count[labels[i]]++;
+    // rearrange labels
+    reArrangeLabels(labels, clusters);
 
-    // for (int i = 0; i < clusters; ++i)
-    //     printf("label %d: %d\n", i, count[i]);
-
-    // delete []count;
-    
     // change label map to layer image
     layers.create(flow.nWidth(), flow.nHeight());
     for (int i = 0; i < labels.nSize(); i++)
@@ -105,12 +96,108 @@ int MotionLayers::cluster(DImage &centers, DImage &layers, const DImage &feature
     clusters = kmeans2(centers, labels, features, start, end, na,
                        MotionLayers::mydist);
 
+    // rearrange labels
+    reArrangeLabels(labels, clusters);
+    
     // change label map to layer image
     layers.create(width, height);
     for (int i = 0; i < labels.nSize(); i++)
         layers[i] = (double)labels[i];
 
     return clusters;
+}
+
+void MotionLayers::refine(DImage &layers, int labels, const DImage &im, const DImage &flow,
+                          const DImage &centers, const DImage &features)
+{
+    int size = im.nSize(), cwidth = centers.nWidth();
+    int width = im.nWidth(), height = im.nHeight();
+    double *data = new double[labels*size];
+    // DImage extra;
+    // std::vector<DImage> vec;
+
+    // vec.push_back(im);
+    // vec.push_back(flow);
+    // mergec(extra, vec);
+    
+    for (int i = 0; i < size; ++i)
+        for (int l = 0; l < labels; ++l)
+            data[i*labels+l] = mydist(features.ptr()+i*cwidth, centers.ptr()+l*cwidth, 0, cwidth);
+    
+    try{
+		GCoptimizationGridGraph *gc = new GCoptimizationGridGraph(width, height, labels);
+        gc->setDataCost(data);
+        gc->setSmoothCost(MotionLayers::smoothFn, im.ptr());
+        
+        printf("Before optimization energy is %.6f\n",gc->compute_energy());
+        gc->expansion(2);
+        // gc->swap(2);
+        printf("After optimization energy is %.6f\n",gc->compute_energy());
+
+        for (int  i = 0; i < size; i++)
+            layers[i] = gc->whatLabel(i);
+
+        // rearrange labels
+        reArrangeLabels(layers, labels);
+        
+		delete gc;
+	}
+	catch (GCException e){
+		e.Report();
+	}
+
+    delete []data;
+}
+
+// void MotionLayers::splitMask(std::vector<DImage> &vec, DImage &m)
+// {
+//     assert(m.nChannels() == 1);
+    
+//     vec.clear();
+//     double minV = m.min(), maxV = m.max();
+//     int start, end, i;
+    
+//     if (m.isFloat())
+//     {
+//         start = minV + 0.5;
+//         end = maxV + 0.5;
+//     } else {
+//         start = minV;
+//         end = maxV;
+//     }
+
+//     DImage tmp(m.nWidth(), m.nHeight(), 1);
+//     for (i = start; i <= end; i++)
+//     {
+//         for (int idx = 0; idx < m.nElements(); ++idx)
+//         {
+//             if (m.isFloat())
+//             {
+//                 if (fabs(m[idx] - i) < 0.5) tmp[idx] = 1;
+//                 else tmp[idx] = 0;
+//             } else {
+//                 if (m[idx] == i) tmp[idx] = 1;
+//                 else tmp[idx] = 0;
+//             }
+//         }
+
+//         vec.push_back(tmp);
+//     }
+// }
+
+double MotionLayers::smoothFn(int p1, int p2, int l1, int l2, void *pData)
+{
+    const double penalty = 0.3;
+    const double sigma = 0.1;
+    double *ptr = (double *)pData;
+
+    if (l1 == l2) return 0;
+
+    double cost;
+    cost = dist2(ptr+p1*3, ptr+p2*3, 0, 3);
+    cost = exp(-cost*cost/(2*sigma*sigma)) + penalty;
+
+    return cost;
 }
 
 double MotionLayers::mydist(double *p1, double *p2, int start, int end)

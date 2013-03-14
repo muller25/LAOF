@@ -15,8 +15,10 @@ public:
                    DImage &mask1, DImage &mask2,
                    const DImage &im1, const DImage &im2,
                    int nIters=3);
+
     static void createCenterByLabel(DImage &centers, int clusters,
                                     const DImage &labels, const DImage &samples);
+
     static void transferLabel(DImage &dst, const DImage &src, const DImage &flow);
 };
 

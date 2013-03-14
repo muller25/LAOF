@@ -14,7 +14,8 @@ const double PI = atan(1.0) * 4;
 
 // res = m1 * m2 * m3
 template <class T, class T1, class T2, class T3>
-inline void multiply(Image<T> &res, const Image<T1> &m1, const Image<T2> &m2, const Image<T3> &m3)
+inline void multiply(Image<T> &res, const Image<T1> &m1, const Image<T2> &m2,
+                     const Image<T3> &m3)
 {
     assert(m1.match3D(m2) && m2.match3D(m3));
 
