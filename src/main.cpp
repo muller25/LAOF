@@ -259,23 +259,23 @@ int main(int argc, char *argv[])
     return 0;
 }
 */
-
+ /*
 int main(int argc, char *argv[])
 {
     const char *inName = "/home/iaml/Projects/exp/lena/in/lena.avi.%03d.bmp";
     const char *outFile = "/home/iaml/Projects/exp/lena/out/%s%03d.yml";
-
+    const char *outWarp = "/home/iaml/Projects/exp/lena/out/%s%03d.jpg";
+    
     char buf[256];
-    DImage im0, im1, u1, v1, u2, v2, mask1, mask2;
-
-    for (int idx = 0; idx < 1; ++idx)
+    DImage im0, im1, u1, v1, u2, v2, mask1, mask2, warp;
+    for (int idx = 0; idx < 10; ++idx)
     {
         sprintf(buf, inName, idx);
         imread(im0, buf);
         sprintf(buf, inName, idx+1);
         imread(im1, buf);
 
-        LAOF::EM(u1, v1, u2, v2, mask1, mask2, im0, im1, 2);
+        LAOF::EM(u1, v1, u2, v2, mask1, mask2, im0, im1, 2, idx);
 
         sprintf(buf, outFile, "u", idx);
         imwritef(buf, u1);
@@ -284,13 +284,125 @@ int main(int argc, char *argv[])
         sprintf(buf, outFile, "layers", idx);
         imwritef(buf, mask1);
 
-        sprintf(buf, outFile, "ru", idx+1);
+        sprintf(buf, outFile, "ur", idx+1);
         imwritef(buf, u2);
-        sprintf(buf, outFile, "rv", idx+1);
+        sprintf(buf, outFile, "vr", idx+1);
         imwritef(buf, v2);
         sprintf(buf, outFile, "layersr", idx+1);
         imwritef(buf, mask2);
+
+        warpImage(warp, im0, im1, u1, v1);
+        sprintf(buf, outWarp, "warp", idx);
+        imwrite(buf, warp);
+
+        warpImage(warp, im1, im0, u2, v2);
+        sprintf(buf, outWarp, "warpr", idx+1);
+        imwrite(buf, warp);
     }
+    
+    return 0;
+}
+ */
+
+int main(int argc, char *argv[])
+{
+    const char *inName = "/home/iaml/Projects/exp/lena/in/lena.avi.%03d.bmp";
+    const char *outFile = "/home/iaml/Projects/exp/lena/out/%s%03d.yml";
+    const char *outImg = "/home/iaml/Projects/exp/lena/out/%s%03d.jpg";
+
+    const double as = 0.026;
+    const double ap = 0.012;
+    const double ratio = 0.75;
+    const int minWidth = 20;
+    const int nBiIter = 5;//14;
+    const int nIRLSIter = 1;
+    const int nSORIter = 10;//30;
+  
+    char buf[256];
+    std::vector<DImage> im(3), mask(3), u(3), v(3), ur(3), vr(3);
+    DImage warp;
+    UCImage flowImg;
+    OpticalFlow of;
+    int idx, next, prev, i;
+
+    sprintf(buf, inName, 0);
+    imread(im[0], buf);
+    sprintf(buf, inName, 1);
+    imread(im[1], buf);
+    prev = 0;
+    idx = 1;
+    next = 2;
+    for (i = 2; i < 4; ++i)
+    {
+        sprintf(buf, inName, i);
+        imread(im[next], buf);
+
+        of.stFlow(u, v, ur, vr, mask, im, idx,
+                  as, ap, ratio, minWidth, nBiIter, nIRLSIter, nSORIter);
+        
+        sprintf(buf, outFile, "u", i-2);
+        imwritef(buf, u[prev]);
+        sprintf(buf, outFile, "v", i-2);
+        imwritef(buf, v[prev]);
+
+        sprintf(buf, outFile, "layers", i-2);
+        imwritef(buf, mask[prev]);
+
+        sprintf(buf, outFile, "ur", i-1);
+        imwritef(buf, ur[prev]);
+        sprintf(buf, outFile, "vr", i-1);
+        imwritef(buf, vr[prev]);
+
+        flow2color(flowImg, u[prev], v[prev]);
+        sprintf(buf, outImg, "flow", i-2);
+        imwrite(buf, flowImg);
+
+        flow2color(flowImg, u[prev], v[prev]);
+        sprintf(buf, outImg, "rflow", i-1);
+        imwrite(buf, flowImg);
+        
+        warpImage(warp, im[prev], im[idx], u[prev], v[prev]);
+        sprintf(buf, outImg, "warp", i-2);
+        imwrite(buf, warp);
+
+        warpImage(warp, im[idx], im[prev], ur[prev], vr[prev]);
+        sprintf(buf, outImg, "rwarp", i-1);
+        imwrite(buf, warp);
+        
+        // time window move forward
+        prev = idx;
+        idx = next;
+        next = (idx + 1) % 3;
+    }
+
+    sprintf(buf, outFile, "u", i-2);
+    imwritef(buf, u[prev]);
+    sprintf(buf, outFile, "v", i-2);
+    imwritef(buf, v[prev]);
+
+    sprintf(buf, outFile, "layers", i-2);
+    imwritef(buf, mask[prev]);
+
+    sprintf(buf, outFile, "ur", i-1);
+    imwritef(buf, ur[prev]);
+    sprintf(buf, outFile, "vr", i-1);
+    imwritef(buf, vr[prev]);
+
+    flow2color(flowImg, u[prev], v[prev]);
+    sprintf(buf, outImg, "flow", i-2);
+    imwrite(buf, flowImg);
+
+    flow2color(flowImg, u[prev], v[prev]);
+    sprintf(buf, outImg, "rflow", i-1);
+    imwrite(buf, flowImg);
+
+    warpImage(warp, im[prev], im[idx], u[prev], v[prev]);
+    sprintf(buf, outImg, "warp", i-2);
+    imwrite(buf, warp);
+
+    warpImage(warp, im[idx], im[prev], ur[prev], vr[prev]);
+    sprintf(buf, outImg, "rwarp", i-1);
+    imwrite(buf, warp);
     
     return 0;
 }

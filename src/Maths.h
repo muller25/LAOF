@@ -425,6 +425,15 @@ void weighted_lap3(Image<T> &lap, const Image<F> &pf, const Image<F> &cf,
         lap[i] += cw[i] * (nf[i]-cf[i]) - pw[i] * (cf[i]-pf[i]);
 }
 
+template <class T, class F>
+void weighted_lap3(Image<T> &lap, const Image<F> &f, const Image<T> &phid,
+                   const Image<T> &pphid, const Image<F> &dt)
+{
+    weighted_lap(lap, f, phid);
+    for (int i = 0; i < lap.nElements(); ++i)
+        lap[i] += (phid[i] - pphid[i]) * dt[i];
+}
+
 template <class T, class T1>
 void collapse(Image<T> &dst, const Image<T1> &src)
 {

@@ -22,9 +22,6 @@ public:
 
     inline void phi_d(DImage &res, const DImage &u, const DImage &v);
     
-    void warpImage(DImage &warp, const DImage &im1, const DImage &im2,
-                   const DImage &u, const DImage &v);
-    
     void getGrads(DImage &Ix, DImage &Iy, DImage &It,
                   const DImage &im1, const DImage &im2);
 
@@ -65,24 +62,14 @@ public:
     void stFlow(std::vector<DImage> &u, std::vector<DImage> &v,
                 std::vector<DImage> &ur, std::vector<DImage> &vr,
                 std::vector<DImage> &mask, const std::vector<DImage> &im,
-                int idx, double as, double ap, int nBiIter, int nIRLSIter, int nSORIter);
-    
-    void stFlow(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
-                const DImage &im1, const DImage &im2,
-                const DImage &mask1, const DImage &mask2,
-                const DImage &pu, const DImage &pv,
-                const DImage &nu, const DImage &nv,
-                const DImage &pur, const DImage &pvr,
-                const DImage &nur, const DImage &nvr,
-                double as, double ap, int nBiIter, int nIRLSIter, int nSORIter);
-    
+                int idx, double as, double ap, double ratio, int minWidth,
+                int nBiIter, int nIRLSIter, int nSORIter);
+
     void adIRLS3(DImage &du, DImage &dv,
                  const DImage &Ix, const DImage &Iy, const DImage &It,
-                 const DImage &mask, const DImage &pphid,
-                 const DImage &pu, const DImage &pv,
-                 const DImage &u, const DImage &v,
-                 const DImage &nu, const DImage &nv,
-                 const DImage &ur, const DImage &vr,
+                 const DImage &mask,
+                 const DImage &pphid, const DImage &dut, const DImage &dvt,
+                 const DImage &u, const DImage &v, const DImage &ur, const DImage &vr,
                  double as, double ap, int nIRLSIter, int nSORIter);
 
 private:

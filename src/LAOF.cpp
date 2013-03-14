@@ -2,7 +2,7 @@
 
 void LAOF::EM(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
               DImage &mask1, DImage &mask2,
-              const DImage &im1, const DImage &im2, int nIters)
+              const DImage &im1, const DImage &im2, int nIters, int idx)
 {
     // init optical flow parameters
     const double as = 0.026;
@@ -17,13 +17,13 @@ void LAOF::EM(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
     DImage tmpu1, tmpv1, tmpu2, tmpv2, flow, rflow, tmp;
     DImage centers, layers1, layers2, fInfo, flowf, rflowf;
     UCImage flowImg;
-    int clusters, l, i, iter, m1Size, m2Size, mSize;
+    int clusters, l, i, iter;//, m1Size, m2Size, mSize;
+    // double nas;
     OpticalFlow of;
     MotionLayers ml;
 
     char buf[256];
-    const char *out = "/home/iaml/Projects/exp/lena/out/iter%d-layer%d-%s.jpg";
-    const char *outWarp = "/home/iaml/Projects/exp/lena/out/%swarp%03d.jpg";
+    const char *out = "/home/iaml/Projects/exp/lena/out/%d-iter%d-layer%d-%s.jpg";
 
     layers1.create(width, height);
     layers2.create(width, height);
@@ -39,31 +39,33 @@ void LAOF::EM(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
         // seperate mask
         for (l = 0; l < clusters; ++l)
         {
-            m1Size = 0, m2Size = 0;
+            // m1Size = 0, m2Size = 0;
             for (i = 0; i < layers1.nElements(); ++i)
             {
                 if (fabs(layers1[i]-l) < 0.5)
                 {
                     mask1[i] = 1;
-                    m1Size++;
+                    // m1Size++;
                 }
                 else mask1[i] = 0;
 
                 if (fabs(layers2[i]-l) < 0.5)
                 {
                     mask2[i] = 1;
-                    m2Size++;
+                    // m2Size++;
                 }
                 else mask2[i] = 0;
             }
             
             // for test purpose
-            sprintf(buf, out, iter, l, "mask1");
+            sprintf(buf, out, idx, iter, l, "mask1");
             imwrite(buf, mask1);
-            sprintf(buf, out, iter, l, "mask2");
+            sprintf(buf, out, idx, iter, l, "mask2");
             imwrite(buf, mask2);
 
-            mSize = std::max(m1Size, m2Size);
+            // mSize = std::max(m1Size, m2Size);
+            // if (clusters == 1) nas = as;
+            // else nas = as * log(mSize);
             of.biC2FFlow(tmpu1, tmpv1, tmpu2, tmpv2, im1, im2, mask1, mask2,
                          as, ap, ratio, minWidth, nOutIter, nInIter, nSORIter);
 
@@ -97,11 +99,11 @@ void LAOF::EM(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
         }
 
         // for test purpose
-        sprintf(buf, out, iter, iter, "flow");
+        sprintf(buf, out, idx, iter, 0, "flow");
         flow2color(flowImg, flow);
         imwrite(buf, flowImg);
             
-        sprintf(buf, out, iter, iter, "rflow");
+        sprintf(buf, out, idx, iter, 0, "flowr");
         flow2color(flowImg, rflow);
         imwrite(buf, flowImg);
         
@@ -118,23 +120,23 @@ void LAOF::EM(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
             ml.cluster(centers, layers1, flowf, width, height, clusters, clusters);
         }
 
-        sprintf(buf, out, iter, 0, "layers1");
+        sprintf(buf, out, idx, iter, 0, "layers1");
         flow2color(flowImg, layers1, layers1);
         imwrite(buf, flowImg);
 
         ml.coverLabels(tmp, im1, flowImg);
-        sprintf(buf, out, iter, 0, "layers1-merge");
+        sprintf(buf, out, idx, iter, 0, "merge-layers1");
         imwrite(buf, tmp);
 
         // refine layers
         ml.refine(layers1, clusters, im1, flow, centers, flowf);
 
-        sprintf(buf, out, iter, 0, "layers1-refine");
+        sprintf(buf, out, idx, iter, 0, "refine-layers1");
         flow2color(flowImg, layers1, layers1);
         imwrite(buf, flowImg);
 
         ml.coverLabels(tmp, im1, flowImg);
-        sprintf(buf, out, iter, 0, "layers1-refine-merge");
+        sprintf(buf, out, idx, iter, 0, "merge-layers1-refine");
         imwrite(buf, tmp);
 
         // transfer labels from im1 to im2
@@ -142,23 +144,23 @@ void LAOF::EM(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
         createCenterByLabel(centers, clusters, layers2, rflowf);
         ml.cluster(centers, layers2, rflowf, width, height, clusters, clusters);
 
-        sprintf(buf, out, iter, 0, "layers2");
+        sprintf(buf, out, idx, iter, 0, "layers2");
         flow2color(flowImg, layers2, layers2);
         imwrite(buf, flowImg);
 
         ml.coverLabels(tmp, im2, flowImg);
-        sprintf(buf, out, iter, 0, "layers2-merge");
+        sprintf(buf, out, idx, iter, 0, "merge-layers2");
         imwrite(buf, tmp);
 
         // refine layers
         ml.refine(layers2, clusters, im2, rflow, centers, rflowf);
 
-        sprintf(buf, out, iter, 0, "layers2-refine");
+        sprintf(buf, out, idx, iter, 0, "refine-layers2");
         flow2color(flowImg, layers2, layers2);
         imwrite(buf, flowImg);
 
         ml.coverLabels(tmp, im2, flowImg);
-        sprintf(buf, out, iter, 0, "layers2-refine-merge");
+        sprintf(buf, out, idx, iter, 0, "merge-layers2-refine");
         imwrite(buf, tmp);
     }
 
@@ -171,15 +173,6 @@ void LAOF::EM(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
         u2[i] = rflow[i*2];
         v2[i] = rflow[i*2+1];
     }
-
-    DImage warp;
-    of.warpImage(warp, im1, im2, u1, v1);
-    sprintf(buf, outWarp, "", 0);
-    imwrite(buf, warp);
-
-    of.warpImage(warp, im2, im1, u2, v2);
-    sprintf(buf, outWarp, "r", 1);
-    imwrite(buf, warp);
    
     printf("EM done!\n");
 }

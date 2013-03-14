@@ -4,6 +4,39 @@
 #include "Image.h"
 #include "Maths.h"
 
+template <class T>
+void warpImage(Image<T> &warp, const Image<T> &im1, const Image<T> &im2,
+               const Image<T> &u, const Image<T> &v)
+{
+    assert(im1.match3D(im2) && u.match3D(v) && im1.match2D(u));
+    
+    int width = im1.nWidth(), height = im1.nHeight(), channels = im1.nChannels();
+    double nx, ny;
+    int offset;
+
+    warp.create(width, height, channels);    
+    for (int h = 0; h < height; ++h)
+    {
+        for (int w = 0; w < width; ++w)
+        {
+            offset = h * width + w;
+            nx = w + u[offset];
+            ny = h + v[offset];
+            offset *= channels;
+            
+            if (nx < 0 || nx > width-1 || ny < 0 || ny > height-1)
+            {
+                for (int k = 0; k < channels; k++)
+                    warp[offset+k] = im1[offset+k];
+
+                continue;
+            }
+
+            biInterpolate(warp.ptr()+offset, im2, nx, ny);
+        }
+    }
+}
+
 template <class T, class T1>
 void imresize(Image<T> &dst, const Image<T1> &src, double factor)
 {

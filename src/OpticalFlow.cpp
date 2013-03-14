@@ -1,37 +1,5 @@
 #include "OpticalFlow.h"
 
-void OpticalFlow::warpImage(DImage &warp, const DImage &im1, const DImage &im2,
-                            const DImage &u, const DImage &v)
-{
-    assert(im1.match3D(im2) && u.match3D(v) && im1.match2D(u));
-    
-    int width = im1.nWidth(), height = im1.nHeight(), channels = im1.nChannels();
-    double nx, ny;
-    int offset;
-
-    warp.create(width, height, channels);    
-    for (int h = 0; h < height; ++h)
-    {
-        for (int w = 0; w < width; ++w)
-        {
-            offset = h * width + w;
-            nx = w + u[offset];
-            ny = h + v[offset];
-            offset *= channels;
-            
-            if (nx < 0 || nx > width-1 || ny < 0 || ny > height-1)
-            {
-                for (int k = 0; k < channels; k++)
-                    warp[offset+k] = im1[offset+k];
-
-                continue;
-            }
-
-            biInterpolate(warp.ptr()+offset, im2, nx, ny);
-        }
-    }
-}
-
 // calculate res = psi_1st((It + Ix * du + Iy * dv)^2)
 void OpticalFlow::psi_d(DImage &res, const DImage &Ix, const DImage &Iy,
                         const DImage &It, const DImage &du, const DImage &dv)
@@ -459,7 +427,7 @@ void OpticalFlow::biC2FFlow(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
     pyr2.build(im2, ratio, minWidth);
     mpyr1.build(mask1, ratio, minWidth);
     mpyr2.build(mask2, ratio, minWidth);
-    printf("pyramid constructed\n");
+    // printf("pyramid constructed\n");
     
     DImage fIm1, fIm2, warpI1, warpI2, Ix, Iy, It, mask;
     DImage du1, dv1, du2, dv2, tmp;
@@ -471,7 +439,7 @@ void OpticalFlow::biC2FFlow(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
     // iterate from the top level to the bottom
     for (int k = pyr1.nLevels()-1; k >= 0; --k)
     {
-        printf("Pyramid level %d\n", k);
+        // printf("Pyramid level %d\n", k);
 
         width = pyr1[k].nWidth();
         height = pyr1[k].nHeight();
@@ -596,34 +564,24 @@ void OpticalFlow::biIRLS(DImage &du, DImage &dv,
         multiply(phi_1st, mask);
         
         multiply(A11, ix2, mask);
-//        multiply(ix2, mask);
-//        gaussianBlur(A11, ix2, 1.2, 3);
         multiply(wrx2, mask);
         add(A11, wrx2);
         add(A11, as*0.05); // add epsilon to avoid dividing zero
 
         multiply(A22, iy2, mask);
-//        multiply(iy2, mask);
-//        gSmooth(A22, iy2, 1.2, 3);
         multiply(wry2, mask);        
         add(A22, wry2);
         add(A22, as*0.05); // add epsilon to avoid dividing zero
 
         multiply(A12, ixy, mask);
-//        multiply(ixy, mask);
-//        gSmooth(A12, ixy, 1.2, 3);
         multiply(wrxy, mask);
         add(A12, wrxy);
 
         multiply(b1, ixt, mask);
-//        multiply(ixt, mask);
-//        gSmooth(b1, ixt, 1.2, 3);
         multiply(wrxt, mask);
         add(b1, wrxt);
 
         multiply(b2, iyt, mask);
-//        multiply(iyt, mask);
-//        gSmooth(b2, iyt, 1.2, 3);
         multiply(wryt, mask);
         add(b2, wryt);
         
@@ -864,123 +822,191 @@ void OpticalFlow::adIRLS(DImage &du, DImage &dv,
     }
 }
 
-// spatio-temporal optical flow
-// given image im[t-1], im[t], im[t+1], im[t+2], flow f
-// f[t-1]: im[t-1] -> im[t], f[t]: im[t] -> im[t+1], f[t+1]: im[t+1] -> im[t+2]
-// reverse flow rf
-// f[t-1]: im[t] -> im[t-1], f[t]: im[t+1] -> im[t], f[t+1]: im[t+2] -> im[t+1]
-void OpticalFlow::stFlow(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
-                         const DImage &im1, const DImage &im2,
-                         const DImage &mask1, const DImage &mask2,
-                         const DImage &pu, const DImage &pv,
-                         const DImage &nu, const DImage &nv,
-                         const DImage &pur, const DImage &pvr,
-                         const DImage &nur, const DImage &nvr,
-                         double as, double ap, int nBiIter, int nIRLSIter, int nSORIter)
-{
-    DImage Ix, Iy, It, du1, dv1, du2, dv2, pphid, pphidr, warpI1, warpI2, mask;
-    DImage fIm1, fIm2, wpu, wpv, wpur, wpvr, wnu, wnv, tmpu, tmpv;
-
-    im2feature(fIm1, im1);
-    im2feature(fIm2, im2);
-
-    fIm1.copyTo(warpI1);
-    fIm2.copyTo(warpI2);
-
-    // u(p-w) = u[t-1]
-    multiply(tmpu, pu, -1);
-    multiply(tmpv, pv, -1);
-    warpImage(wpu, pu, pu, tmpu, tmpv);
-    warpImage(wpv, pv, pv, tmpu, tmpv);
-    phi_d(pphid, wpu, wpv);
-
-    // ur(p-w) = ur[t-1]
-    multiply(tmpu, pur, -1);
-    multiply(tmpv, pvr, -1);
-    warpImage(wpur, pur, pur, tmpu, tmpv);
-    warpImage(wpvr, pvr, pvr, tmpu, tmpv);
-    phi_d(pphidr, wpur, wpvr);
-    for (int i = 0; i < nBiIter; ++i)
-    {
-        // forward flow: im1 -> im2
-        warpImage(wnu, nu, nu, u1, v1);
-        warpImage(wnv, nv, nv, u1, v1);
-    
-        getGrads(Ix, Iy, It, fIm1, warpI2);
-        genInImageMask(mask, mask1, mask2, u1, v1);
-        adIRLS3(du1, dv1, Ix, Iy, It, mask, pphid, wpu, wpv, u1, v1, wnu, wnv, u2, v2,
-                as, ap, nIRLSIter, nSORIter);
-
-        // backward flow: cmask -> pmask
-        warpImage(wnu, nur, nur, u2, v2);
-        warpImage(wnv, nvr, nvr, u2, v2);
-        
-        getGrads(Ix, Iy, It, fIm2, warpI1);
-        genInImageMask(mask, mask2, mask1, u2, v2);
-        adIRLS3(du2, dv2, Ix, Iy, It, mask, pphidr, wpur, wpvr, u2, v2, wnu, wnv, u1, v1,
-                as, ap, nIRLSIter, nSORIter);
-
-        add(u1, du1);
-        add(v1, dv1);
-        add(u2, du2);
-        add(v2, dv2);
-
-        warpImage(warpI2, fIm1, fIm2, u1, v1);
-        warpImage(warpI1, fIm2, fIm1, u2, v2);
-
-        // printf("u1: %.6f .. %.6f, v1: %.6f .. %.6f\n", u1.min(), u1.max(), v1.min(), v1.max());
-        // printf("u2: %.6f .. %.6f, v2: %.6f .. %.6f\n", u2.min(), u2.max(), v2.min(), v2.max());
-        // printf("********\n");
-    }
-}
-
+// this function is mainly for temporal spatial smooth optical flow
+// it assumes 3 input images: im0, im1, im2, and returns flow im1->im2 and im2->im1
 void OpticalFlow::stFlow(std::vector<DImage> &u, std::vector<DImage> &v,
                          std::vector<DImage> &ur, std::vector<DImage> &vr,
-                         std::vector<DImage> &mask, const std::vector<DImage> &im,
-                         int idx, double as, double ap, int nBiIter, int nIRLSIter, int nSORIter)
+                         std::vector<DImage> &masks, const std::vector<DImage> &im,
+                         int idx, double as, double ap, double ratio, int minWidth,
+                         int nBiIter, int nIRLSIter, int nSORIter)
 {
-    int i0 = idx, i1 = (idx+1) % 3, i2 = (idx+2) % 3;
-    int width = im[0].nWidth(), height = im[0].nHeight();
+    // the vector are not allowed to be empty
+    assert(!u.empty() && !v.empty() && !ur.empty() && !vr.empty() &&
+           !masks.empty() && !im.empty());
     
-    for (size_t i = 0; i < mask.size(); ++i)
-        if (mask[i].isEmpty()) mask[i].create(width, height, 1, 1);
+    int i0 = (idx-1) % 3, i1 = idx, i2 = (idx+1) % 3;
+    int width = im[0].nWidth(), height = im[0].nHeight();
+
+    // can use previous mask
+    for (size_t i = 0; i < masks.size(); ++i)
+        if (masks[i].isEmpty()) masks[i].create(width, height, 1, 1);
     
     // im0 -> im1
     if (u[i0].isEmpty() || v[i0].isEmpty() || ur[i0].isEmpty() || vr[i0].isEmpty())
     {
-        biC2FFlow(u[i0], v[i0], ur[i0], vr[i0], im[i0], im[i1], mask[i0], mask[i1],
-                  as, ap, nBiIter, nIRLSIter, nSORIter);
-    }
-    
-    // im1 -> im2
-    if (u[i1].isEmpty() || v[i1].isEmpty() || ur[i1].isEmpty() || vr[i1].isEmpty())
-    {
-        biC2FFlow(u[i1], v[i1], ur[i1], vr[i1], im[i1], im[i2], mask[i1], mask[i2],
-                  as, ap, nBiIter, nIRLSIter, nSORIter);
+        printf("calculating flow im0->im1...\n");
+        biC2FFlow(u[i0], v[i0], ur[i0], vr[i0], im[i0], im[i1], masks[i0], masks[i1],
+                  as, ap, ratio, minWidth, nBiIter, nIRLSIter, nSORIter);
     }
 
-    DImage fIm1, fIm2, du, dv, warpI1, warpI2, pphid, rphid, pu, pv, tmpv, tmpu;
-    DImage pur, pvr;
+    printf("calculating flow im1->im2...\n");
+    GaussianPyramid pyr1, pyr2, mpyr1, mpyr2, upyr1, vpyr1, upyr2, vpyr2;
+    DImage tmp, wpu, wpv, wur, wvr, mask, fIm1, fIm2, warpI1, warpI2, pphid, rphid;
+    DImage du1, dv1, du2, dv2, dut, dvt, durt, dvrt, Ix, Iy, It;
+    
+    pyr1.build(im[i1], ratio, minWidth);
+    pyr2.build(im[i2], ratio, minWidth);
+
+    mpyr1.build(masks[i1], ratio, minWidth);
+    mpyr2.build(masks[i2], ratio, minWidth);
+
+    upyr1.build(u[i0], ratio, minWidth);
+    vpyr1.build(v[i0], ratio, minWidth);
+
+    upyr2.build(ur[i0], ratio, minWidth);
+    vpyr2.build(vr[i0], ratio, minWidth);
+
+    // iterate from the top level to the bottom
+    for (int k = pyr1.nLevels()-1; k >= 0; --k)
+    {
+        width = pyr1[k].nWidth();
+        height = pyr1[k].nHeight();
+        im2feature(fIm1, pyr1[k]);
+        im2feature(fIm2, pyr2[k]);
+        
+        // if at the top level
+        if (k == pyr1.nLevels()-1)
+        {
+            u[i1].create(width, height);
+            v[i1].create(width, height);
+            fIm2.copyTo(warpI2);
+            
+            ur[i1].create(width, height);
+            vr[i1].create(width, height);
+            fIm1.copyTo(warpI1);
+        } else {
+            imresize(tmp, u[i1], width, height);
+            multiply(u[i1], tmp, 1./ratio);
+            imresize(tmp, v[i1], width, height);
+            multiply(v[i1], tmp, 1./ratio);
+            warpImage(warpI2, fIm1, fIm2, u[i1], v[i1]);
+            
+            imresize(tmp, ur[i1], width, height);
+            multiply(ur[i1], tmp, 1./ratio);
+            imresize(tmp, vr[i1], width, height);
+            multiply(vr[i1], tmp, 1./ratio);
+            warpImage(warpI1, fIm2, fIm1, ur[i1], vr[i1]);
+        }
+
+        warpImage(wpu, upyr1[k], upyr1[k], upyr2[k], vpyr2[k]);
+        warpImage(wpv, vpyr1[k], vpyr1[k], upyr2[k], vpyr2[k]);
+        phi_d(pphid, wpu, wpv);
+        phi_d(rphid, upyr2[k], vpyr2[k]);
+        
+        for (int l = 0; l < nBiIter; l++)
+        {
+            // forward flow
+            substract(dut, u[i1], wpu);                // dut = u[t] - u[t-1]
+            substract(dvt, v[i1], wpv);
+            getGrads(Ix, Iy, It, fIm1, warpI2);
+            genInImageMask(mask, mpyr1[k], mpyr2[k], u[i1], v[i1]);
+            adIRLS3(du1, dv1, Ix, Iy, It, mask,
+                    pphid, dut, dvt,                   // for temporal direvative
+                    u[i1], v[i1], ur[i1], vr[i1],      // for bidirectional flow
+                    as, ap, nIRLSIter, nSORIter);
+
+            // backward flow
+            // warp backward flow ur[t+1] to ur[t]
+            getGrads(Ix, Iy, It, fIm2, warpI1);
+            genInImageMask(mask, mpyr2[k], mpyr1[k], ur[i1], vr[i1]);
+
+            warpImage(wur, ur[i1], ur[i1], u[i1], v[i1]);
+            warpImage(wvr, vr[i1], vr[i1], u[i1], v[i1]);
+            substract(durt, upyr2[k], wur);              // durt = ur[t+1] - ur[t]
+            substract(dvrt, vpyr2[k], wvr);
+
+            adIRLS3(du2, dv2, Ix, Iy, It, mask,
+                    rphid, durt, dvrt,                // for temporal direvative
+                    ur[i1], vr[i1], u[i1], v[i1],     // for bidirectional flow
+                    as, ap, nIRLSIter, nSORIter);
+
+            add(u[i1], du1);
+            add(v[i1], dv1);
+            add(ur[i1], du2);
+            add(vr[i1], dv2);
+
+            warpImage(warpI2, fIm1, fIm2, u[i1], v[i1]);
+            warpImage(warpI1, fIm2, fIm1, ur[i1], vr[i1]);
+
+            printf("u1: %.6f .. %.6f, v1: %.6f .. %.6f\n", u[i1].min(), u[i1].max(), v[i1].min(), v[i1].max());
+            printf("u2: %.6f .. %.6f, v2: %.6f .. %.6f\n", ur[i1].min(), ur[i1].max(), vr[i1].min(), vr[i1].max());
+            printf("********\n");
+        }
+    }
+   
+/*    // im1 -> im2
+    printf("calculating flow im1->im2...\n");
+    biC2FFlow(u[i1], v[i1], ur[i1], vr[i1], im[i1], im[i2], masks[i1], masks[i2],
+              as, ap, ratio, minWidth, nBiIter-3, nIRLSIter, nSORIter);
+    
+    DImage fIm1, fIm2, warpI1, warpI2, Ix, Iy, It, mask;
+    DImage du1, dv1, du2, dv2, pphid, rphid, wpu, wpv, wur, wvr, dut, dvt, durt, dvrt;
     
     im2feature(fIm1, im[i1]);
     im2feature(fIm2, im[i2]);
     fIm1.copyTo(warpI1);
     fIm2.copyTo(warpI2);
 
-    warpImage(pu, u[i0], u[i0], ur[i0], vr[i0]);
-    warpImage(pv, v[i0], v[i0], ur[i0], vr[i0]);
-    phi_d(pphid, pu, pv);
+    // warp forward flow u[t-1] to u[t]
+    warpImage(wpu, u[i0], u[i0], ur[i0], vr[i0]);
+    warpImage(wpv, v[i0], v[i0], ur[i0], vr[i0]);
+    phi_d(pphid, wpu, wpv);
+    phi_d(rphid, ur[i0], vr[i0]);
 
+    // im1 -> im2
+    printf("%d->%d->%d, spatial temporal smooth im1->im2...\n", i0, i1, i2);
+    for (int biter = 0; biter < 3; ++biter)
+    {
+        // forward flow
+        substract(dut, u[i1], wpu);                // dut = u[t] - u[t-1]
+        substract(dvt, v[i1], wpv);
+        getGrads(Ix, Iy, It, fIm1, warpI2);
+        genInImageMask(mask, masks[i1], masks[i2], u[i1], v[i1]);
+        adIRLS3(du1, dv1, Ix, Iy, It, mask,
+                pphid, dut, dvt,                   // for temporal direvative
+                u[i1], v[i1], ur[i1], vr[i1],      // for bidirectional flow
+                as, ap, nIRLSIter, nSORIter);
+
+        // backward flow
+        // warp backward flow ur[t+1] to ur[t]
+        warpImage(wur, ur[i1], ur[i1], u[i1], v[i1]);
+        warpImage(wvr, vr[i1], vr[i1], u[i1], v[i1]);
+        substract(durt, ur[i0], wur);              // durt = ur[t+1] - ur[t]
+        substract(dvrt, vr[i0], wvr);
+        getGrads(Ix, Iy, It, fIm2, warpI1);
+        genInImageMask(mask, masks[i2], masks[i1], ur[i1], vr[i1]);
+        adIRLS3(du2, dv2, Ix, Iy, It, mask,
+                rphid, durt, dvrt,                // for temporal direvative
+                ur[i1], vr[i1], u[i1], v[i1],     // for bidirectional flow
+                as, ap, nIRLSIter, nSORIter);
+
+        add(u[i1], du1);
+        add(v[i1], dv1);
+        add(ur[i1], du2);
+        add(vr[i1], dv2);
+
+        warpImage(warpI2, fIm1, fIm2, u[i1], v[i1]);
+        warpImage(warpI1, fIm2, fIm1, ur[i1], vr[i1]);
+    }
+*/
 }
 
 // adaptive, spatio-temporal optical flow
 void OpticalFlow::adIRLS3(DImage &du, DImage &dv,
                           const DImage &Ix, const DImage &Iy, const DImage &It,
-                          const DImage &mask, const DImage &pphid,
-                          const DImage &pu, const DImage &pv,
-                          const DImage &u, const DImage &v,
-                          const DImage &nu, const DImage &nv,
-                          const DImage &ur, const DImage &vr,
+                          const DImage &mask,
+                          const DImage &pphid, const DImage &dut, const DImage &dvt,
+                          const DImage &u, const DImage &v, const DImage &ur, const DImage &vr,
                           double as, double ap, int nIRLSIter, int nSORIter)
 {
     int width = Ix.nWidth(), height = Ix.nHeight();
@@ -990,8 +1016,9 @@ void OpticalFlow::adIRLS3(DImage &du, DImage &dv,
     DImage wrxy(width, height), wrxt(width, height), wryt(width, height);
     DImage thetad(width, height), D(width, height);
     DImage A11, A22, A12, b1, b2;
-    
-    du.create(width, height);//match size and set to 0
+
+    //match size and set to 0
+    du.create(width, height);
     dv.create(width, height);
     
     // symetric term
@@ -1051,10 +1078,10 @@ void OpticalFlow::adIRLS3(DImage &du, DImage &dv,
         multiply(iyt, D);
 
         // spatio-temporal
-        weighted_lap3(lapU, pu, u, nu, pphid, phid);
+        weighted_lap3(lapU, u, phid, pphid, dut);
 
         // spatio-temporal
-        weighted_lap3(lapV, pu, v, nu, pphid, phid); 
+        weighted_lap3(lapV, v, phid, pphid, dvt); 
         
         multiply(wrx2, thetad);
         multiply(wrxy, thetad);
