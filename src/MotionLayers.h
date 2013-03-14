@@ -15,11 +15,11 @@ public:
 
     int cluster(DImage &centers, DImage &layers, const DImage &im,
                 const DImage &flow, const DImage &rflow,
-                int start=2, int end=10, double na=15);
+                int start=2, int end=10, double na=15, bool reArrange=false);
 
     int cluster(DImage &centers, DImage &layers,
-                const DImage &features,
-                int width, int height, int start=2, int end=10, double na=15);
+                const DImage &features, int width, int height,
+                int start=2, int end=10, double na=15, bool reArrange=false);
 
     void refine(DImage &layers, int labels, const DImage &im, const DImage &flow,
                 const DImage &centers, const DImage &features);
@@ -95,7 +95,7 @@ void MotionLayers::coverLabels(Image<T> &res, const Image<T> &im, const UCImage 
     for(int i = 0; i < im.nElements(); ++i)
     {
         if (labels[i] == 255) res[i] = im[i];
-        else res[i] = im[i]*0.3 + (double)labels[i]/255.*0.7;
+        else res[i] = im[i]*0.1 + (double)labels[i]/255.*0.9;
     }
 }
 

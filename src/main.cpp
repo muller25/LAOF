@@ -267,28 +267,30 @@ int main(int argc, char *argv[])
 
     char buf[256];
     DImage im0, im1, u1, v1, u2, v2, mask1, mask2;
-    int idx=0;
-    
-    sprintf(buf, inName, idx);
-    imread(im0, buf);
-    sprintf(buf, inName, idx+1);
-    imread(im1, buf);
 
-    LAOF::EM(u1, v1, u2, v2, mask1, mask2, im0, im1, 3);
+    for (int idx = 0; idx < 1; ++idx)
+    {
+        sprintf(buf, inName, idx);
+        imread(im0, buf);
+        sprintf(buf, inName, idx+1);
+        imread(im1, buf);
 
-    sprintf(buf, outFile, "u", idx);
-    imwritef(buf, u1);
-    sprintf(buf, outFile, "v", idx);
-    imwritef(buf, v1);
-    sprintf(buf, outFile, "layers", idx);
-    imwritef(buf, mask1);
+        LAOF::EM(u1, v1, u2, v2, mask1, mask2, im0, im1, 2);
 
-    sprintf(buf, outFile, "ru", idx+1);
-    imwritef(buf, u2);
-    sprintf(buf, outFile, "rv", idx+1);
-    imwritef(buf, v2);
-    sprintf(buf, outFile, "layersr", idx+1);
-    imwritef(buf, mask2);
+        sprintf(buf, outFile, "u", idx);
+        imwritef(buf, u1);
+        sprintf(buf, outFile, "v", idx);
+        imwritef(buf, v1);
+        sprintf(buf, outFile, "layers", idx);
+        imwritef(buf, mask1);
+
+        sprintf(buf, outFile, "ru", idx+1);
+        imwritef(buf, u2);
+        sprintf(buf, outFile, "rv", idx+1);
+        imwritef(buf, v2);
+        sprintf(buf, outFile, "layersr", idx+1);
+        imwritef(buf, mask2);
+    }
     
     return 0;
 }

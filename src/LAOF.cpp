@@ -14,10 +14,10 @@ void LAOF::EM(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
     const int nSORIter = 10;//30;
 
     int width = im1.nWidth(), height = im1.nHeight();
-    DImage tmpu1, tmpv1, tmpu2, tmpv2, flow, rflow;
+    DImage tmpu1, tmpv1, tmpu2, tmpv2, flow, rflow, tmp;
     DImage centers, layers1, layers2, fInfo, flowf, rflowf;
     UCImage flowImg;
-    int clusters, l, i, iter;
+    int clusters, l, i, iter, m1Size, m2Size, mSize;
     OpticalFlow of;
     MotionLayers ml;
 
@@ -39,12 +39,21 @@ void LAOF::EM(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
         // seperate mask
         for (l = 0; l < clusters; ++l)
         {
+            m1Size = 0, m2Size = 0;
             for (i = 0; i < layers1.nElements(); ++i)
             {
-                if (fabs(layers1[i]-l) < 0.5) mask1[i] = 1;
+                if (fabs(layers1[i]-l) < 0.5)
+                {
+                    mask1[i] = 1;
+                    m1Size++;
+                }
                 else mask1[i] = 0;
 
-                if (fabs(layers2[i]-l) < 0.5) mask2[i] = 1;
+                if (fabs(layers2[i]-l) < 0.5)
+                {
+                    mask2[i] = 1;
+                    m2Size++;
+                }
                 else mask2[i] = 0;
             }
             
@@ -54,6 +63,7 @@ void LAOF::EM(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
             sprintf(buf, out, iter, l, "mask2");
             imwrite(buf, mask2);
 
+            mSize = std::max(m1Size, m2Size);
             of.biC2FFlow(tmpu1, tmpv1, tmpu2, tmpv2, im1, im2, mask1, mask2,
                          as, ap, ratio, minWidth, nOutIter, nInIter, nSORIter);
 
@@ -62,13 +72,13 @@ void LAOF::EM(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
             multiply(tmpu2, mask2);
             multiply(tmpv2, mask2);
             
-            sprintf(buf, out, iter, l, "sub-flow");
-            flow2color(flowImg, tmpu1, tmpv1);
-            imwrite(buf, flowImg);
+            // sprintf(buf, out, iter, l, "sub-flow");
+            // flow2color(flowImg, tmpu1, tmpv1);
+            // imwrite(buf, flowImg);
             
-            sprintf(buf, out, iter, l, "sub-rflow");
-            flow2color(flowImg, tmpu2, tmpv2);
-            imwrite(buf, flowImg);
+            // sprintf(buf, out, iter, l, "sub-rflow");
+            // flow2color(flowImg, tmpu2, tmpv2);
+            // imwrite(buf, flowImg);
 
             // merge u, v to flow, ur, vr to rflow
             for (i = 0; i < mask1.nElements(); ++i)
@@ -102,24 +112,54 @@ void LAOF::EM(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
         if (centers.isEmpty())
         {
             printf("first time to run cluster, automatically determine # clusters\n");
-            clusters = ml.cluster(centers, layers1, flowf, width, height, 2, 2);
+            clusters = ml.cluster(centers, layers1, flowf, width, height, 2, 5, true);
         } else {
             createCenterByLabel(centers, clusters, layers1, flowf);
             ml.cluster(centers, layers1, flowf, width, height, clusters, clusters);
         }
-        
-        transferLabel(layers2, layers1, flow);
-        createCenterByLabel(centers, clusters, layers2, rflowf);
 
         sprintf(buf, out, iter, 0, "layers1");
         flow2color(flowImg, layers1, layers1);
         imwrite(buf, flowImg);
-        
+
+        ml.coverLabels(tmp, im1, flowImg);
+        sprintf(buf, out, iter, 0, "layers1-merge");
+        imwrite(buf, tmp);
+
+        // refine layers
+        ml.refine(layers1, clusters, im1, flow, centers, flowf);
+
+        sprintf(buf, out, iter, 0, "layers1-refine");
+        flow2color(flowImg, layers1, layers1);
+        imwrite(buf, flowImg);
+
+        ml.coverLabels(tmp, im1, flowImg);
+        sprintf(buf, out, iter, 0, "layers1-refine-merge");
+        imwrite(buf, tmp);
+
+        // transfer labels from im1 to im2
+        transferLabel(layers2, layers1, flow);
+        createCenterByLabel(centers, clusters, layers2, rflowf);
         ml.cluster(centers, layers2, rflowf, width, height, clusters, clusters);
 
         sprintf(buf, out, iter, 0, "layers2");
         flow2color(flowImg, layers2, layers2);
         imwrite(buf, flowImg);
+
+        ml.coverLabels(tmp, im2, flowImg);
+        sprintf(buf, out, iter, 0, "layers2-merge");
+        imwrite(buf, tmp);
+
+        // refine layers
+        ml.refine(layers2, clusters, im2, rflow, centers, rflowf);
+
+        sprintf(buf, out, iter, 0, "layers2-refine");
+        flow2color(flowImg, layers2, layers2);
+        imwrite(buf, flowImg);
+
+        ml.coverLabels(tmp, im2, flowImg);
+        sprintf(buf, out, iter, 0, "layers2-refine-merge");
+        imwrite(buf, tmp);
     }
 
     u1.create(width, height), v1.create(width, height);

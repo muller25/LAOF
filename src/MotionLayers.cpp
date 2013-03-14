@@ -50,7 +50,7 @@ void MotionLayers::flowInfo(DImage &info, const DImage &flow)
 
 int MotionLayers::cluster(DImage &centers, DImage &layers, const DImage &im,
                           const DImage &flow, const DImage &rflow,
-                          int start, int end, double na)
+                          int start, int end, double na, bool reArrange)
 {
     DImage features;
     UCImage labels;
@@ -77,7 +77,8 @@ int MotionLayers::cluster(DImage &centers, DImage &layers, const DImage &im,
                        MotionLayers::mydist);
 
     // rearrange labels
-    reArrangeLabels(labels, clusters);
+    if (reArrange)
+        reArrangeLabels(labels, clusters);
 
     // change label map to layer image
     layers.create(flow.nWidth(), flow.nHeight());
@@ -88,7 +89,7 @@ int MotionLayers::cluster(DImage &centers, DImage &layers, const DImage &im,
 }
 
 int MotionLayers::cluster(DImage &centers, DImage &layers, const DImage &features,
-                          int width, int height, int start, int end, double na)
+                          int width, int height, int start, int end, double na, bool reArrange)
 {
     int clusters;
     UCImage labels;
@@ -97,7 +98,8 @@ int MotionLayers::cluster(DImage &centers, DImage &layers, const DImage &feature
                        MotionLayers::mydist);
 
     // rearrange labels
-    reArrangeLabels(labels, clusters);
+    if (reArrange)
+        reArrangeLabels(labels, clusters);
     
     // change label map to layer image
     layers.create(width, height);
@@ -110,6 +112,8 @@ int MotionLayers::cluster(DImage &centers, DImage &layers, const DImage &feature
 void MotionLayers::refine(DImage &layers, int labels, const DImage &im, const DImage &flow,
                           const DImage &centers, const DImage &features)
 {
+    const double dw = 2; // data term weight
+    
     int size = im.nSize(), cwidth = centers.nWidth();
     int width = im.nWidth(), height = im.nHeight();
     double *data = new double[labels*size];
@@ -119,10 +123,11 @@ void MotionLayers::refine(DImage &layers, int labels, const DImage &im, const DI
     // vec.push_back(im);
     // vec.push_back(flow);
     // mergec(extra, vec);
-    
+
+    // set data term
     for (int i = 0; i < size; ++i)
         for (int l = 0; l < labels; ++l)
-            data[i*labels+l] = mydist(features.ptr()+i*cwidth, centers.ptr()+l*cwidth, 0, cwidth);
+            data[i*labels+l] = dw * mydist(features.ptr()+i*cwidth, centers.ptr()+l*cwidth, 0, cwidth);
     
     try{
 		GCoptimizationGridGraph *gc = new GCoptimizationGridGraph(width, height, labels);
@@ -138,7 +143,7 @@ void MotionLayers::refine(DImage &layers, int labels, const DImage &im, const DI
             layers[i] = gc->whatLabel(i);
 
         // rearrange labels
-        reArrangeLabels(layers, labels);
+        // reArrangeLabels(layers, labels);
         
 		delete gc;
 	}
