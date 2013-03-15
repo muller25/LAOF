@@ -1,5 +1,8 @@
 #include "GCoptimization.h"
 #include "MotionLayers.h"
+#include "ML.h"
+#include "Maths.h"
+#include "ImageProcess.h"
 
 // extract spatial info from image
 void MotionLayers::spatialInfo(DImage &info, const DImage &im)
@@ -78,7 +81,10 @@ int MotionLayers::cluster(DImage &centers, DImage &layers, const DImage &im,
 
     // rearrange labels
     if (reArrange)
+    {
         reArrangeLabels(labels, clusters);
+        createCenterByLabels(centers, clusters, labels, features);
+    }
 
     // change label map to layer image
     layers.create(flow.nWidth(), flow.nHeight());
@@ -99,7 +105,10 @@ int MotionLayers::cluster(DImage &centers, DImage &layers, const DImage &feature
 
     // rearrange labels
     if (reArrange)
+    {
         reArrangeLabels(labels, clusters);
+        createCenterByLabels(centers, clusters, labels, features);
+    }
     
     // change label map to layer image
     layers.create(width, height);
@@ -224,8 +233,8 @@ double MotionLayers::mydist(double *p1, double *p2, int start, int end)
     idx += fWidth;
     
     // reverse flow info
-    // dist += dist2(p1, p2, idx, idx+fWidth);
-    // dist += (1 - similarity(p1, p2, idx, idx+fWidth));
+    dist += dist2(p1, p2, idx, idx+fWidth);
+    dist += (1 - (similarity(p1, p2, idx, idx+fWidth) + 1) / 2);
     
     return dist;
 }

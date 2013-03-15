@@ -411,20 +411,6 @@ void weighted_lap(Image<T> &lap, const Image<T1> &flow, const Image<T2> &weight)
     }
 }
 
-// laplacian operator for spatial-temporal
-// pf = previous flow, f(t-1), cf = current flow, f(t), nf = next flow, f(t+1)
-template<class T, class F>
-void weighted_lap3(Image<T> &lap, const Image<F> &pf, const Image<F> &cf,
-                   const Image<F> &nf, const Image<T> &pw, const Image<T> &cw)
-{
-    assert(pf.match3D(cf) && cf.match3D(nf) && nf.match3D(pw) && pw.match3D(cw) &&
-           cw.nChannels() == 1);
-
-    weighted_lap(lap, cf, cw);
-    for (int i = 0; i < lap.nElements(); ++i)
-        lap[i] += cw[i] * (nf[i]-cf[i]) - pw[i] * (cf[i]-pf[i]);
-}
-
 template <class T, class F>
 void weighted_lap3(Image<T> &lap, const Image<F> &f, const Image<T> &phid,
                    const Image<T> &pphid, const Image<F> &dt)

@@ -2,13 +2,6 @@
 #define _OF_H
 
 #include "Image.h"
-#include "Maths.h"
-#include "ImageProcess.h"
-#include "GaussianPyramid.h"
-
-#include <cmath>
-#include <cstdio>
-#include <vector>
 
 class OpticalFlow
 {
@@ -59,18 +52,18 @@ public:
                 const DImage &ur, const DImage &vr,
                 double as, double ap, int nIRLSIter, int nSORIter);
 
-    void stFlow(std::vector<DImage> &u, std::vector<DImage> &v,
-                std::vector<DImage> &ur, std::vector<DImage> &vr,
-                std::vector<DImage> &mask, const std::vector<DImage> &im,
-                int idx, double as, double ap, double ratio, int minWidth,
-                int nBiIter, int nIRLSIter, int nSORIter);
+    void stC2FFlow(std::vector<DImage> &u, std::vector<DImage> &v,
+                   std::vector<DImage> &ur, std::vector<DImage> &vr,
+                   std::vector<DImage> &mask, const std::vector<DImage> &im,
+                   int idx, double as, double ap, double ratio, int minWidth,
+                   int nBiIter, int nIRLSIter, int nSORIter);
 
     void adIRLS3(DImage &du, DImage &dv,
                  const DImage &Ix, const DImage &Iy, const DImage &It,
                  const DImage &mask,
                  const DImage &pphid, const DImage &dut, const DImage &dvt,
                  const DImage &u, const DImage &v, const DImage &ur, const DImage &vr,
-                 double as, double ap, int nIRLSIter, int nSORIter);
+                 double as, double ap, int nIRLSIter, int nSORIter, bool reverse);
 
 private:
     std::vector<double> lapPara;

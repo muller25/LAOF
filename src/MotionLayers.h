@@ -2,9 +2,6 @@
 #define _MotionLayers_H
 
 #include "Image.h"
-#include "ML.h"
-#include "Maths.h"
-#include "ImageProcess.h"
 
 class MotionLayers
 {
@@ -28,6 +25,11 @@ public:
     template <class T>
     void reArrangeLabels(Image<T> &layers, int labels);
 
+    // create cluster centers by labels
+    template <class T, class T1>
+    void createCenterByLabels(Image<T> &centers, int numOfLabels,
+                              const Image<T1> &labels, const Image<T> &samples);
+    
     // cover labels onto image
     template <class T>
     void coverLabels(Image<T> &res, const Image<T> &im, const UCImage &labels);
@@ -82,6 +84,34 @@ void MotionLayers::reArrangeLabels(Image<T> &layers, int labels)
     
     delete []mapping;
     delete []count;
+}
+
+template <class T, class T1>
+void MotionLayers::createCenterByLabels(Image<T> &centers, int numOfLabels,
+                                        const Image<T1> &labels, const Image<T> &samples)
+{
+    // printf("create center by label... ");
+    
+    int *count = new int[numOfLabels];
+    int width = samples.nWidth(), lsize = labels.nSize(), idx;
+    
+    centers.create(width, numOfLabels);
+    memset(count, 0, sizeof(int)*numOfLabels);
+
+    for (int i = 0; i < lsize; ++i)
+    {
+        idx = labels[i];
+        count[idx]++;
+        for (int w = 0; w < width; ++w)
+            centers[idx*width+w] += samples[i*width+w];
+    }
+
+    for (int i = 0; i < numOfLabels; ++i)
+        for (int w = 0; w < width; ++w)
+            centers[i*width+w] /= (double)count[i];
+    
+    delete []count;
+    // printf("done\n");
 }
 
 template <class T>

@@ -22,7 +22,9 @@ tests/image
 tests/layers
 tests/gc
 tests/seg
+src/em
 src/run
+src/of
 gc/*
 
 *cscope.out

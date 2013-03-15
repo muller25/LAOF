@@ -153,6 +153,31 @@ void split(std::vector< Image<T> > &arr, const Image<T> &m)
     }
 }
 
+// cut rect in src, where left upper pos is (lux, luy), right bottom pos is (rbx, rby)
+template <class T>
+void cutRect(Image<T> &dst, const Image<T> &src,
+             int lux, int luy, int rbx, int rby)
+{
+    assert(lux <= rbx && luy <= rby && src.ptr() != NULL);
+
+    int width = rbx - lux + 1;
+    int height = rby - luy + 1;
+    int sWidth = src.nWidth(), channels = src.nChannels();
+    int sOf, dOf;
+    dst.create(width, height, channels);
+
+    for (int h = luy; h <= rby; ++h)
+    {
+        for (int w = lux; w <= rbx; ++w)
+        {
+            sOf = (h * sWidth + w) * channels;
+            dOf = ((h-luy) * width + (w-lux)) * channels;
+            for (int k = 0; k < channels; ++k)
+                dst[dOf+k] = src[sOf+k];
+        }
+    }
+}
+
 // filters
 // gaussian smoothing
 template <class T, class T1>

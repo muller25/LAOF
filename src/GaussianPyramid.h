@@ -17,7 +17,7 @@ public:
         pPyr = NULL;
     }
 
-    void build(const DImage &im, double ratio, int minWidth);
+    void build(const DImage &im, double ratio, int minWidth, bool smooth=true);
     
     inline DImage& operator[](int i){return pPyr[i];}
     inline int nLevels() const {return levels;}
