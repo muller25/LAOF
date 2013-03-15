@@ -68,7 +68,7 @@ template<class T>
 void initClusterCenters(Image<T> &centers, const Image<T> &samples, int clusters,
                         double (*distance)(T*, T*, int, int))
 {
-    // printf("using kmeans++ to init cluster centers...\n");
+    printf("using kmeans++ to init cluster centers...\n");
     
     int width = samples.nWidth(), height = samples.nHeight(), idx;
     T *pc, *ps;

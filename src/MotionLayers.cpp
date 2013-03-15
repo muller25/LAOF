@@ -82,6 +82,7 @@ int MotionLayers::cluster(DImage &centers, DImage &layers, const DImage &im,
     // rearrange labels
     if (reArrange)
     {
+        printf("re-arrange labels...\n");
         reArrangeLabels(labels, clusters);
         createCenterByLabels(centers, clusters, labels, features);
     }
@@ -106,6 +107,7 @@ int MotionLayers::cluster(DImage &centers, DImage &layers, const DImage &feature
     // rearrange labels
     if (reArrange)
     {
+        printf("re-arrange labels...\n");
         reArrangeLabels(labels, clusters);
         createCenterByLabels(centers, clusters, labels, features);
     }
@@ -121,7 +123,7 @@ int MotionLayers::cluster(DImage &centers, DImage &layers, const DImage &feature
 void MotionLayers::refine(DImage &layers, int labels, const DImage &im, const DImage &flow,
                           const DImage &centers, const DImage &features)
 {
-    const double dw = 2; // data term weight
+    const double dw = 1.8; // data term weight
     
     int size = im.nSize(), cwidth = centers.nWidth();
     int width = im.nWidth(), height = im.nHeight();
@@ -201,8 +203,8 @@ void MotionLayers::refine(DImage &layers, int labels, const DImage &im, const DI
 
 double MotionLayers::smoothFn(int p1, int p2, int l1, int l2, void *pData)
 {
-    const double penalty = 0.3;
-    const double sigma = 0.1;
+    const double penalty = 0.38;
+    const double sigma = 1;
     double *ptr = (double *)pData;
 
     if (l1 == l2) return 0;

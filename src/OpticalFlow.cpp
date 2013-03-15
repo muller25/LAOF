@@ -217,7 +217,10 @@ void OpticalFlow::genInImageMask(DImage &mask, const DImage &mask1, const DImage
             }
 
             // pixel in mask2
-            x = nu, y = nv;
+            x = nu + 0.5, y = nv + 0.5;
+            if (x < 0 || x > width-1 || y < 0 || y > height-1)
+                continue;
+            
             if (fabs(mask2[y*width+x]) > ESP)
                 mask[offset] = mask1[offset] * mask2[y*width+x];
         }

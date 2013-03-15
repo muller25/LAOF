@@ -20,13 +20,14 @@ int main(int argc, char *argv[])
     sprintf(buf, inImg, 0);
     imread(im[0], buf);
     cur = 0, next = 1;
-    for (i = 1; i < 3; ++i)
+    for (i = 1; i < 11; ++i)
     {
         sprintf(buf, inImg, i);
         imread(im[next], buf);
 
         LAOF::EM(u, v, ur, vr, mask, im, cur, 2);
-        
+
+        printf("****** final dump ******\n");
         sprintf(buf, outFile, "u", i-1);
         imwritef(buf, u[cur]);
         sprintf(buf, outFile, "v", i-1);

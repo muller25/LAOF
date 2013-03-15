@@ -7,6 +7,7 @@ void OFPara::split(std::vector<OFPara> &paras, int labels,
                    const DImage &l1, const DImage &l2)
 {
     assert(im1.match3D(im2) && l1.match3D(l2) && l1.nChannels() == 1);
+
     paras.clear();
 
     int width = im1.nWidth(), height = im1.nHeight();

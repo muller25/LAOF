@@ -25,7 +25,7 @@ void LAOF::EM(std::vector<DImage> &u, std::vector<DImage> &v,
     assert(u.size() == v.size() && v.size() == ur.size() && ur.size() == masks.size() &&
            masks.size() == im.size() && im.size() == 3);
 
-    int prev = (curIdx-1) % 3, next = (curIdx+1) % 3;
+    int prev = (curIdx+2) % 3, next = (curIdx+1) % 3;
     DImage prfInfo, emptyfInfo, fInfo, rfInfo, flow, rflow, tmp;
     DImage centers1, centers2;
     UCImage ucimg;
@@ -37,6 +37,7 @@ void LAOF::EM(std::vector<DImage> &u, std::vector<DImage> &v,
     char buf[256];
     
     // init mask
+    printf("******** laof: %d->%d->%d ********\n", prev, curIdx, next);
     masks[curIdx].create(width, height);
     masks[next].create(width, height);
     
@@ -74,11 +75,11 @@ void LAOF::EM(std::vector<DImage> &u, std::vector<DImage> &v,
             sprintf(buf, out, frameID, iter, l, "mask2");
             imwrite(buf, paras[l].mask2);
 
-            sprintf(buf, out, frameID, iter, l, "im1");
-            imwrite(buf, paras[l].im1);
+            // sprintf(buf, out, frameID, iter, l, "im1");
+            // imwrite(buf, paras[l].im1);
 
-            sprintf(buf, out, frameID, iter, l, "im2");
-            imwrite(buf, paras[l].im2);
+            // sprintf(buf, out, frameID, iter, l, "im2");
+            // imwrite(buf, paras[l].im2);
 
             of.biC2FFlow(paras[l].u1, paras[l].v1, paras[l].u2, paras[l].v2,
                          paras[l].im1, paras[l].im2,
@@ -86,17 +87,27 @@ void LAOF::EM(std::vector<DImage> &u, std::vector<DImage> &v,
                          as, ap, ratio, minWidth, nBiIter, nIRLSIter, nSORIter);
 
             // for test only
+            printf("****** sub flow ******\n");
             sprintf(buf, out, frameID, iter, l, "sub-flow");
             flow2color(ucimg, paras[l].u1, paras[l].v1);
             imwrite(buf, ucimg);
             sprintf(buf, out, frameID, iter, l, "sub-rflow");
             flow2color(ucimg, paras[l].u2, paras[l].v2);
             imwrite(buf, ucimg);
+
+            warpImage(tmp, paras[l].im1, paras[l].im2, paras[l].u1, paras[l].v1);
+            sprintf(buf, out, frameID, iter, l, "sub-warp");
+            imwrite(buf, tmp);
+
+            warpImage(tmp, paras[l].im2, paras[l].im1, paras[l].u2, paras[l].v2);
+            sprintf(buf, out, frameID, iter, l, "sub-rwarp");
+            imwrite(buf, tmp);
         }
 
         OFPara::restore(flow, rflow, paras, width, height);
 
         // for test only
+        printf("****** global flow ******\n");
         sprintf(buf, out, frameID, iter, 0, "flow");
         flow2color(ucimg, flow);
         imwrite(buf, ucimg);
@@ -105,7 +116,7 @@ void LAOF::EM(std::vector<DImage> &u, std::vector<DImage> &v,
         imwrite(buf, ucimg);
 
         // extract motion layers
-        printf("extract motion layer\n");
+        printf("****** extract motion layer ******\n");
 
         ml.flowInfo(fInfo, flow);
         vec.clear();
@@ -115,34 +126,32 @@ void LAOF::EM(std::vector<DImage> &u, std::vector<DImage> &v,
         
         // kmeans
         if (numOfLabels == 1)
-        {
-            printf("first time to run kmeans, reArrange labels\n");
             numOfLabels = ml.cluster(centers1, masks[curIdx], fInfo,
                                      width, height, 2, 5, 15, true);
-        }
         else
-            ml.cluster(centers1, masks[curIdx], fInfo, width, height, numOfLabels, numOfLabels);
+            ml.cluster(centers1, masks[curIdx], fInfo, width, height,
+                       numOfLabels, numOfLabels);
 
         // for test only
-        // sprintf(buf, out, frameID, iter, 0, "layers1");
-        // flow2color(ucimg, masks[curIdx], masks[curIdx]);
-        // imwrite(buf, ucimg);
+        sprintf(buf, out, frameID, iter, 0, "layers1");
+        flow2color(ucimg, masks[curIdx], masks[curIdx]);
+        imwrite(buf, ucimg);
 
-        // ml.coverLabels(tmp, im[curIdx], ucimg);
-        // sprintf(buf, out, frameID, iter, 0, "merge-layers1");
-        // imwrite(buf, tmp);
+        ml.coverLabels(tmp, im[curIdx], ucimg);
+        sprintf(buf, out, frameID, iter, 0, "merge-layers1");
+        imwrite(buf, tmp);
 
         // refine layers of im1
         ml.refine(masks[curIdx], numOfLabels, im[curIdx], flow, centers1, fInfo);
         
         // for test only
-        // sprintf(buf, out, frameID, iter, 0, "layers1-refine");
-        // flow2color(ucimg, masks[curIdx], masks[curIdx]);
-        // imwrite(buf, ucimg);
+        sprintf(buf, out, frameID, iter, 0, "layers1-refine");
+        flow2color(ucimg, masks[curIdx], masks[curIdx]);
+        imwrite(buf, ucimg);
 
-        // ml.coverLabels(tmp, im[curIdx], ucimg);
-        // sprintf(buf, out, frameID, iter, 0, "merge-layers1-refine");
-        // imwrite(buf, tmp);
+        ml.coverLabels(tmp, im[curIdx], ucimg);
+        sprintf(buf, out, frameID, iter, 0, "merge-layers1-refine");
+        imwrite(buf, tmp);
 
         // transfer labels from im1 to im2
         ml.flowInfo(rfInfo, rflow);
@@ -153,29 +162,28 @@ void LAOF::EM(std::vector<DImage> &u, std::vector<DImage> &v,
         
         transferLabels(masks[next], masks[curIdx], flow);
         ml.createCenterByLabels(centers2, numOfLabels, masks[next], rfInfo);
-        
         ml.cluster(centers2, masks[next], rfInfo, width, height, numOfLabels, numOfLabels);
 
         // for test only
-        // sprintf(buf, out, frameID, iter, 0, "layers2");
-        // flow2color(ucimg, masks[next], masks[next]);
-        // imwrite(buf, ucimg);
+        sprintf(buf, out, frameID, iter, 0, "layers2");
+        flow2color(ucimg, masks[next], masks[next]);
+        imwrite(buf, ucimg);
 
-        // ml.coverLabels(tmp, im[next], ucimg);
-        // sprintf(buf, out, frameID, iter, 0, "merge-layers2");
-        // imwrite(buf, tmp);
+        ml.coverLabels(tmp, im[next], ucimg);
+        sprintf(buf, out, frameID, iter, 0, "merge-layers2");
+        imwrite(buf, tmp);
 
         // refine layers of im2
         ml.refine(masks[next], numOfLabels, im[next], rflow, centers2, rfInfo);
         
         // for test only
-        // sprintf(buf, out, frameID, iter, 0, "layers2-refine");
-        // flow2color(ucimg, masks[next], masks[next]);
-        // imwrite(buf, ucimg);
+        sprintf(buf, out, frameID, iter, 0, "layers2-refine");
+        flow2color(ucimg, masks[next], masks[next]);
+        imwrite(buf, ucimg);
 
-        // ml.coverLabels(tmp, im[next], ucimg);
-        // sprintf(buf, out, frameID, iter, 0, "merge-layers2-refine");
-        // imwrite(buf, tmp);
+        ml.coverLabels(tmp, im[next], ucimg);
+        sprintf(buf, out, frameID, iter, 0, "merge-layers2-refine");
+        imwrite(buf, tmp);
     }
     // end of EM iterations
 
