@@ -165,42 +165,6 @@ void MotionLayers::refine(DImage &layers, int labels, const DImage &im, const DI
     delete []data;
 }
 
-// void MotionLayers::splitMask(std::vector<DImage> &vec, DImage &m)
-// {
-//     assert(m.nChannels() == 1);
-    
-//     vec.clear();
-//     double minV = m.min(), maxV = m.max();
-//     int start, end, i;
-    
-//     if (m.isFloat())
-//     {
-//         start = minV + 0.5;
-//         end = maxV + 0.5;
-//     } else {
-//         start = minV;
-//         end = maxV;
-//     }
-
-//     DImage tmp(m.nWidth(), m.nHeight(), 1);
-//     for (i = start; i <= end; i++)
-//     {
-//         for (int idx = 0; idx < m.nElements(); ++idx)
-//         {
-//             if (m.isFloat())
-//             {
-//                 if (fabs(m[idx] - i) < 0.5) tmp[idx] = 1;
-//                 else tmp[idx] = 0;
-//             } else {
-//                 if (m[idx] == i) tmp[idx] = 1;
-//                 else tmp[idx] = 0;
-//             }
-//         }
-
-//         vec.push_back(tmp);
-//     }
-// }
-
 double MotionLayers::smoothFn(int p1, int p2, int l1, int l2, void *pData)
 {
     const double penalty = 0.38;

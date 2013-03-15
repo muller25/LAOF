@@ -127,7 +127,7 @@ void LAOF::EM(std::vector<DImage> &u, std::vector<DImage> &v,
         // kmeans
         if (numOfLabels == 1)
             numOfLabels = ml.cluster(centers1, masks[curIdx], fInfo,
-                                     width, height, 2, 5, 15, true);
+                                     width, height, 4, 4, 15, true);
         else
             ml.cluster(centers1, masks[curIdx], fInfo, width, height,
                        numOfLabels, numOfLabels);
@@ -143,6 +143,7 @@ void LAOF::EM(std::vector<DImage> &u, std::vector<DImage> &v,
 
         // refine layers of im1
         ml.refine(masks[curIdx], numOfLabels, im[curIdx], flow, centers1, fInfo);
+        ml.createCenterByLabels(centers1, numOfLabels, masks[curIdx], fInfo);
         
         // for test only
         sprintf(buf, out, frameID, iter, 0, "layers1-refine");
@@ -162,7 +163,8 @@ void LAOF::EM(std::vector<DImage> &u, std::vector<DImage> &v,
         
         transferLabels(masks[next], masks[curIdx], flow);
         ml.createCenterByLabels(centers2, numOfLabels, masks[next], rfInfo);
-        ml.cluster(centers2, masks[next], rfInfo, width, height, numOfLabels, numOfLabels);
+        ml.cluster(centers2, masks[next], rfInfo, width, height,
+                   numOfLabels, numOfLabels);
 
         // for test only
         sprintf(buf, out, frameID, iter, 0, "layers2");
@@ -175,6 +177,7 @@ void LAOF::EM(std::vector<DImage> &u, std::vector<DImage> &v,
 
         // refine layers of im2
         ml.refine(masks[next], numOfLabels, im[next], rflow, centers2, rfInfo);
+        ml.createCenterByLabels(centers2, numOfLabels, masks[next], rfInfo);
         
         // for test only
         sprintf(buf, out, frameID, iter, 0, "layers2-refine");
