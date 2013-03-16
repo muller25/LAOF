@@ -18,8 +18,9 @@ public:
                 const DImage &features, int width, int height,
                 int start=2, int end=10, double na=15, bool reArrange=false);
 
-    void refine(DImage &layers, int labels, const DImage &im, const DImage &flow,
-                const DImage &centers, const DImage &features);
+    void refine(DImage &centers, DImage &layers, int labels,
+                const DImage &im1, const DImage &im2,
+                const DImage &features);
 
     // make sure layer order
     template <class T>
@@ -30,9 +31,6 @@ public:
     void createCenterByLabels(Image<T> &centers, int numOfLabels,
                               const Image<T1> &labels, const Image<T> &samples);
     
-    // cover labels onto image
-    template <class T>
-    void coverLabels(Image<T> &res, const Image<T> &im, const UCImage &labels);
    
     static double smoothFn(int p1, int p2, int l1, int l2, void *pData);
     static double mydist(double *p1, double *p2, int start, int end);
@@ -114,19 +112,5 @@ void MotionLayers::createCenterByLabels(Image<T> &centers, int numOfLabels,
     // printf("done\n");
 }
 
-template <class T>
-void MotionLayers::coverLabels(Image<T> &res, const Image<T> &im, const UCImage &labels)
-{
-    assert(im.match2D(labels));
-    
-    int width = im.nWidth(), height = im.nHeight(), channels = im.nChannels();
-    
-    res.create(width, height, channels);
-    for(int i = 0; i < im.nElements(); ++i)
-    {
-        if (labels[i] == 255) res[i] = im[i];
-        else res[i] = im[i]*0.1 + (double)labels[i]/255.*0.9;
-    }
-}
 
 #endif

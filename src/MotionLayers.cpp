@@ -120,30 +120,36 @@ int MotionLayers::cluster(DImage &centers, DImage &layers, const DImage &feature
     return clusters;
 }
 
-void MotionLayers::refine(DImage &layers, int labels, const DImage &im, const DImage &flow,
-                          const DImage &centers, const DImage &features)
+void MotionLayers::refine(DImage &centers, DImage &layers, int labels,
+                          const DImage &im1, const DImage &im2,
+                          const DImage &features)
 {
-    const double dw = 1.8; // data term weight
+    assert(centers.ptr() != NULL);
     
-    int size = im.nSize(), cwidth = centers.nWidth();
-    int width = im.nWidth(), height = im.nHeight();
+    int size = im1.nSize(), cwidth = centers.nWidth();
+    int width = im1.nWidth(), height = im1.nHeight(), channels = im1.nChannels();
     double *data = new double[labels*size];
-    // DImage extra;
-    // std::vector<DImage> vec;
+    DImage extra;
+    std::vector<DImage> vec;
 
-    // vec.push_back(im);
-    // vec.push_back(flow);
-    // mergec(extra, vec);
+    vec.push_back(im1);
+    vec.push_back(im2);
+    mergec(extra, vec);
 
     // set data term
     for (int i = 0; i < size; ++i)
+    {
         for (int l = 0; l < labels; ++l)
-            data[i*labels+l] = dw * mydist(features.ptr()+i*cwidth, centers.ptr()+l*cwidth, 0, cwidth);
+        {
+            data[i*labels+l] = mydist(features.ptr()+i*cwidth, centers.ptr()+l*cwidth, 0, cwidth);
+            data[i*labels+l] += dist2(im1.ptr()+i*channels, im2.ptr()+i*channels, 0, channels);
+        }
+    }
     
     try{
 		GCoptimizationGridGraph *gc = new GCoptimizationGridGraph(width, height, labels);
         gc->setDataCost(data);
-        gc->setSmoothCost(MotionLayers::smoothFn, im.ptr());
+        gc->setSmoothCost(MotionLayers::smoothFn, extra.ptr());
         
         printf("Before optimization energy is %.6f\n",gc->compute_energy());
         gc->expansion(2);
@@ -155,6 +161,8 @@ void MotionLayers::refine(DImage &layers, int labels, const DImage &im, const DI
 
         // rearrange labels
         // reArrangeLabels(layers, labels);
+
+        createCenterByLabels(centers, labels, layers, features);
         
 		delete gc;
 	}
@@ -167,15 +175,17 @@ void MotionLayers::refine(DImage &layers, int labels, const DImage &im, const DI
 
 double MotionLayers::smoothFn(int p1, int p2, int l1, int l2, void *pData)
 {
+    const int dataWidth = 6;
+    const double weight = 1;
     const double penalty = 0.38;
-    const double sigma = 1;
+    const double sigma = 5;
     double *ptr = (double *)pData;
-
+    double cost;
+    
     if (l1 == l2) return 0;
 
-    double cost;
-    cost = dist2(ptr+p1*3, ptr+p2*3, 0, 3);
-    cost = exp(-cost*cost/(2*sigma*sigma)) + penalty;
+    cost = dist1(ptr+p1*dataWidth, ptr+p2*dataWidth, 0, dataWidth);
+    cost = weight * exp(-cost*cost/(2*sigma*sigma)) + penalty;
 
     return cost;
 }

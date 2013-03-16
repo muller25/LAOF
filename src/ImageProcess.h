@@ -4,9 +4,25 @@
 #include "Image.h"
 #include "Maths.h"
 
+// cover labels onto image
 template <class T>
-void warpImage(Image<T> &warp, const Image<T> &im1, const Image<T> &im2,
-               const Image<T> &u, const Image<T> &v)
+void coverLabels(Image<T> &res, const Image<T> &im, const UCImage &labels)
+{
+    assert(im.match2D(labels));
+    
+    int width = im.nWidth(), height = im.nHeight(), channels = im.nChannels();
+    
+    res.create(width, height, channels);
+    for(int i = 0; i < im.nElements(); ++i)
+    {
+        if (labels[i] == 255) res[i] = im[i];
+        else res[i] = im[i]*0.1 + (double)labels[i]/255.*0.9;
+    }
+}
+
+template <class I, class F>
+void warpImage(Image<I> &warp, const Image<I> &im1, const Image<I> &im2,
+               const Image<F> &u, const Image<F> &v)
 {
     assert(im1.match3D(im2) && u.match3D(v) && im1.match2D(u));
     
@@ -22,6 +38,39 @@ void warpImage(Image<T> &warp, const Image<T> &im1, const Image<T> &im2,
             offset = h * width + w;
             nx = w + u[offset];
             ny = h + v[offset];
+            offset *= channels;
+            
+            if (nx < 0 || nx > width-1 || ny < 0 || ny > height-1)
+            {
+                for (int k = 0; k < channels; k++)
+                    warp[offset+k] = im1[offset+k];
+
+                continue;
+            }
+
+            biInterpolate(warp.ptr()+offset, im2, nx, ny);
+        }
+    }
+}
+
+template <class I, class F>
+void warpImage(Image<I> &warp, const Image<I> &im1, const Image<I> &im2,
+               const Image<F> &flow)
+{
+    assert(im1.match3D(im2) && im1.match2D(flow) && flow.nChannels() == 2);
+    
+    int width = im1.nWidth(), height = im1.nHeight(), channels = im1.nChannels();
+    double nx, ny;
+    int offset;
+
+    warp.create(width, height, channels);    
+    for (int h = 0; h < height; ++h)
+    {
+        for (int w = 0; w < width; ++w)
+        {
+            offset = h * width + w;
+            nx = w + flow[offset*2];
+            ny = h + flow[offset*2+1];
             offset *= channels;
             
             if (nx < 0 || nx > width-1 || ny < 0 || ny > height-1)
