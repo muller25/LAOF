@@ -68,7 +68,7 @@ template<class T>
 void initClusterCenters(Image<T> &centers, const Image<T> &samples, int clusters,
                         double (*distance)(T*, T*, int, int))
 {
-    printf("using kmeans++ to init cluster centers...\n");
+    // printf("using kmeans++ to init cluster centers...\n");
     
     int width = samples.nWidth(), height = samples.nHeight(), idx;
     T *pc, *ps;
@@ -255,11 +255,11 @@ int kmeans2(Image<T> &centers, UCImage &labels, const Image<T> &samples,
     for (int clusters = start; clusters <= end; ++clusters)
     {
         error = kmeans(centers, labels, samples, clusters, distance);
-        printf("clusters: %d, compactness: %.6f\n", clusters, error);
+        // printf("clusters: %d, compactness: %.6f\n", clusters, error);
 
         // Schwarz criterion for model selection
         error += na * clusters * width * logR;
-        printf("bic: %.6f\n", error);
+        // printf("bic: %.6f\n", error);
         if (error < preerror)
         {
             preerror = error;

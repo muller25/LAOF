@@ -18,6 +18,9 @@ public:
                         DImage &layers1, DImage &layers2, int &numOfLabels,
                         const DImage &im1, const DImage &im2,
                         const DImage &flow1, const DImage &flow2);
+
+    static void intFlow(DImage &dst, const DImage &src);
+    static char out[256];
 };
 
 #endif

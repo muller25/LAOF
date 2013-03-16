@@ -14,9 +14,9 @@ const int nBiIter = 5;//14;
 const int nIRLSIter = 1;
 const int nSORIter = 10;//30;
 
-const char *out = "/home/iaml/Projects/exp/lena/out/%d-iter%d-layer%d-%s.jpg";
 int frameID = 0;
 char buf[256];
+char LAOF::out[256];
 
 void LAOF::EM(std::vector<DImage> &u, std::vector<DImage> &v,
               std::vector<DImage> &ur, std::vector<DImage> &vr,
@@ -27,6 +27,7 @@ void LAOF::EM(std::vector<DImage> &u, std::vector<DImage> &v,
            masks.size() == im.size() && im.size() == 3);
 
     // int prev = (curIdx+2) % 3;
+
     int next = (curIdx+1) % 3;
     int width = im[0].nWidth(), height = im[0].nHeight(), numOfLabels = 1;
     DImage tmp, centers1, centers2, flow, rflow;
@@ -60,12 +61,6 @@ void LAOF::EM(std::vector<DImage> &u, std::vector<DImage> &v,
             
                 sprintf(buf, out, frameID, iter, l, "mask2");
                 imwrite(buf, paras[l].mask2);
-
-                // sprintf(buf, out, frameID, iter, l, "im1");
-                // imwrite(buf, paras[l].im1);
-
-                // sprintf(buf, out, frameID, iter, l, "im2");
-                // imwrite(buf, paras[l].im2);
             }
             
             of.biC2FFlow(paras[l].u1, paras[l].v1, paras[l].u2, paras[l].v2,
@@ -75,12 +70,6 @@ void LAOF::EM(std::vector<DImage> &u, std::vector<DImage> &v,
 
             // for test only
             printf("****** sub flow ******\n");
-            // sprintf(buf, out, frameID, iter, l, "sub-flow");
-            // flow2color(ucimg, paras[l].u1, paras[l].v1);
-            // imwrite(buf, ucimg);
-            // sprintf(buf, out, frameID, iter, l, "sub-rflow");
-            // flow2color(ucimg, paras[l].u2, paras[l].v2);
-            // imwrite(buf, ucimg);
             printf("u1 %.6f .. %.6f, v1 %.6f .. %.6f\n", paras[l].u1.min(), paras[l].u1.max(), paras[l].v1.min(), paras[l].v1.max());
             printf("u2 %.6f .. %.6f, v2 %.6f .. %.6f\n", paras[l].u2.min(), paras[l].u2.max(), paras[l].v2.min(), paras[l].v2.max());
 
@@ -97,10 +86,12 @@ void LAOF::EM(std::vector<DImage> &u, std::vector<DImage> &v,
 
         // for test only
         printf("****** global flow ******\n");
+
         sprintf(buf, out, frameID, iter, 0, "flow");
         flow2color(ucimg, flow);
         imwrite(buf, ucimg);
-        sprintf(buf, out, frameID, iter, 0, "flowr");
+
+        sprintf(buf, out, frameID, iter, 0, "rflow");
         flow2color(ucimg, rflow);
         imwrite(buf, ucimg);
 
@@ -184,7 +175,8 @@ void LAOF::segment(DImage &centers1, DImage &centers2,
 {
     assert(im1.match3D(im2) && flow1.match3D(flow2) && flow1.nChannels() == 2 &&
            im1.match2D(flow1));
-    
+
+    const int maxNumOfSegs = 10;   
     int width = im1.nWidth(), height = im1.nHeight();
     DImage warpF1, warpF2, warpI1, warpI2, fInfo1, fInfo2, rfInfo, tmp;
     UCImage ucimg;
@@ -203,7 +195,8 @@ void LAOF::segment(DImage &centers1, DImage &centers2,
     // kmeans
     if (centers1.isEmpty())
     {
-        numOfLabels = ml.cluster(centers1, layers1, fInfo1, width, height, 2, 5, 15, true);
+        numOfLabels = ml.cluster(centers1, layers1, fInfo1, width, height,
+                                 2, maxNumOfSegs, 13, true);
 
         // for test only
         sprintf(buf, out, frameID, 0, 0, "layers1");
@@ -216,6 +209,7 @@ void LAOF::segment(DImage &centers1, DImage &centers2,
     }
     
     // refine layers of im1
+    printf("refining layers of im1...\n");
     warpImage(warpI2, im1, im2, flow1);
     ml.refine(centers1, layers1, numOfLabels, im1, warpI2, fInfo1);
 
@@ -229,6 +223,7 @@ void LAOF::segment(DImage &centers1, DImage &centers2,
     imwrite(buf, tmp);
     
     // warp flow 2 to flow 1
+    printf("cacluating layers of im2...\n");
     warpImage(warpF1, flow1, flow1, flow2);
     ml.flowInfo(fInfo2, warpF1);
     ml.flowInfo(rfInfo, flow2);
@@ -242,6 +237,7 @@ void LAOF::segment(DImage &centers1, DImage &centers2,
     ml.createCenterByLabels(centers2, numOfLabels, layers2, fInfo2);
 
     // refine layers of im2
+    printf("refining layers of im2...\n");
     warpImage(warpI1, im2, im1, flow2);
     ml.refine(centers2, layers2, numOfLabels, warpI1, im2, fInfo2);
 
@@ -249,4 +245,17 @@ void LAOF::segment(DImage &centers1, DImage &centers2,
     transferLabels(layers1, layers2, flow2);
     ml.createCenterByLabels(centers1, numOfLabels, layers1, fInfo1);
     ml.refine(centers1, layers1, numOfLabels, im1, warpI2, fInfo1);
+}
+
+void LAOF::intFlow(DImage &dst, const DImage &src)
+{
+    dst.create(src.nWidth(), src.nHeight(), src.nChannels());
+
+    for (int i = 0; i < src.nElements(); ++i)
+    {
+        if (src[i] < 0)
+            dst[i] = (int)(src[i] - 0.5);
+        else
+            dst[i] = (int)(src[i] + 0.5);
+    }
 }

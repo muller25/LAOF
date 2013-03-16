@@ -463,24 +463,21 @@ void OpticalFlow::biC2FFlow(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
             warpImage(warpI1, fIm2, fIm1, u2, v2);
         }
         
+        mask.create(width, height, 1, 1);        
         for (int l = 0; l < nBiIter; l++)
         {
             // forward flow
             getGrads(Ix, Iy, It, fIm1, warpI2);
-            if (l > 0)
+            if (l >= nBiIter-2)
                 genInImageMask(mask, mpyr1[k], mpyr2[k], u1, v1);
-            else
-                mask.create(width, height, 1, 1);
             
 //            biIRLS(du1, dv1, Ix, Iy, It, mask, u1, v1, u2, v2, as, ap, nIRLSIter, nSORIter);
             adIRLS(du1, dv1, Ix, Iy, It, mask, u1, v1, u2, v2, as, ap, nIRLSIter, nSORIter);
 
             // backward flow
             getGrads(Ix, Iy, It, fIm2, warpI1);
-            if (l > 0)
+            if (l >= nBiIter-2)
                 genInImageMask(mask, mpyr2[k], mpyr1[k], u2, v2);
-            else
-                mask.create(width, height, 1, 1);
             
 //            biIRLS(du2, dv2, Ix, Iy, It, mask, u2, v2, u1, v1, as*pow(ratio, k), ap, nIRLSIter, nSORIter);
             adIRLS(du2, dv2, Ix, Iy, It, mask, u2, v2, u1, v1, as, ap, nIRLSIter, nSORIter);
@@ -866,6 +863,8 @@ void OpticalFlow::stC2FFlow(std::vector<DImage> &u, std::vector<DImage> &v,
     fIm1.copyTo(warpI1);
     fIm2.copyTo(warpI2);
     phi_d(rphid, ur[i0], vr[i0]);
+    mask.create(width, height, 1, 1);
+    
     for (int l = 0; l < 5; l++)
     {
         // forward flow
@@ -879,10 +878,8 @@ void OpticalFlow::stC2FFlow(std::vector<DImage> &u, std::vector<DImage> &v,
         substract(dvt, v[i1], wpv);
 
         getGrads(Ix, Iy, It, fIm1, warpI2);
-        if (l > 0)
+        if (l >= 3)
             genInImageMask(mask, masks[i1], masks[i2], u[i1], v[i1]);
-        else
-            mask.create(width, height, 1, 1);
         
         adIRLS3(du1, dv1, Ix, Iy, It, mask,
                 pphid, dut, dvt,                   // for temporal direvative
@@ -899,10 +896,8 @@ void OpticalFlow::stC2FFlow(std::vector<DImage> &u, std::vector<DImage> &v,
         substract(dvrt, vr[i0], wvr);
 
         getGrads(Ix, Iy, It, fIm2, warpI1);
-        if (l > 0)
+        if (l >= 3)
             genInImageMask(mask, masks[i2], masks[i1], ur[i1], vr[i1]);
-        else
-            mask.create(width, height, 1, 1);
         
         adIRLS3(du2, dv2, Ix, Iy, It, mask,
                 rphid, durt, dvrt,                // for temporal direvative

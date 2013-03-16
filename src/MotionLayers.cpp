@@ -98,6 +98,7 @@ int MotionLayers::cluster(DImage &centers, DImage &layers, const DImage &im,
 int MotionLayers::cluster(DImage &centers, DImage &layers, const DImage &features,
                           int width, int height, int start, int end, double na, bool reArrange)
 {
+    printf("running kmeans...\n");
     int clusters;
     UCImage labels;
     
@@ -152,8 +153,8 @@ void MotionLayers::refine(DImage &centers, DImage &layers, int labels,
         gc->setSmoothCost(MotionLayers::smoothFn, extra.ptr());
         
         printf("Before optimization energy is %.6f\n",gc->compute_energy());
-        gc->expansion(2);
-        // gc->swap(2);
+        // gc->expansion(2);
+        gc->swap(2);
         printf("After optimization energy is %.6f\n",gc->compute_energy());
 
         for (int  i = 0; i < size; i++)
@@ -177,8 +178,8 @@ double MotionLayers::smoothFn(int p1, int p2, int l1, int l2, void *pData)
 {
     const int dataWidth = 6;
     const double weight = 1;
-    const double penalty = 0.38;
-    const double sigma = 5;
+    const double penalty = 1;
+    const double sigma = 2.5;
     double *ptr = (double *)pData;
     double cost;
     
