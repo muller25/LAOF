@@ -14,7 +14,9 @@ const int nBiIter = 5;//14;
 const int nIRLSIter = 1;
 const int nSORIter = 10;//30;
 
-int frameID = 0;
+extern int frameStart;
+extern int numOfSegs;
+
 char buf[256];
 char LAOF::out[256];
 
@@ -24,11 +26,9 @@ void LAOF::EM(std::vector<DImage> &u, std::vector<DImage> &v,
               int curIdx, int nIters)
 {
     assert(u.size() == v.size() && v.size() == ur.size() && ur.size() == masks.size() &&
-           masks.size() == im.size() && im.size() == 3);
+           masks.size() == im.size() && im.size() == 2);
 
-    // int prev = (curIdx+2) % 3;
-
-    int next = (curIdx+1) % 3;
+    int next = 1 - curIdx;
     int width = im[0].nWidth(), height = im[0].nHeight(), numOfLabels = 1;
     DImage tmp, centers1, centers2, flow, rflow;
     UCImage ucimg;
@@ -38,7 +38,6 @@ void LAOF::EM(std::vector<DImage> &u, std::vector<DImage> &v,
     // init mask
     masks[curIdx].create(width, height);
     masks[next].create(width, height);
-    centers2.create(4, width*height);
     
     // start EM iterations
     for (int iter = 0; iter < nIters; ++iter)
@@ -56,10 +55,10 @@ void LAOF::EM(std::vector<DImage> &u, std::vector<DImage> &v,
             // for test only
             if (l > 0)
             {
-                sprintf(buf, out, frameID, iter, l, "mask1");
+                sprintf(buf, out, frameStart, iter, l, "mask1");
                 imwrite(buf, paras[l].mask1);
             
-                sprintf(buf, out, frameID, iter, l, "mask2");
+                sprintf(buf, out, frameStart, iter, l, "mask2");
                 imwrite(buf, paras[l].mask2);
             }
             
@@ -74,11 +73,11 @@ void LAOF::EM(std::vector<DImage> &u, std::vector<DImage> &v,
             printf("u2 %.6f .. %.6f, v2 %.6f .. %.6f\n", paras[l].u2.min(), paras[l].u2.max(), paras[l].v2.min(), paras[l].v2.max());
 
             warpImage(tmp, paras[l].im1, paras[l].im2, paras[l].u1, paras[l].v1);
-            sprintf(buf, out, frameID, iter, l, "sub-warp");
+            sprintf(buf, out, frameStart, iter, l, "sub-warp");
             imwrite(buf, tmp);
 
             warpImage(tmp, paras[l].im2, paras[l].im1, paras[l].u2, paras[l].v2);
-            sprintf(buf, out, frameID, iter, l, "sub-warpr");
+            sprintf(buf, out, frameStart, iter, l, "sub-warpr");
             imwrite(buf, tmp);
         }
 
@@ -87,11 +86,11 @@ void LAOF::EM(std::vector<DImage> &u, std::vector<DImage> &v,
         // for test only
         printf("****** global flow ******\n");
 
-        sprintf(buf, out, frameID, iter, 0, "flow");
+        sprintf(buf, out, frameStart, iter, 0, "flow");
         flow2color(ucimg, flow);
         imwrite(buf, ucimg);
 
-        sprintf(buf, out, frameID, iter, 0, "rflow");
+        sprintf(buf, out, frameStart, iter, 0, "rflow");
         flow2color(ucimg, rflow);
         imwrite(buf, ucimg);
 
@@ -101,20 +100,20 @@ void LAOF::EM(std::vector<DImage> &u, std::vector<DImage> &v,
                 im[curIdx], im[next], flow, rflow);
         
         // for test only
-        sprintf(buf, out, frameID, iter, 0, "final-layers1");
+        sprintf(buf, out, frameStart, iter, 0, "final-layers1");
         flow2color(ucimg, masks[curIdx], masks[curIdx]);
         imwrite(buf, ucimg);
 
         coverLabels(tmp, im[curIdx], ucimg);
-        sprintf(buf, out, frameID, iter, 0, "merge-final-layers1");
+        sprintf(buf, out, frameStart, iter, 0, "merge-final-layers1");
         imwrite(buf, tmp);
 
-        sprintf(buf, out, frameID, iter, 0, "final-layers2");
+        sprintf(buf, out, frameStart, iter, 0, "final-layers2");
         flow2color(ucimg, masks[next], masks[next]);
         imwrite(buf, ucimg);
 
         coverLabels(tmp, im[next], ucimg);
-        sprintf(buf, out, frameID, iter, 0, "merge-final-layers2");
+        sprintf(buf, out, frameStart, iter, 0, "merge-final-layers2");
         imwrite(buf, tmp);
     }
     // end of EM iterations
@@ -137,7 +136,7 @@ void LAOF::EM(std::vector<DImage> &u, std::vector<DImage> &v,
         }
     }
 
-    frameID++;
+    frameStart++;
 }
 
 void LAOF::transferLabels(DImage &dstLabels, const DImage &srcLabels, const DImage &flow)
@@ -176,7 +175,6 @@ void LAOF::segment(DImage &centers1, DImage &centers2,
     assert(im1.match3D(im2) && flow1.match3D(flow2) && flow1.nChannels() == 2 &&
            im1.match2D(flow1));
 
-    const int maxNumOfSegs = 10;   
     int width = im1.nWidth(), height = im1.nHeight();
     DImage warpF1, warpF2, warpI1, warpI2, fInfo1, fInfo2, rfInfo, tmp;
     UCImage ucimg;
@@ -196,15 +194,15 @@ void LAOF::segment(DImage &centers1, DImage &centers2,
     if (centers1.isEmpty())
     {
         numOfLabels = ml.cluster(centers1, layers1, fInfo1, width, height,
-                                 2, maxNumOfSegs, 13, true);
+                                 numOfSegs, numOfSegs, 20, true);
 
         // for test only
-        sprintf(buf, out, frameID, 0, 0, "layers1");
+        sprintf(buf, out, frameStart, 0, 0, "layers1");
         flow2color(ucimg, layers1, layers1);
         imwrite(buf, ucimg);
 
         coverLabels(tmp, im1, ucimg);
-        sprintf(buf, out, frameID, 0, 0, "merge-layers1");
+        sprintf(buf, out, frameStart, 0, 0, "merge-layers1");
         imwrite(buf, tmp);
     }
     
@@ -214,12 +212,12 @@ void LAOF::segment(DImage &centers1, DImage &centers2,
     ml.refine(centers1, layers1, numOfLabels, im1, warpI2, fInfo1);
 
     // for test only
-    sprintf(buf, out, frameID, 0, 0, "layers1-refine");
+    sprintf(buf, out, frameStart, 0, 0, "layers1-refine");
     flow2color(ucimg, layers1, layers1);
     imwrite(buf, ucimg);
 
     coverLabels(tmp, im1, ucimg);
-    sprintf(buf, out, frameID, 0, 0, "merge-layers1-refine");
+    sprintf(buf, out, frameStart, 0, 0, "merge-layers1-refine");
     imwrite(buf, tmp);
     
     // warp flow 2 to flow 1

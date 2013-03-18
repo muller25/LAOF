@@ -6,9 +6,6 @@
 class OpticalFlow
 {
 public:
-    OpticalFlow(){lapPara.resize(9, 0.02);}
-    virtual ~OpticalFlow(){lapPara.clear();}
-
     inline void psi_d(DImage &res,
                       const DImage &Ix, const DImage &Iy, const DImage &It,
                       const DImage &du, const DImage &dv);
@@ -17,8 +14,6 @@ public:
     
     void getGrads(DImage &Ix, DImage &Iy, DImage &It,
                   const DImage &im1, const DImage &im2);
-
-    void estLapNoise(const DImage &im1, const DImage &im2);
 
     void im2feature(DImage &feature, const DImage &im);
 
@@ -33,6 +28,18 @@ public:
     void SORSolver(DImage &u, DImage &v, DImage &warp,
                    const DImage &im1, const DImage &im2, 
                    double as, int nOutIter, int nInIter, int nSORIter);
+
+    void stC2FFlow(DImage &u, DImage &v, 
+                   const DImage &im1, const DImage &im2,
+                   const DImage &mask1, const DImage &mask2,
+                   double as, double ap, double ratio, int minWidth,
+                   int nOutIter, int nIRLSIter, int nSORIter);
+
+    void adIRLS(DImage &du, DImage &dv, const DImage &D,
+                const DImage &Ix, const DImage &Iy, const DImage &It,
+                const DImage &mask,
+                const DImage &u, const DImage &v,
+                double as, double ap, int nIRLSIter, int nSORIter);
 
     void biC2FFlow(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
                    const DImage &im1, const DImage &im2,
@@ -64,9 +71,6 @@ public:
                  const DImage &pphid, const DImage &dut, const DImage &dvt,
                  const DImage &u, const DImage &v, const DImage &ur, const DImage &vr,
                  double as, double ap, int nIRLSIter, int nSORIter, bool reverse);
-
-private:
-    std::vector<double> lapPara;
 };
 
 #endif

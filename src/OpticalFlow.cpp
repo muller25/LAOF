@@ -2,6 +2,7 @@
 #include "Maths.h"
 #include "ImageProcess.h"
 #include "GaussianPyramid.h"
+#include "ImageIO.h"
 
 #include <cmath>
 #include <cstdio>
@@ -29,9 +30,7 @@ void OpticalFlow::psi_d(DImage &res, const DImage &Ix, const DImage &Iy,
             io = fo * channels;
             for (int k = 0; k < channels; ++k)
             {
-                if (lapPara[k] < 1E-20) continue;
-
-                tmp = It[io+k] + Ix[io+k]*du[fo] + Iy[io+k]*dv[fo];
+                 tmp = It[io+k] + Ix[io+k]*du[fo] + Iy[io+k]*dv[fo];
                 tmp *= tmp;
                 res[io+k] = 0.5 / sqrt(tmp + epsilon);
             }
@@ -80,46 +79,6 @@ void OpticalFlow::getGrads(DImage &Ix, DImage &Iy, DImage &It,
     addWeighted(im, im1, 0.4, im2, 0.6);
     grad1st(Ix, Iy, im);
     substract(It, im2, im1);
-}
-
-void OpticalFlow::estLapNoise(const DImage &im1, const DImage &im2)
-{
-    assert(im1.match3D(im2));
-
-    int height = im1.nHeight(), width = im1.nWidth(), channels = im1.nChannels();
-    int offset;
-    std::vector<double> total(channels, 0);
-    double tmp;
-    
-    lapPara.assign(channels, 0);
-    for (int h = 0; h < height; ++h)
-    {
-        for (int w = 0; w < width; ++w)
-        {
-            offset = (h * width + w) * channels;
-            for (int k = 0; k < channels; ++k)
-            {
-                tmp = fabs(im1[offset+k] - im2[offset+k]);
-                if (tmp > 0 && tmp < 1000000)
-                {
-                    lapPara[k] += tmp;
-                    total[k]++;
-                }
-            }
-        }
-    }
-    
-    for (int k = 0; k < channels; ++k)
-    {
-        if (total[k] == 0)
-        {
-            printf("All the pixels are invalid in estimation Laplacian noise!!!\n");
-            printf("Something severely wrong happened!!!\n");
-			lapPara[k] = 0.001;
-		}
-		else
-			lapPara[k] /= total[k];
-    }
 }
 
 void OpticalFlow::im2feature(DImage &feature, const DImage &im)
@@ -239,10 +198,8 @@ void OpticalFlow::c2fFlow(DImage &u, DImage &v, const DImage &im1, const DImage 
 
     DImage tmp, fIm1, fIm2, warp;
     int width, height;
+    double xfactor, yfactor;
     
-    // init lap noise
-    lapPara.assign(im1.nChannels()+2, 0.02);
-
     // iterate from the top level to the bottom
     for (int k = pyr1.nLevels()-1; k >= 0; --k)
     {
@@ -260,11 +217,14 @@ void OpticalFlow::c2fFlow(DImage &u, DImage &v, const DImage &im1, const DImage 
             v.create(width, height);
             fIm2.copyTo(warp);
         } else {
+            xfactor = width / pyr1[k+1].nWidth();
+            yfactor = height / pyr1[k+1].nHeight();
+
             imresize(tmp, u, width, height);
-            multiply(u, tmp, 1./ratio);
+            multiply(u, tmp, xfactor);
 
             imresize(tmp, v, width, height);
-            multiply(v, tmp, 1./ratio);
+            multiply(v, tmp, yfactor);
 
             warpImage(warp, fIm1, fIm2, u, v);
         }
@@ -328,7 +288,7 @@ void OpticalFlow::SORSolver(DImage &u, DImage &v, DImage &warp,
                 ixt[i] = -ixt[i] + as * lapU[i];
                 iyt[i] = -iyt[i] + as * lapV[i];
             }
-
+            
             // SOR iteration
             du.set(0);
             dv.set(0);
@@ -395,9 +355,229 @@ void OpticalFlow::SORSolver(DImage &u, DImage &v, DImage &warp,
         add(u, du);// u += du
         add(v, dv);// v += dv
         warpImage(warp, im1, im2, u, v);
+    }
+}
 
-        // esitmate noise level
-        estLapNoise(im1, warp);
+// coarse to fine strategy for optical flow
+void OpticalFlow::stC2FFlow(DImage &u, DImage &v, 
+                            const DImage &im1, const DImage &im2,
+                            const DImage &mask1, const DImage &mask2,
+                            double as, double ap, double ratio, int minWidth,
+                            int nOutIter, int nIRLSIter, int nSORIter)
+{
+    GaussianPyramid pyr1, pyr2, mpyr1, mpyr2;
+
+    pyr1.build(im1, ratio, minWidth);
+    pyr2.build(im2, ratio, minWidth);
+
+    // do not smooth while build pyramid
+    mpyr1.build(mask1, ratio, minWidth, false);
+    mpyr2.build(mask2, ratio, minWidth, false);
+
+    // printf("pyramid constructed\n");
+    
+    DImage fIm1, fIm2, warpI2, Ix, Iy, It, mask, du, dv, tmp, D;
+    DImage ov, oe, mv, me, o, m;
+    int width, height;
+    double xfactor, yfactor, maxVal;
+    char buf[256];
+    const char *outImg = "/home/iaml/Projects/exp/%s%03d.jpg";
+    
+    // iterate from the top level to the bottom
+    for (int k = pyr1.nLevels()-1; k >= 0; --k)
+    {
+        // printf("Pyramid level %d\n", k);
+
+        width = pyr1[k].nWidth();
+        height = pyr1[k].nHeight();
+        im2feature(fIm1, pyr1[k]);
+        im2feature(fIm2, pyr2[k]);
+        
+        // if at the top level
+        if (k == pyr1.nLevels()-1)
+        {
+            u.create(width, height);
+            v.create(width, height);
+            fIm2.copyTo(warpI2);
+        } else {
+            xfactor = (double)width / pyr1[k+1].nWidth();
+            yfactor = (double)height / pyr1[k+1].nHeight();
+            
+            imresize(tmp, u, width, height);
+            multiply(u, tmp, xfactor);
+            imresize(tmp, v, width, height);
+            multiply(v, tmp, yfactor);
+            warpImage(warpI2, fIm1, fIm2, u, v);
+        }
+        
+        mask.create(width, height, 1, 1);
+        D.create(width, height);
+        o.create(width, height); // orientation
+        m.create(width, height); // magnitude
+        for (int l = 0; l < nOutIter+k; l++)
+        {
+            getGrads(Ix, Iy, It, fIm1, warpI2);
+            if (l >= nOutIter+k-3)
+                genInImageMask(mask, mpyr1[k], mpyr2[k], u, v);
+
+            // adaptive weights
+            for (int i = 0; i < u.nElements(); ++i)
+            {
+                o[i] = atan2(v[i], u[i]) / PI * 180;
+                m[i] = sqrt(u[i]*u[i] + v[i]*v[i]);
+            }
+
+            BoxFilter(oe, o, 3, 3);
+            multiply(tmp, o, o);
+            BoxFilter(ov, tmp, 3, 3); 
+            substract(ov, oe); // variance
+            maxVal = ov.max();
+            for (int i = 0; i < ov.nElements(); ++i)
+            {
+                if (fabs(maxVal) < ESP)
+                    D[i] = 1;
+                else
+                    D[i] = 1 / (1 + ov[i] / maxVal);
+            }
+            
+            BoxFilter(me, m, 3, 3);
+            multiply(tmp, m, m);
+            BoxFilter(mv, tmp, 3, 3); 
+            substract(mv, me); // variance
+
+            // show confidence map
+            sprintf(buf, outImg, "confidence", l);
+            imwrite(buf, D);
+            printf("variance: %.6f .. %.6f\n", ov.min(), ov.max());
+            printf("confidence: %.6f .. %.6f\n", D.min(), D.max());
+            
+            adIRLS(du, dv, D, Ix, Iy, It, mask, u, v, as, ap, nIRLSIter, nSORIter+k*3);
+            
+            add(u, du);
+            add(v, dv);
+            warpImage(warpI2, fIm1, fIm2, u, v);
+        }
+    }
+}
+
+// adaptive optical flow
+void OpticalFlow::adIRLS(DImage &du, DImage &dv, const DImage &D,
+                         const DImage &Ix, const DImage &Iy, const DImage &It, const DImage &mask,
+                         const DImage &u, const DImage &v,
+                         double as, double ap, int nIRLSIter, int nSORIter)
+{
+    int width = Ix.nWidth(), height = Ix.nHeight(), channels = Ix.nChannels();
+    DImage Ix2, Iy2, Ixt, Iyt, Ixy, lapU, lapV, ix2, iy2, ixt, iyt, ixy, uu, vv;
+    DImage psid(width, height, channels), phid(width, height);
+    DImage A11, A22, A12, b1, b2;
+    
+    du.create(width, height);//match size and set to 0
+    dv.create(width, height);
+    
+    for (int irls = 0; irls < nIRLSIter; ++irls)
+    {
+        add(uu, u, du);// uu = u + du
+        add(vv, v, dv);// vv = v + dv
+
+        phi_d(phid, uu, vv);
+        psi_d(psid, Ix, Iy, It, du, dv);
+
+        multiply(Ix2, Ix, Ix, psid);
+        collapse(ix2, Ix2);
+        
+        multiply(Iy2, Iy, Iy, psid);
+        collapse(iy2, Iy2);
+        
+        multiply(Ixy, Ix, Iy, psid);
+        collapse(ixy, Ixy);
+        
+        multiply(Ixt, It, Ix, psid);
+        collapse(ixt, Ixt);
+        
+        multiply(Iyt, It, Iy, psid);
+        collapse(iyt, Iyt);
+
+        weighted_lap(lapU, u, phid);
+        weighted_lap(lapV, v, phid);
+
+        multiply(A11, ix2, D);
+        multiply(A22, iy2, D);
+        multiply(A12, ixy, D);
+        multiply(b1, ixt, D);
+        substract(b1, lapU, as); // b1 -= as * lapU
+        multiply(b2, iyt, D);
+        substract(b2, lapV, as); // b2 -= as * lapV
+        
+        // apply mask
+        multiply(phid, mask);
+        multiply(A11, mask);
+        multiply(A22, mask);
+        multiply(A12, mask);
+        multiply(b1, mask);
+        multiply(b2, mask);
+        
+        add(A11, as*0.05); // add epsilon to avoid dividing zero        
+        add(A22, as*0.05); // add epsilon to avoid dividing zero
+        
+        // SOR iteration
+        du.set(0);
+        dv.set(0);
+        const double omega = 1.8;
+        double l, l_du, l_dv;
+        int offset, tmp;
+
+        for (int siter = 0; siter < nSORIter; siter++)
+        {
+            for (int h = 0; h < height; ++h)
+            {
+                for (int w = 0; w < width; ++w)
+                {
+                    offset = h * width + w;
+                    l_du = 0, l_dv = 0, l = 0;
+                        
+                    if (h > 0)
+                    {
+                        tmp = offset - width;
+                        l_du += phid[tmp] * du[tmp];
+                        l_dv += phid[tmp] * dv[tmp];
+                        l -= phid[tmp];
+                    }
+                    if (h < height-1)
+                    {
+                        tmp = offset + width;
+                        l_du += phid[offset] * du[tmp];
+                        l_dv += phid[offset] * dv[tmp];
+                        l -= phid[offset];
+                    }
+                    if (w > 0)
+                    {
+                        tmp = offset - 1;
+                        l_du += phid[tmp] * du[tmp];
+                        l_dv += phid[tmp] * dv[tmp];
+                        l -= phid[tmp];
+                    }
+                    if (w < width-1)
+                    {
+                        tmp = offset + 1;
+                        l_du += phid[offset] * du[tmp];
+                        l_dv += phid[offset] * dv[tmp];
+                        l -= phid[offset];
+                    }
+
+                    l *= as;
+                    l_du *= as;
+                    l_dv *= as;
+                        
+                    // du
+                    l_du = -b1[offset] + l_du - A12[offset]*dv[offset];
+                    du[offset] = (1-omega)*du[offset]+omega/(A11[offset]-l)*l_du;
+                        
+                    // dv
+                    l_dv = -b2[offset] + l_dv - A12[offset]*du[offset];
+                    dv[offset] = (1-omega)*dv[offset]+omega/(A22[offset]-l)*l_dv;
+                }
+            }
+        }
     }
 }
 
@@ -422,9 +602,6 @@ void OpticalFlow::biC2FFlow(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
     DImage du1, dv1, du2, dv2, tmp;
     int width, height;
     double xfactor, yfactor;
-    
-    // init lap noise
-    lapPara.assign(im1.nChannels()+2, 0.02);
 
     // iterate from the top level to the bottom
     for (int k = pyr1.nLevels()-1; k >= 0; --k)

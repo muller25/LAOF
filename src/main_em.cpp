@@ -6,12 +6,13 @@
 
 char *inPattern, *outDir;
 int frameStart, frameEnd;
+int numOfSegs;
 
 int main(int argc, char *argv[])
 {
-    if (argc != 5)
+    if (argc != 6)
     {
-        printf("./em input_pattern output_dir start end\n");
+        printf("./em input_pattern output_dir start end #_of_seg\n");
         return 1;
     }
     
@@ -19,9 +20,10 @@ int main(int argc, char *argv[])
     outDir = argv[2];
     frameStart = atoi(argv[3]);
     frameEnd = atoi(argv[4]);
-
+    numOfSegs = atoi(argv[5]);
+    
     char outFile[128], outImg[128];
-    std::vector<DImage> im(3), mask(3), u(3), v(3), ur(3), vr(3);
+    std::vector<DImage> im(2), mask(2), u(2), v(2), ur(2), vr(2);
     char buf[256];
     DImage warp, tmp;
     UCImage ucimg;
@@ -40,8 +42,8 @@ int main(int argc, char *argv[])
     imread(im[0], buf);
 
     // to save time
-    imresize(tmp, im[0], 0.5);
-    tmp.copyTo(im[0]);
+    // imresize(tmp, im[0], 0.5);
+    // tmp.copyTo(im[0]);
     
     cur = 0, next = 1;
     for (; i <= frameEnd; ++i)
@@ -50,8 +52,8 @@ int main(int argc, char *argv[])
         imread(im[next], buf);
 
         // to save time
-        imresize(tmp, im[next], 0.5);
-        tmp.copyTo(im[next]);
+        // imresize(tmp, im[next], 0.5);
+        // tmp.copyTo(im[next]);
         
         LAOF::EM(u, v, ur, vr, mask, im, cur, 2);
 
@@ -86,8 +88,8 @@ int main(int argc, char *argv[])
         imwrite(buf, warp);
         
         // time window move forward
-        cur = next;
-        next = (cur + 1) % 3;
+        cur = 1 - cur;
+        next = 1 - next;
     }
     
     return 0;

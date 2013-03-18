@@ -142,7 +142,7 @@ void MotionLayers::refine(DImage &centers, DImage &layers, int labels,
     {
         for (int l = 0; l < labels; ++l)
         {
-            data[i*labels+l] = mydist(features.ptr()+i*cwidth, centers.ptr()+l*cwidth, 0, cwidth);
+            data[i*labels+l] = 2 * mydist(features.ptr()+i*cwidth, centers.ptr()+l*cwidth, 0, cwidth);
             data[i*labels+l] += dist2(im1.ptr()+i*channels, im2.ptr()+i*channels, 0, channels);
         }
     }
@@ -178,8 +178,8 @@ double MotionLayers::smoothFn(int p1, int p2, int l1, int l2, void *pData)
 {
     const int dataWidth = 6;
     const double weight = 1;
-    const double penalty = 1;
-    const double sigma = 2.5;
+    const double penalty = 3;
+    const double sigma = 3;
     double *ptr = (double *)pData;
     double cost;
     

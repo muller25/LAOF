@@ -43,19 +43,19 @@ int main(int argc, char *argv[])
         sprintf(buf, outFlow, "layers", idx-1);
         imwrite(buf, flowImg);
 
-        ml.coverLabels(tmp, im, flowImg);
+        coverLabels(tmp, im, flowImg);
         sprintf(buf, outFlow, "merge", idx-1);
         imwrite(buf, tmp);
 
         // refine
         printf("refine cluster...\n");
-        ml.refine(layers, clusters, im, flow, centers, fInfo);
+        ml.refine(centers, layers, clusters, im, flow, fInfo);
 
         flow2color(flowImg, layers, layers);
         sprintf(buf, outFlow, "layers-refine", idx-1);
         imwrite(buf, flowImg);
 
-        ml.coverLabels(tmp, im, flowImg);
+        coverLabels(tmp, im, flowImg);
         sprintf(buf, outFlow, "merge-refine", idx-1);
         imwrite(buf, tmp);
     }
