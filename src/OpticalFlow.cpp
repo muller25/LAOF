@@ -2,7 +2,9 @@
 #include "Maths.h"
 #include "ImageProcess.h"
 #include "GaussianPyramid.h"
+
 #include "ImageIO.h"
+#include "Flow2Color.h"
 
 #include <cmath>
 #include <cstdio>
@@ -375,9 +377,10 @@ void OpticalFlow::stC2FFlow(DImage &u, DImage &v,
     mpyr2.build(mask2, ratio, minWidth, false);
 
     // printf("pyramid constructed\n");
-    
+    const int wsize = 10;
+    const double truncate = 0.05;
     DImage fIm1, fIm2, warpI2, Ix, Iy, It, mask, du, dv, tmp, D;
-    DImage ov, oe, mv, me, o, m;
+    DImage covUV, meanU, meanV;
     int width, height;
     double xfactor, yfactor, maxVal;
     char buf[256];
@@ -412,50 +415,67 @@ void OpticalFlow::stC2FFlow(DImage &u, DImage &v,
         
         mask.create(width, height, 1, 1);
         D.create(width, height);
-        o.create(width, height); // orientation
-        m.create(width, height); // magnitude
         for (int l = 0; l < nOutIter+k; l++)
         {
             getGrads(Ix, Iy, It, fIm1, warpI2);
             if (l >= nOutIter+k-3)
                 genInImageMask(mask, mpyr1[k], mpyr2[k], u, v);
 
-            // adaptive weights
-            for (int i = 0; i < u.nElements(); ++i)
+            // co-variance orientation, magnitued
+            BoxFilter(meanU, u, wsize, wsize);
+            BoxFilter(meanV, v, wsize, wsize);
+            multiply(tmp, u, v);
+            BoxFilter(covUV, tmp, wsize, wsize);
+            multiply(tmp, meanU, meanV);
+            substract(covUV, tmp);
+            maxVal = -1;
+            for (int i = 0; i < covUV.nElements(); ++i)
             {
-                o[i] = atan2(v[i], u[i]) / PI * 180;
-                m[i] = sqrt(u[i]*u[i] + v[i]*v[i]);
+                covUV[i] = fabs(covUV[i]);
+                if (maxVal < covUV[i]) maxVal = covUV[i];
             }
 
-            BoxFilter(oe, o, 3, 3);
-            multiply(tmp, o, o);
-            BoxFilter(ov, tmp, 3, 3); 
-            substract(ov, oe); // variance
-            maxVal = ov.max();
-            for (int i = 0; i < ov.nElements(); ++i)
+            // normalize
+            if (maxVal < ESP)
+                D.set(1);
+            else
             {
-                if (fabs(maxVal) < ESP)
-                    D[i] = 1;
-                else
-                    D[i] = 1 / (1 + ov[i] / maxVal);
-            }
-            
-            BoxFilter(me, m, 3, 3);
-            multiply(tmp, m, m);
-            BoxFilter(mv, tmp, 3, 3); 
-            substract(mv, me); // variance
+                for (int i = 0; i < covUV.nElements(); ++i)
+                {
+                    D[i] = covUV[i] / maxVal;
 
-            // show confidence map
-            sprintf(buf, outImg, "confidence", l);
-            imwrite(buf, D);
-            printf("variance: %.6f .. %.6f\n", ov.min(), ov.max());
-            printf("confidence: %.6f .. %.6f\n", D.min(), D.max());
+                    // truncate
+                    if (D[i] <= truncate) D[i] = 0;
+
+                    D[i] = 1 - D[i];
+                }
+            }
             
             adIRLS(du, dv, D, Ix, Iy, It, mask, u, v, as, ap, nIRLSIter, nSORIter+k*3);
             
             add(u, du);
             add(v, dv);
             warpImage(warpI2, fIm1, fIm2, u, v);
+
+            // for test purpose
+            if (k == 0)
+            {
+                // show confidence map
+                printf("co-variance: %.6f .. %.6f\n", covUV.min(), covUV.max());
+                printf("confidence: %.6f .. %.6f\n", D.min(), D.max());
+
+                sprintf(buf, outImg, "confidence", l);
+                imwrite(buf, D);
+
+                UCImage ucimg;
+                flow2color(ucimg, u, v);
+                sprintf(buf, outImg, "flow", l);
+                imwrite(buf, ucimg);
+
+                coverLabels(tmp, im1, D);
+                sprintf(buf, outImg, "merge", l);
+                imwrite(buf, tmp);
+            }
         }
     }
 }

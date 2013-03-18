@@ -25,6 +25,7 @@ tests/seg
 src/em
 src/run
 src/of
+src/stof
 gc/*
 
 *cscope.out

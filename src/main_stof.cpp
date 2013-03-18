@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
   
     char buf[256], outFile[128], outImg[128];
     std::vector<DImage> im(2);
-    DImage u, v, warp, mask1, mask2, tmp;
+    DImage u, v, warp, mask1, mask2;
     UCImage flowImg;
     int cur, next, width, height;
     OpticalFlow of;
@@ -48,8 +48,9 @@ int main(int argc, char *argv[])
     imread(im[0], buf);
 
     // to save time
-    imresize(tmp, im[0], 0.5);
-    tmp.copyTo(im[0]);
+    // DImage tmp;
+    // imresize(tmp, im[0], 0.5);
+    // tmp.copyTo(im[0]);
 
     width = im[0].nWidth(), height = im[0].nHeight();
     mask1.create(width, height, 1, 1);
@@ -62,8 +63,8 @@ int main(int argc, char *argv[])
         imread(im[next], buf);
 
         // to save time
-        imresize(tmp, im[next], 0.5);
-        tmp.copyTo(im[next]);
+        // imresize(tmp, im[next], 0.5);
+        // tmp.copyTo(im[next]);
 
         printf("running optical flow from im%d to im%d...\n", i-1, i);
         of.stC2FFlow(u, v, im[cur], im[next], mask1, mask2,

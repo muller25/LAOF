@@ -669,11 +669,8 @@ double similarity(T *v1, T *v2, int start, int end)
     }
 
     a = sqrt(a), b = sqrt(b);
-    if (fabs(a) < ESP) // a == 0
-        return b;
-    
-    if (fabs(b) < ESP) // b == 0
-        return a;
+    if (fabs(a) < ESP || fabs(b) < ESP) // a == 0 or b == 0
+        return 0;
 
     return (double)ab / (a * b);
 }
