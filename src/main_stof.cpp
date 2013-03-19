@@ -23,7 +23,7 @@ int main(int argc, char *argv[])
 
     // init optical flow parameters
     const double as = 0.026;
-    // const double ap = 0.012;
+    const double at = 0.005;
     const double ratio = 0.75;
     const int minWidth = 20;
     const int nOutIter = 5;//14;
@@ -31,10 +31,10 @@ int main(int argc, char *argv[])
     const int nSORIter = 10;//30;
   
     char buf[256], outFile[128], outImg[128];
-    std::vector<DImage> im(2);
-    DImage u, v, warp, mask1, mask2;
-    UCImage flowImg;
-    int cur, next, width, height;
+    std::vector<DImage> im(3), u(3), v(3), mask(3);
+    DImage warp;
+    UCImage ucimg;
+    int cur, next, prev, width, height, i;
     OpticalFlow of;
 
     memset(outFile, 0, sizeof(outFile));
@@ -46,20 +46,28 @@ int main(int argc, char *argv[])
 
     sprintf(buf, inPattern, frameStart);
     imread(im[0], buf);
-
+    sprintf(buf, inPattern, frameStart+1);
+    imread(im[1], buf);
+    
     // to save time
     DImage tmp;
     imresize(tmp, im[0], 0.5);
     tmp.copyTo(im[0]);
     sprintf(buf, outImg, "im", frameStart);
     imwrite(buf, tmp);
+
+    imresize(tmp, im[1], 0.5);
+    tmp.copyTo(im[1]);
+    sprintf(buf, outImg, "im", frameStart+1);
+    imwrite(buf, tmp);
     
     width = im[0].nWidth(), height = im[0].nHeight();
-    mask1.create(width, height, 1, 1);
-    mask2.create(width, height, 1, 1);
-
-    cur = 0, next = 1;
-    for (int i = frameStart+1; i <= frameEnd; ++i)
+    mask[0].create(width, height, 1, 1);
+    mask[1].create(width, height, 1, 1);
+    mask[2].create(width, height, 1, 1);
+    
+    prev = 0, cur = 1, next = 2;
+    for (i = frameStart+2; i <= frameEnd; ++i)
     {
         sprintf(buf, inPattern, i);
         imread(im[next], buf);
@@ -70,27 +78,41 @@ int main(int argc, char *argv[])
         sprintf(buf, outImg, "im", i);
         imwrite(buf, tmp);
 
-        printf("running optical flow from im%d to im%d...\n", i-1, i);
-        of.adC2FFlow(u, v, im[cur], im[next], mask1, mask2,
-                     as, ratio, minWidth, nOutIter, nIRLSIter, nSORIter);
+        of.stC2FFlow(u, v, im, mask, prev, as, at,
+                     ratio, minWidth,
+                     nOutIter, nIRLSIter, nSORIter);
         
-        sprintf(buf, outFile, "u", i-1);
-        imwritef(buf, u);
-        sprintf(buf, outFile, "v", i-1);
-        imwritef(buf, v);
+        sprintf(buf, outFile, "u", i-2);
+        imwritef(buf, u[prev]);
+        sprintf(buf, outFile, "v", i-2);
+        imwritef(buf, v[prev]);
 
-        flow2color(flowImg, u, v);
-        sprintf(buf, outImg, "flow", i-1);
-        imwrite(buf, flowImg);
+        flow2color(ucimg, u[prev], v[prev]);
+        sprintf(buf, outImg, "flow", i-2);
+        imwrite(buf, ucimg);
 
-        warpImage(warp, im[cur], im[next], u, v);
-        sprintf(buf, outImg, "warp", i-1);
+        warpImage(warp, im[prev], im[cur], u[prev], v[prev]);
+        sprintf(buf, outImg, "warp", i-2);
         imwrite(buf, warp);
         
         // time window move forward
-        cur = 1 - cur;
-        next = 1 - next;
+        prev = cur;
+        cur = next;
+        next = (next + 1) % 3;
     }
+
+    sprintf(buf, outFile, "u", i-2);
+    imwritef(buf, u[prev]);
+    sprintf(buf, outFile, "v", i-2);
+    imwritef(buf, v[prev]);
+
+    flow2color(ucimg, u[prev], v[prev]);
+    sprintf(buf, outImg, "flow", i-2);
+    imwrite(buf, ucimg);
+
+    warpImage(warp, im[prev], im[cur], u[prev], v[prev]);
+    sprintf(buf, outImg, "warp", i-2);
+    imwrite(buf, warp);
     
     return 0;
 }

@@ -789,13 +789,11 @@ void OpticalFlow::adC2FFlow(DImage &u, DImage &v,
     mpyr2.build(mask2, ratio, minWidth);
 
     // printf("pyramid constructed\n");
-    const int wsize = 5;
-    const double truncate = 0.1;
     DImage fIm1, fIm2, warpI2, Ix, Iy, It, mask, du, dv, tmp, D, covUV;
     int width, height;
-    double xfactor, yfactor, maxVal;
-    char buf[256];
-    const char *outImg = "/home/iaml/Projects/exp/%s%03d.jpg";
+    double xfactor, yfactor;
+    // char buf[256];
+    // const char *outImg = "/home/iaml/Projects/exp/%s%03d.jpg";
     
     // iterate from the top level to the bottom
     for (int k = pyr1.nLevels()-1; k >= 0; --k)
@@ -833,8 +831,10 @@ void OpticalFlow::adC2FFlow(DImage &u, DImage &v,
                 genInImageMask(mask, mpyr1[k], mpyr2[k], u, v);
 
             // co-variance orientation, magnitued
+            const int wsize = 5;
+            const double truncate = 0.1;
+            double maxVal = -1;
             covariance(covUV, u, v, wsize);
-            maxVal = -1;
             for (int i = 0; i < covUV.nElements(); ++i)
             {
                 covUV[i] = fabs(covUV[i]);
@@ -859,7 +859,8 @@ void OpticalFlow::adC2FFlow(DImage &u, DImage &v,
             add(u, du);
             add(v, dv);
             warpImage(warpI2, fIm1, fIm2, u, v);
-            
+
+            /*
             // for test purpose
             if (k == 0)
             {
@@ -879,6 +880,7 @@ void OpticalFlow::adC2FFlow(DImage &u, DImage &v,
                 sprintf(buf, outImg, "merge", l);
                 imwrite(buf, tmp);
             }
+            */
         }
     }
 }
@@ -904,23 +906,27 @@ void OpticalFlow::adIRLS2(DImage &du, DImage &dv, const DImage &D,
 
         phi_d(phid, uu, vv);
         psi_d(psid, Ix, Iy, It, du, dv);
-        multiply(psid, D); // adpative weights for data term
-        
+         
         multiply(Ix2, Ix, Ix, psid); // psi' * Ix^2
         collapse(ix2, Ix2);
+        multiply(ix2, D);
         
         multiply(Iy2, Iy, Iy, psid); // psi' * Iy^2
         collapse(iy2, Iy2);
+        multiply(iy2, D);
         
         multiply(Ixy, Ix, Iy, psid); // psi' * Ixy
         collapse(ixy, Ixy);
+        multiply(ixy, D);
         
         multiply(Ixt, It, Ix, psid); // psi' * Ixt
         collapse(ixt, Ixt);
+        multiply(ixt, D);
         
         multiply(Iyt, It, Iy, psid); // psi' * Iyt
         collapse(iyt, Iyt);
-
+        multiply(iyt, D);
+        
         weighted_lap(lapU, u, phid);
         multiply(lapU, as);
         weighted_lap(lapV, v, phid);
@@ -1007,19 +1013,20 @@ void OpticalFlow::stC2FFlow(std::vector<DImage> &u, std::vector<DImage> &v,
                             double as, double at, double ratio, int minWidth,
                             int nOutIter, int nIRLSIter, int nSORIter)
 {
-    assert(im.size() == mask.size() && im.size() == 3 && u.size() == v.size() &&
-           v.size() == 2);
+    assert(im.size() == mask.size() && im.size() == 3 &&
+           im.size() == u.size() && u.size() == v.size());
 
     int i1 = (i0 + 1) % 3;
     int i2 = (i1 + 1) % 3;
     DImage fIm1, fIm2, warpI2, du, dv;
-
+    
     // im0 -> im1
     if (u[i0].isEmpty() || v[i0].isEmpty())
     {
-        printf("previous flow is not available\n");
+        printf("previous flow is not available, preparing... ");
         adC2FFlow(u[i0], v[i0], im[i0], im[i1], mask[i0], mask[i1],
                   as, ratio, minWidth, nOutIter, nIRLSIter, nSORIter);
+        printf("done\n");
     }
 
     // im1 -> im2
@@ -1029,8 +1036,14 @@ void OpticalFlow::stC2FFlow(std::vector<DImage> &u, std::vector<DImage> &v,
 
     // temporal smooth im0 -> im1
     printf("temporal smooth flow im0 -> im1\n");
+    printf("before temporal smooth, u: %.6f .. %.6f, v: %.6f .. %.6f\n",
+           u[i0].min(), u[i0].max(), v[i0].min(), v[i0].max());
+
     temporalSmooth(u[i0], v[i0], u[i1], v[i1], im[i0], im[i1], mask[i0], mask[i1],
                    as, at, nOutIter, nIRLSIter, nSORIter);
+
+    printf("after temporal smooth, u: %.6f .. %.6f, v: %.6f .. %.6f\n",
+           u[i0].min(), u[i0].max(), v[i0].min(), v[i0].max());
 }
 
 void OpticalFlow::temporalSmooth(DImage &u0, DImage &v0,
@@ -1040,14 +1053,14 @@ void OpticalFlow::temporalSmooth(DImage &u0, DImage &v0,
                                  double as, double at,
                                  int nOutIter, int nIRLSIter, int nSORIter)
 {
-    assert(im0.match3D(im1) && mask0.match3D(mask1) && im0.match3D(mask0) &&
+    assert(im0.match3D(im1) && mask0.match3D(mask1) && im0.match2D(mask0) &&
            u1.match3D(u0) && v1.match3D(v0) && u0.match3D(v0) && u0.match2D(im0));
 
     int width = im0.nWidth(), height = im0.nHeight();
     
     DImage fIm0, fIm1, mask, warp;
     DImage Ix, Iy, It, Ix2, Iy2, Ixy, Ixt, Iyt, ix2, iy2, ixt, iyt, ixy;
-    DImage psid, phid, lapU, lapV, D(width, height);
+    DImage psid, phid, lapU, lapV, D(width, height), covUV;
     DImage uu, vv, warpu, warpv, du(width, height), dv(width, height);
     DImage ux, uy, vx, vy, wxt, wyt, wx2, wy2, wxy;
     DImage A11, A12, A22, b1, b2;
@@ -1072,6 +1085,29 @@ void OpticalFlow::temporalSmooth(DImage &u0, DImage &v0,
         getGrads(Ix, Iy, It, fIm0, warp);
         genInImageMask(mask, mask0, mask1, u0, v0);
         du.set(0), dv.set(0);
+
+        const int wsize = 5;
+        const double truncate = 0.1;
+        double maxVal = -1;
+        covariance(covUV, u0, v0, wsize);
+        for (int i = 0; i < covUV.nElements(); ++i)
+        {
+            covUV[i] = fabs(covUV[i]);
+            if (maxVal < covUV[i]) maxVal = covUV[i];
+        }
+
+        // normalize
+        if (maxVal < ESP)
+            D.set(1);
+        else
+        {
+            for (int i = 0; i < covUV.nElements(); ++i)
+            {
+                D[i] = covUV[i] / maxVal;
+                if (D[i] <= truncate) D[i] = 0;
+                D[i] = 1 - D[i];
+            }
+        }
 
         for (int irls = 0; irls < nIRLSIter; ++irls)
         {
@@ -1098,22 +1134,26 @@ void OpticalFlow::temporalSmooth(DImage &u0, DImage &v0,
             phi_d(phid, uu, vv);
             multiply(phid, as); // as * phi'
             psi_d(psid, Ix, Iy, It, du, dv);
-            multiply(psid, D); // adaptive weights for data term
             
             multiply(Ix2, Ix, Ix, psid);
             collapse(ix2, Ix2);
+            multiply(ix2, D);
             
             multiply(Iy2, Iy, Iy, psid);
             collapse(iy2, Iy2);
+            multiply(iy2, D);
             
             multiply(Ixy, Ix, Iy, psid);
             collapse(ixy, Ixy);
+            multiply(ixy, D);
             
             multiply(Ixt, It, Ix, psid);
             collapse(ixt, Ixt);
+            multiply(ixt, D);
             
             multiply(Iyt, It, Iy, psid);
             collapse(iyt, Iyt);
+            multiply(iyt, D);
             
             weighted_lap(lapU, u0, phid);
             weighted_lap(lapV, v0, phid);
