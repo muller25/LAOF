@@ -807,4 +807,26 @@ void randFill(Image<T> &m, T minV, T maxV)
     }
 }
 
+template <class T, class T1>
+void covariance(Image<T> &covXY, const Image<T1> &x, const Image<T1> &y, int wsize=1)
+{
+    assert(x.match3D(y));
+
+    DImage meanX, meanY, meanXY, xy;
+    int size = (2 * wsize + 1) * (2 * wsize + 1);
+
+    rectSum(meanX, x, wsize, wsize);
+    divide(meanX, size);
+    
+    rectSum(meanY, y, wsize, wsize);
+    divide(meanY, size);
+    
+    multiply(xy, x, y);
+    rectSum(meanXY, xy, wsize, wsize);
+    divide(meanXY, size);
+    
+    multiply(xy, meanX, meanY);
+    substract(covXY, meanXY, xy);
+}
+
 #endif
