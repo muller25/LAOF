@@ -854,7 +854,7 @@ void OpticalFlow::adC2FFlow(DImage &u, DImage &v,
                 }
             }
             
-            adIRLS2(du, dv, D, Ix, Iy, It, mask, u, v, as, ap, nIRLSIter, nSORIter+k*3);
+            adIRLS2(du, dv, D, Ix, Iy, It, mask, u, v, as, nIRLSIter, nSORIter+k*3);
             
             add(u, du);
             add(v, dv);
@@ -903,49 +903,44 @@ void OpticalFlow::adIRLS2(DImage &du, DImage &dv, const DImage &D,
         add(vv, v, dv);// vv = v + dv
 
         phi_d(phid, uu, vv);
-        multiply(phid, D);
         psi_d(psid, Ix, Iy, It, du, dv);
-
-        multiply(Ix2, Ix, Ix, psid);
+        multiply(psid, D); // adpative weights for data term
+        
+        multiply(Ix2, Ix, Ix, psid); // psi' * Ix^2
         collapse(ix2, Ix2);
         
-        multiply(Iy2, Iy, Iy, psid);
+        multiply(Iy2, Iy, Iy, psid); // psi' * Iy^2
         collapse(iy2, Iy2);
         
-        multiply(Ixy, Ix, Iy, psid);
+        multiply(Ixy, Ix, Iy, psid); // psi' * Ixy
         collapse(ixy, Ixy);
         
-        multiply(Ixt, It, Ix, psid);
+        multiply(Ixt, It, Ix, psid); // psi' * Ixt
         collapse(ixt, Ixt);
         
-        multiply(Iyt, It, Iy, psid);
+        multiply(Iyt, It, Iy, psid); // psi' * Iyt
         collapse(iyt, Iyt);
 
         weighted_lap(lapU, u, phid);
+        multiply(lapU, as);
         weighted_lap(lapV, v, phid);
-
-        multiply(A11, ix2, D);
-        multiply(A22, iy2, D);
-        multiply(A12, ixy, D);
-        multiply(b1, ixt, D);
-        substract(b1, lapU, as); // b1 -= as * lapU
-        multiply(b2, iyt, D);
-        substract(b2, lapV, as); // b2 -= as * lapV
+        multiply(lapV, as);
         
         // apply mask
         multiply(phid, mask);
-        multiply(A11, mask);
-        multiply(A22, mask);
-        multiply(A12, mask);
+        multiply(A11, ix2, mask);
+        multiply(A22, iy2, mask);
+        multiply(A12, ixy, mask);
+        substract(b1, ixt, lapU);
         multiply(b1, mask);
+        substract(b2, iyt, lapV);
         multiply(b2, mask);
         
         add(A11, as*0.05); // add epsilon to avoid dividing zero        
         add(A22, as*0.05); // add epsilon to avoid dividing zero
         
         // SOR iteration
-        du.set(0);
-        dv.set(0);
+        du.set(0), dv.set(0);
         const double omega = 1.8;
         double l, l_du, l_dv;
         int offset, tmp;
@@ -1028,10 +1023,12 @@ void OpticalFlow::stC2FFlow(std::vector<DImage> &u, std::vector<DImage> &v,
     }
 
     // im1 -> im2
+    printf("flow im1 -> im2\n");
     adC2FFlow(u[i1], v[i1], im[i1], im[i2], mask[i1], mask[i2],
               as, ratio, minWidth, nOutIter, nIRLSIter, nSORIter);
 
     // temporal smooth im0 -> im1
+    printf("temporal smooth flow im0 -> im1\n");
     temporalSmooth(u[i0], v[i0], u[i1], v[i1], im[i0], im[i1], mask[i0], mask[i1],
                    as, at, nOutIter, nIRLSIter, nSORIter);
 }
@@ -1044,39 +1041,68 @@ void OpticalFlow::temporalSmooth(DImage &u0, DImage &v0,
                                  int nOutIter, int nIRLSIter, int nSORIter)
 {
     assert(im0.match3D(im1) && mask0.match3D(mask1) && im0.match3D(mask0) &&
-           u1.match3D(u) && v1.match3D(v0) && u0.match3D(v0) && u0.match2D(im0));
+           u1.match3D(u0) && v1.match3D(v0) && u0.match3D(v0) && u0.match2D(im0));
 
     int width = im0.nWidth(), height = im0.nHeight();
     
     DImage fIm0, fIm1, mask, warp;
     DImage Ix, Iy, It, Ix2, Iy2, Ixy, Ixt, Iyt, ix2, iy2, ixt, iyt, ixy;
-    DImage psid, phid, thetad, lapU, lapV;
+    DImage psid, phid, lapU, lapV, D(width, height);
     DImage uu, vv, warpu, warpv, du(width, height), dv(width, height);
+    DImage ux, uy, vx, vy, wxt, wyt, wx2, wy2, wxy;
     DImage A11, A12, A22, b1, b2;
+    double ut, vt, tmpu, tmpv, thetad;
     
     im2feature(fIm0, im0);
     im2feature(fIm1, im1);
-    warpImage(warp, fIm0, fIm1, u0, v0);
-
+    wxt.create(width, height);
+    wyt.create(width, height);
+    wx2.create(width, height);
+    wy2.create(width, height);
+    wxy.create(width, height);
+    D.set(1);
     for (int oiter = 0; oiter < nOutIter; ++oiter)
     {
+        warpImage(warp, fIm0, fIm1, u0, v0);
+        warpImage(warpu, u0, u1, u0, v0);
+        warpImage(warpv, v0, v1, u0, v0);
+        grad1st(ux, uy, warpu);
+        grad1st(vx, vy, warpv);
+        
         getGrads(Ix, Iy, It, fIm0, warp);
+        genInImageMask(mask, mask0, mask1, u0, v0);
         du.set(0), dv.set(0);
 
-        for (int irlsiter = 0; irlsiter < nIRLSIter; ++irlsiter)
+        for (int irls = 0; irls < nIRLSIter; ++irls)
         {
-            add(uu, u, du);
-            add(vv, v, dv);
-            warpImage(warpu, u0, u1, u0, v0);
-            warpImage(warpv, v0, v1, u0, v0);
+            add(uu, u0, du);// uu = u + du
+            add(vv, v0, dv);// vv = v + dv
 
-            phi_d(phid, uu, vv);
-            psi_d(psid, Ix, Iy, It, du, dv);
+            // temporal smooth term
+            for (int i = 0; i < wx2.nElements(); ++i)
+            {
+                ut = warpu[i] - uu[i];
+                vt = warpv[i] - vv[i];
+                tmpu = ut + (ux[i]-1)*du[i] + uy[i]*dv[i];
+                tmpv = vt + vx[i]*du[i] + (vy[i]-1)*dv[i];
+
+                // at * theta'
+                thetad = at * 0.5 / sqrt(tmpu * tmpu + tmpv * tmpv + 0.1);
+                wx2[i] = thetad * ((ux[i]-1)*(ux[i]-1) + vx[i]*vx[i]);
+                wy2[i] = thetad * (uy[i]*uy[i] + (vy[i]-1)*(vy[i]-1));
+                wxt[i] = thetad * (ut*(ux[i]-1) + vt*vx[i]);
+                wyt[i] = thetad * (ut*uy[i] + vt*(vy[i]-1));
+                wxy[i] = thetad * ((ux[i]-1)*uy[i] + vx[i]*(vy[i]-1));
+            }
             
-            // components for linear system
+            phi_d(phid, uu, vv);
+            multiply(phid, as); // as * phi'
+            psi_d(psid, Ix, Iy, It, du, dv);
+            multiply(psid, D); // adaptive weights for data term
+            
             multiply(Ix2, Ix, Ix, psid);
             collapse(ix2, Ix2);
-
+            
             multiply(Iy2, Iy, Iy, psid);
             collapse(iy2, Iy2);
             
@@ -1089,18 +1115,32 @@ void OpticalFlow::temporalSmooth(DImage &u0, DImage &v0,
             multiply(Iyt, It, Iy, psid);
             collapse(iyt, Iyt);
             
-            weighted_lap(lapU, u, phid);
-            weighted_lap(lapV, v, phid);
+            weighted_lap(lapU, u0, phid);
+            weighted_lap(lapV, v0, phid);
 
-            for (int i = 0; i < iyt.nElements(); ++i)
-            {
-                ixt[i] = -ixt[i] + as * lapU[i];
-                iyt[i] = -iyt[i] + as * lapV[i];
-            }
+            // construct linear equations components
+            add(A11, ix2, wx2);
+            add(A22, iy2, wy2);
+            add(A12, ixy, wxy);
+            substract(b1, lapU, ixt); // b1 = lapU - ixt - wxt
+            substract(b1, wxt);
+            substract(b2, lapV, iyt); // b2 = lapV - iyt - wyt
+            substract(b2, wyt);
             
+            // apply mask
+            multiply(phid, mask);
+            multiply(A11, mask);
+            multiply(A22, mask);
+            multiply(A12, mask);
+            multiply(b1, mask);
+            multiply(b2, mask);
+            
+            // add epsilon to avoid dividing zero
+            add(A11, as*0.05); 
+            add(A22, as*0.05);
+        
             // SOR iteration
-            du.set(0);
-            dv.set(0);
+            du.set(0), dv.set(0);
             const double omega = 1.8;
             double l, l_du, l_dv;
             int offset, tmp;
@@ -1117,55 +1157,45 @@ void OpticalFlow::temporalSmooth(DImage &u0, DImage &v0,
                         if (h > 0)
                         {
                             tmp = offset - width;
-                            l_du += phi_1st[tmp] * du[tmp];
-                            l_dv += phi_1st[tmp] * dv[tmp];
-                            l -= phi_1st[tmp];
+                            l_du += phid[tmp] * du[tmp];
+                            l_dv += phid[tmp] * dv[tmp];
+                            l -= phid[tmp];
                         }
                         if (h < height-1)
                         {
                             tmp = offset + width;
-                            l_du += phi_1st[offset] * du[tmp];
-                            l_dv += phi_1st[offset] * dv[tmp];
-                            l -= phi_1st[offset];
+                            l_du += phid[offset] * du[tmp];
+                            l_dv += phid[offset] * dv[tmp];
+                            l -= phid[offset];
                         }
                         if (w > 0)
                         {
                             tmp = offset - 1;
-                            l_du += phi_1st[tmp] * du[tmp];
-                            l_dv += phi_1st[tmp] * dv[tmp];
-                            l -= phi_1st[tmp];
+                            l_du += phid[tmp] * du[tmp];
+                            l_dv += phid[tmp] * dv[tmp];
+                            l -= phid[tmp];
                         }
                         if (w < width-1)
                         {
                             tmp = offset + 1;
-                            l_du += phi_1st[offset] * du[tmp];
-                            l_dv += phi_1st[offset] * dv[tmp];
-                            l -= phi_1st[offset];
+                            l_du += phid[offset] * du[tmp];
+                            l_dv += phid[offset] * dv[tmp];
+                            l -= phid[offset];
                         }
 
-                        l *= as;
-                        l_du *= as;
-                        l_dv *= as;
-                        
                         // du
-                        l_du = ixt[offset] + l_du - ixy[offset] * dv[offset];
-                        du[offset] = (1-omega)*du[offset]+omega/(ix2[offset]-l)*l_du;
+                        l_du = b1[offset] + l_du - A12[offset]*dv[offset];
+                        du[offset] = (1-omega)*du[offset]+omega/(A11[offset]-l)*l_du;
                         
                         // dv
-                        l_dv = iyt[offset] + l_dv - ixy[offset] * du[offset];
-                        dv[offset] = (1-omega)*dv[offset]+omega/(iy2[offset]-l)*l_dv;
+                        l_dv = b2[offset] + l_dv - A12[offset]*du[offset];
+                        dv[offset] = (1-omega)*dv[offset]+omega/(A22[offset]-l)*l_dv;
                     }
                 }
-
             }
-//            printf("du: %.6f .. %.6f, dv: %.6f .. %.6f\n", du.min(), du.max(), dv.min(), dv.max());
         }
 
-        add(u, du);// u += du
-        add(v, dv);// v += dv
-        warpImage(warp, im1, im2, u, v);
-    }
-            
-        }
+        add(u0, du);
+        add(v0, dv);
     }
 }

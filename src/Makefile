@@ -10,20 +10,23 @@ DEL				= rm -rf
 
 GC				= ../gc
 OPENCVLIBS		= `pkg-config --libs opencv`
-OBJS			= main_em.o OpticalFlow.o GaussianPyramid.o Flow2Color.o \
+OBJS			= OpticalFlow.o GaussianPyramid.o Flow2Color.o \
 MotionLayers.o LAOF.o OFPara.o
-TARGET			= em of stof
+TARGET			= em of adof stof
 
 all: $(TARGET)
 	@echo "DONE"
 
-stof: main_stof.o OpticalFlow.o GaussianPyramid.o Flow2Color.o
-	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS)
-
 of: main_of.o OpticalFlow.o GaussianPyramid.o Flow2Color.o
 	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS)
 
-em: $(OBJS) $(GC)/GCoptimization.o $(GC)/LinkedBlockList.o
+adof: main_adof.o OpticalFlow.o GaussianPyramid.o Flow2Color.o
+	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS)
+
+stof: main_stof.o OpticalFlow.o GaussianPyramid.o Flow2Color.o
+	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS)
+
+em: main_em.o $(OBJS) $(GC)/GCoptimization.o $(GC)/LinkedBlockList.o
 	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS)
 
 OpticalFlow.o: OpticalFlow.cpp OpticalFlow.h Maths.h Image.h GaussianPyramid.h ImageProcess.h
