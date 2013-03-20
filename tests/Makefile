@@ -11,7 +11,7 @@ DEL				= rm -rf
 
 GC				= ../gc
 LAOF			= ../src
-TARGET 			= flow2color pyramid imop kmeans layers tests gc seg
+TARGET 			= flow2color pyramid imop cluster layers tests gc seg
 
 all: $(TARGET)
 	@echo "DONE"
@@ -26,7 +26,7 @@ test_hist.o: test_hist.cpp $(LAOF)/Histogram.h
 	$(CXX) $(CXXFLAGS) $(INCDIR) -I$(LAOF) -c $< -o $@
 
 tests: test_Maths.o test_Image.o test_hist.o
-	$(LINK) $(LFLAGS) -o $@ $^ -L$(LIBDIR) -lgtest -lgtest_main -lpthread
+	$(LINK) $(LFLAGS) -o $@ $^ -L$(LIBDIR) -lgtest -lgtest_main -lpthread $(OPENCVLIBS)
 
 flow2color: test_Flow2Color.o $(LAOF)/Flow2Color.o
 	$(LINK) $(LFLAGS) -o $@ $^ $(OPENCVLIBS)
@@ -40,10 +40,10 @@ test_ImageOP.o: test_ImageOP.cpp $(LAOF)/ImageProcess.h $(LAOF)/ImageIO.h
 imop: test_ImageOP.o 
 	$(LINK) $(LFLAGS) -o $@ $^ $(OPENCVLIBS)
 
-test_kmeans.o: test_kmeans.cpp $(LAOF)/ML.h
+test_cluster.o: test_cluster.cpp $(LAOF)/ML.h
 	$(CXX) $(CXXFLAGS) $(INCDIR) -I$(LAOF) -c $< -o $@
 
-kmeans: test_kmeans.o 
+cluster: test_cluster.o 
 	$(LINK) $(LFLAGS) -o $@ $^ $(OPENCVLIBS)
 
 test_MotionLayers.o: test_MotionLayers.cpp $(LAOF)/MotionLayers.h

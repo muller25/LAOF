@@ -3,6 +3,7 @@
 
 #include "Image.h"
 #include "Maths.h"
+#include "ImageIO.h"
 
 #include <ctime>
 
@@ -272,6 +273,37 @@ int kmeans2(Image<T> &centers, UCImage &labels, const Image<T> &samples,
     bestCenters.copyTo(centers);
     bestLabels.copyTo(labels);
     return bestClusters;
+}
+
+template <class D, class L>
+void SpectralCluster(Image<L> &labels, const Image<D> &graph,
+                     int numOfClusters,
+                     double (*distance)(D*, D*, int, int)=dist2)
+{
+    int width = graph.nWidth(), height = graph.nHeight();
+
+    assert(width == height && graph.nChannels() == 1);
+
+    Image<D> diag(width, height), lap, eigenValue, eigenVector, samples;
+
+    for (int h = 0; h < height; ++h)
+        for (int w = 0; w < width; ++w)
+            diag[w*width+w] += graph[h*width+w];
+
+    // L = D - W
+    substract(lap, diag, graph);
+    lap.eigen(eigenValue, eigenVector);
+
+    // fill minimal K eigen values and corresponding eigen vectors into N X K matrix 
+    samples.create(numOfClusters, height);
+    for (int k = 1; k <= numOfClusters; ++k)
+        for (int w = 0; w < width; ++w)
+            samples[w*numOfClusters+k-1] = eigenVector[(height-k)*width+w];
+    
+    UCImage ucimg;
+    Image<D> centers;
+    kmeans(centers, ucimg, samples, numOfClusters, distance);
+    ucimg.copyTo(labels);
 }
 
 #endif

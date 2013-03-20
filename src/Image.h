@@ -81,8 +81,14 @@ public:
 
     template <typename T1>
     void invTo(Image<T1> &m) const;
+
+    template <typename T1>
+    void eigen(Image<T1> &eigenValue, Image<T1> &eigenVector);
     
-    inline bool isEmpty() const {return (pData==NULL || width==0 || height==0 || channels==0);}
+    inline bool isEmpty() const
+    {return (pData==NULL || width==0 || height==0 || channels==0);}
+
+    inline bool isSymmetric() const;
     inline int nonZeros() const;
     inline bool isZero(int idx) const;
     inline int nSize() const {return width*height;}
@@ -299,6 +305,54 @@ void Image<T>::invTo(Image<T1> &m) const
 
     // invert only accept float point matrix
     m.convertFrom(mat.inv(cv::DECOMP_SVD));
+}
+
+// eigenValue are ordered in desecend order
+template <class T>
+template <typename T1>
+void Image<T>::eigen(Image<T1> &eigenValue, Image<T1> &eigenVector)
+{
+    assert(channels == 1 && eigenValue.isFloat() && isSymmetric());
+    
+    cv::Mat m, values, vectors;
+
+    if (isFloat())
+        convertTo(m);
+    else
+    {
+        cv::Mat tmp;
+        convertTo(tmp);
+        tmp.convertTo(m, CV_64F);
+    }
+
+    cv::eigen(m, values, vectors);
+
+    eigenValue.convertFrom(values);
+    eigenVector.convertFrom(vectors);
+}
+
+template <class T>
+bool Image<T>::isSymmetric() const
+{
+    if (width != height) return false;
+
+    for (int h = 0; h < height; ++h)
+    {
+        for (int w = h + 1; w < width; ++w)
+        {
+            for (int k = 0; k < channels; ++k)
+            {
+                if (isFloat())
+                {
+                    if (fabs(pData[h*width+w] - pData[w*width+h]) >= ESP) return false;
+                } else {
+                    if (pData[h*width+w] != pData[w*width+h]) return false;
+                }
+            }
+        }
+    }
+
+    return true;
 }
 
 typedef Image<double> DImage;
