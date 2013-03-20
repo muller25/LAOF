@@ -284,18 +284,26 @@ void SpectralCluster(Image<L> &labels, const Image<D> &graph,
 
     assert(width == height && graph.nChannels() == 1);
 
-    Image<D> diag(width, height), lap, eigenValue, eigenVector, samples;
-
+    Image<D> diag(width, height), lap, eigenValue, eigenVector;
+    
     for (int h = 0; h < height; ++h)
         for (int w = 0; w < width; ++w)
-            diag[w*width+w] += graph[h*width+w];
+            diag[h*width+h] += graph[h*width+w];
+
+    // printf("diag matrix\n");
+    // imprint(diag);
 
     // L = D - W
     substract(lap, diag, graph);
     lap.eigen(eigenValue, eigenVector);
 
+    // printf("eigen values\n");
+    // imprint(eigenValue);
+    // printf("eigen vectors\n");
+    // imprint(eigenVector);
+    
     // fill minimal K eigen values and corresponding eigen vectors into N X K matrix 
-    samples.create(numOfClusters, height);
+    Image<D> samples(numOfClusters, height);
     for (int k = 1; k <= numOfClusters; ++k)
         for (int w = 0; w < width; ++w)
             samples[w*numOfClusters+k-1] = eigenVector[(height-k)*width+w];

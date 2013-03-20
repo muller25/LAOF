@@ -3,12 +3,16 @@
 #include "ImageIO.h"
 #include "Maths.h"
 
+#include <ctime>
+
 #include <cv.h>
 #include <highgui.h>
 
-int height = 100, width = 2;
+int imWidth = 600, imHeight = 600;
+int height = 300, width = 2;
+int numOfClusters = 10;
 
-int test_kmeans2(DImage &centers, UCImage &labels, DImage &samples);
+int test_kmeans(DImage &centers, UCImage &labels, DImage &samples);
 int test_SpectralCluster(DImage &centers, UCImage &labels, DImage &samples);
 
 template <class T, class L>
@@ -19,18 +23,18 @@ int main(int argc, char *argv[])
     DImage samples(width, height);
     DImage centers;
     UCImage labels;
-    int numOfClusters;
+    int res;
     
-    randFill(samples, 10., 290.);
+    randFill(samples, 10., (double)imWidth-10);
     
     // printf("samples:\n");
     // imprint(samples);
 
-    numOfClusters = test_kmeans2(centers, labels, samples);
-    // numOfClusters = test_SpectralCluster(centers, labels, samples);
+    // res = test_kmeans(centers, labels, samples);
+    res = test_SpectralCluster(centers, labels, samples);
 
     printf("****** result ******\n");
-    printf("clustesr: %d\n", numOfClusters);
+    printf("clustesr: %d\n", res);
     
     // printf("centers:\n");
     // imprint(centers);
@@ -43,23 +47,28 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-int test_kmeans2(DImage &centers, UCImage &labels, DImage &samples)
+int test_kmeans(DImage &centers, UCImage &labels, DImage &samples)
 {
-    return kmeans2(centers, labels, samples, 2, 10);
+    kmeans(centers, labels, samples, numOfClusters);
+
+    return numOfClusters;
 }
 
 int test_SpectralCluster(DImage &centers, UCImage &labels, DImage &samples)
 {
-    const int numOfClusters = 3;
     int n = height;
     DImage graph(n, n);
-
+    double cost;
+    
     // construct graph, or say similarity matrix
     for (int i = 0; i < n; ++i)
     {
         for (int j = i; j < n; ++j)
         {
-            graph[i*n+j] = dist2(samples.ptr()+i*width, samples.ptr()+j*width, 0, width);
+            cost = dist2(samples.ptr()+i*width, samples.ptr()+j*width, 0, width);
+            if (cost > imWidth / numOfClusters) continue;
+
+            graph[i*n+j] = cost;
             graph[j*n+i] = graph[i*n+j];
         }
     }
@@ -77,19 +86,23 @@ void draw(Image<T> &samples, Image<L> &labels)
     
     const int maxNumOfClusters = 10;
     int colorIdx;
-    cv::Mat img(300, 300, CV_8UC3, cv::Scalar(255 ,255, 255));
+    cv::Mat img(imHeight, imWidth, CV_8UC3, cv::Scalar(255 ,255, 255));
 
-    int *color = new int[maxNumOfClusters];
-    int interval = 256 / maxNumOfClusters;
+    srand(time(NULL));
+    int *color = new int[maxNumOfClusters*3];
     for (int i = 0; i < maxNumOfClusters; ++i)
-        color[i] = i * interval;
+    {
+        color[i*3] = rand() % 25 * 10;
+        color[i*3+1] = rand() % 25 * 10;
+        color[i*3+2] = rand() % 25 * 10;
+    }
 
     for (int h = 0; h < samples.nHeight(); ++h)
     {
-        colorIdx = color[(int)labels[h*2]];
+        colorIdx = labels[h] * 3;
         
-        cv::Scalar c(colorIdx, colorIdx, colorIdx);
-        cv::circle(img, cv::Point(samples[h*2], samples[h*2+1]), 2, c, -1);
+        cv::Scalar c(color[colorIdx], color[colorIdx+1], color[colorIdx+2]);
+        cv::circle(img, cv::Point(samples[h*2], samples[h*2+1]), 3, c, -1);
     }
 
     cv::imshow("cluster result", img);
