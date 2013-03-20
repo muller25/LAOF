@@ -9,9 +9,9 @@ int frameStart, frameEnd, numOfSegs;
 
 int main(int argc, char *argv[])
 {
-    if (argc != 6)
+    if (argc != 5)
     {
-        printf("./em input_pattern output_dir start end #_of_seg\n");
+        printf("./em input_pattern output_dir start end\n");
         return 1;
     }
     
@@ -19,7 +19,6 @@ int main(int argc, char *argv[])
     outDir = argv[2];
     frameStart = atoi(argv[3]);
     frameEnd = atoi(argv[4]);
-    numOfSegs = atoi(argv[5]);
 
     // init optical flow parameters
     const double as = 0.026;

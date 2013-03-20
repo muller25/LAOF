@@ -290,19 +290,16 @@ void SpectralCluster(Image<L> &labels, const Image<D> &graph,
         for (int w = 0; w < width; ++w)
             diag[h*width+h] += graph[h*width+w];
 
-    // printf("diag matrix\n");
-    // imprint(diag);
-
     // L = D - W
+    printf("calculating laplacian eigen matrix...");
+    
     substract(lap, diag, graph);
     lap.eigen(eigenValue, eigenVector);
 
-    // printf("eigen values\n");
-    // imprint(eigenValue);
-    // printf("eigen vectors\n");
-    // imprint(eigenVector);
+    printf("done\n");
     
-    // fill minimal K eigen values and corresponding eigen vectors into N X K matrix 
+    // fill minimal K eigen values and corresponding eigen vectors into N X K matrix
+    printf("running kmeans...\n");
     Image<D> samples(numOfClusters, height);
     for (int k = 1; k <= numOfClusters; ++k)
         for (int w = 0; w < width; ++w)

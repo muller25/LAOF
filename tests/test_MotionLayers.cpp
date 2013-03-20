@@ -6,6 +6,7 @@
 
 #include <vector>
 
+/*
 int main(int argc, char *argv[])
 {
     const char *inFile = "/home/iaml/Projects/exp/lena/out/%s%03d.yml";
@@ -58,6 +59,89 @@ int main(int argc, char *argv[])
         coverLabels(tmp, im, flowImg);
         sprintf(buf, outFlow, "merge-refine", idx-1);
         imwrite(buf, tmp);
+    }
+    
+    return 0;
+}
+*/
+
+int main(int argc, char *argv[])
+{
+    if (argc != 7)
+    {
+        printf("./layers inPattern inFile outDir start end #ofLabels\n");
+        return 1;
+    }
+
+    char *inPattern = argv[1];
+    char *inFile = argv[2];
+    char *outDir = argv[3];
+    int frameStart = atoi(argv[4]);
+    int frameEnd = atoi(argv[5]);
+    int nlabels = atoi(argv[6]);
+
+    char buf[256], outImg[128];
+    memset(outImg, 0, sizeof(outImg));
+    strcat(outImg, outDir);
+    strcat(outImg, "%s%03d.jpg");
+
+    std::vector<DImage> im(2), u(2), v(2);
+    DImage centers, layers, tmp;
+    UCImage ucimg;
+    MotionLayers ml;
+    int cur, next, width, height;
+    
+    sprintf(buf, inPattern, frameStart);
+    imread(im[0], buf);
+    sprintf(buf, inFile, "u", frameStart);
+    imreadf(u[0], buf);
+    sprintf(buf, inFile, "v", frameStart);
+    imreadf(v[0], buf);
+
+    width = im[0].nWidth(), height = im[0].nHeight();
+    cur = 0, next = 1;
+    for (int i = frameStart; i < frameEnd; ++i)
+    {
+        sprintf(buf, inPattern, i+1);
+        imread(im[next], buf);
+        sprintf(buf, inFile, "u", i+1);
+        imreadf(u[next], buf);
+        sprintf(buf, inFile, "v", i+1);
+        imreadf(v[next], buf);
+
+        ml.scluster(centers, layers, nlabels, u[cur], v[cur]);
+
+        // show trusted points
+        tmp.create(width, height);
+        for (int j = 0; j < layers.nSize(); ++j)
+            if (layers[j] >= 0) tmp[j] = 1;
+
+        sprintf(buf, outImg, "trusted_points", i);
+        imwrite(buf, tmp);
+
+        // show spectral cluster result
+        flow2color(ucimg, layers, layers);
+        sprintf(buf, outImg, "scluster", i);
+        imwrite(buf, ucimg);
+
+        coverLabels(tmp, im[cur], ucimg);
+        sprintf(buf, outImg, "merge-sc", i);
+        imwrite(buf, tmp);
+
+        // refine layers
+        ml.refine(centers, layers, nlabels, im[cur], im[next],
+                  u[cur], v[cur]);
+
+        flow2color(ucimg, layers, layers);
+        sprintf(buf, outImg, "refine", i);
+        imwrite(buf, ucimg);
+
+        coverLabels(tmp, im[cur], ucimg);
+        sprintf(buf, outImg, "merge-refine", i);
+        imwrite(buf, tmp);
+       
+        cur = 1 - cur;
+        next = 1 - next;
     }
     
     return 0;

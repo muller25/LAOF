@@ -22,6 +22,13 @@ public:
                 const DImage &im1, const DImage &im2,
                 const DImage &features);
 
+    void scluster(DImage &centers, DImage &layers, int numOfClusters,
+                  const DImage &u, const DImage &v);
+
+    void refine(DImage &centers, DImage &layers, int numOfClusters,
+                const DImage &im1, const DImage &im2,
+                const DImage &u, const DImage &v);
+
     // make sure layer order
     template <class T>
     void reArrangeLabels(Image<T> &layers, int labels);
@@ -31,6 +38,8 @@ public:
     void createCenterByLabels(Image<T> &centers, int numOfLabels,
                               const Image<T1> &labels, const Image<T> &samples);
     
+    inline static void dataFn(double *data, int nlabels,
+                              const DImage &centers, const DImage &features);
    
     static double smoothFn(int p1, int p2, int l1, int l2, void *pData);
     static double mydist(double *p1, double *p2, int start, int end);
