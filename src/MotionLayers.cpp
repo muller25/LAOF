@@ -77,7 +77,7 @@ int MotionLayers::cluster(DImage &centers, DImage &layers, const DImage &im,
     
     mergew(features, vec);
     clusters = kmeans2(centers, labels, features, start, end, na,
-                       MotionLayers::mydist);
+                       MotionLayers::kmdist);
 
     // rearrange labels
     if (reArrange)
@@ -103,7 +103,7 @@ int MotionLayers::cluster(DImage &centers, DImage &layers, const DImage &feature
     UCImage labels;
     
     clusters = kmeans2(centers, labels, features, start, end, na,
-                       MotionLayers::mydist);
+                       MotionLayers::kmdist);
 
     // rearrange labels
     if (reArrange)
@@ -142,7 +142,7 @@ void MotionLayers::refine(DImage &centers, DImage &layers, int labels,
     {
         for (int l = 0; l < labels; ++l)
         {
-            data[i*labels+l] = 2 * mydist(features.ptr()+i*cwidth, centers.ptr()+l*cwidth, 0, cwidth);
+            data[i*labels+l] = 2 * kmdist(features.ptr()+i*cwidth, centers.ptr()+l*cwidth, 0, cwidth);
             data[i*labels+l] += dist2(im1.ptr()+i*channels, im2.ptr()+i*channels, 0, channels);
         }
     }
@@ -172,30 +172,6 @@ void MotionLayers::refine(DImage &centers, DImage &layers, int labels,
 	}
 
     delete []data;
-}
-
-double MotionLayers::mydist(double *p1, double *p2, int start, int end)
-{
-    double cost = 0, dist = 0;
-    int idx = 0;
-    
-    // spatial info
-    dist = dist2(p1, p2, idx, idx+sWidth) + 10;
-    idx += sWidth;
-    
-    // image info
-    // dist += dist2(p1, p2, idx, idx+iWidth);
-    // idx += iWidth;
-    
-    // flow info
-    cost += log10(dist) * dist2(p1, p2, idx, idx+fWidth);
-    idx += fWidth;
-    
-    // reverse flow info
-    // dist += dist2(p1, p2, idx, idx+fWidth);
-    // dist += (1 - (similarity(p1, p2, idx, idx+fWidth) + 1) / 2);
-    
-    return cost;
 }
 
 void MotionLayers::kcluster(DImage &centers, DImage &layers, int nlabels,
@@ -233,7 +209,7 @@ void MotionLayers::kcluster(DImage &centers, DImage &layers, int nlabels,
 
     // run kmeans
     UCImage ucimg;
-    kmeans(centers, ucimg, samples, nlabels, MotionLayers::mydist);
+    kmeans(centers, ucimg, samples, nlabels, MotionLayers::kmdist);
 
     layers.create(width, height, 1, -1);
     for (int i = 0; i < trust; ++i)
@@ -355,10 +331,11 @@ void MotionLayers::refine(DImage &centers, DImage &layers, int nlabels,
                           const DImage &u, const DImage &v)
 {
     assert(centers.ptr() != NULL);
-    
+
     int size = im1.nSize(), cwidth = centers.nWidth();
     int width = im1.nWidth(), height = im1.nHeight(), channels = im1.nChannels();
-    DImage warp, features(cwidth, size), extra(width, height, channels*2);
+    int echannels = channels*2;
+    DImage warp, features(cwidth, size), extra(width, height, echannels);
 
     warpImage(warp, im1, im2, u, v);
     for (int i = 0; i < size; ++i)
@@ -367,12 +344,36 @@ void MotionLayers::refine(DImage &centers, DImage &layers, int nlabels,
         features[i*4+1] = i / width;
         features[i*4+2] = u[i];
         features[i*4+3] = v[i];
+        
+        for (int k = 0; k < channels; ++k)
+            extra[i*echannels+k] = im1[i*channels + k];
 
         for (int k = 0; k < channels; ++k)
-            extra[i*channels*2 + k] = im1[i*channels + k];
+            extra[i*echannels+channels+k] = warp[i*channels+k];
+    }
 
-        for (int k = 0; k < channels; ++k)
-            extra[i*channels*2+channels+k] = warp[i*channels+k];
+    DImage covUV;
+    const int wsize = 2;
+    const double truncate = 0.2;
+    double maxVal = -1;
+    covariance(covUV, u, v, wsize);
+    for (int i = 0; i < covUV.nElements(); ++i)
+    {
+        covUV[i] = fabs(covUV[i]);
+        if (maxVal < covUV[i]) maxVal = covUV[i];
+    }
+
+    // normalize
+    if (maxVal < ESP)
+        covUV.set(1);
+    else
+    {
+        for (int i = 0; i < covUV.nElements(); ++i)
+        {
+            covUV[i] /= maxVal;
+            if (covUV[i] <= truncate) covUV[i] = 0;
+            covUV[i] = 1 - covUV[i];
+        }
     }
 
     double *data = NULL;    
@@ -384,13 +385,13 @@ void MotionLayers::refine(DImage &centers, DImage &layers, int nlabels,
 
         for (int iter = 0; iter < 1; ++iter)
         {
-            dataFn(data, nlabels, centers, features);
+            dataFn(data, nlabels, centers, features, covUV);
             gc->setDataCost(data);
         
             printf("Before optimization energy is %.6f\n",gc->compute_energy());
-            gc->expansion(2);
-            // gc->swap(2);
-            printf("After optimization energy is %.6f\n",gc->compute_energy());
+            gc->expansion(3);
+            // gc->swap(3);
+            printf("After  optimization energy is %.6f\n",gc->compute_energy());
 
             for (int i = 0; i < size; ++i)
                 layers[i] = gc->whatLabel(i);
@@ -406,15 +407,49 @@ void MotionLayers::refine(DImage &centers, DImage &layers, int nlabels,
     if (data != NULL) delete []data;
 }
 
-void MotionLayers::dataFn(double *data, int nlabels,
-                          const DImage &centers, const DImage &features)
+double MotionLayers::kmdist(double *p1, double *p2, int start, int end)
 {
+    double cost = 0, dist = 0;
+    int idx = 0;
+    
+    // spatial info
+    dist = dist2(p1, p2, idx, idx+sWidth) + 9;
+    idx += sWidth;
+    
+    // image info
+    // dist += dist2(p1, p2, idx, idx+iWidth);
+    // idx += iWidth;
+    
+    // flow info
+    cost += log10(dist) * dist2(p1, p2, idx, idx+fWidth);
+    idx += fWidth;
+    
+    // reverse flow info
+    // dist += dist2(p1, p2, idx, idx+fWidth);
+    // dist += (1 - (similarity(p1, p2, idx, idx+fWidth) + 1) / 2);
+    
+    return cost;
+}
+
+void MotionLayers::dataFn(double *data, int nlabels, const DImage &centers,
+                          const DImage &features, const DImage &weight)
+{
+    const double factor = 5;
     int size = features.nHeight(), cwidth = centers.nWidth();
     double *pc = centers.ptr(), *pf = features.ptr();
+    double compact = 0;
     
     for (int i = 0; i < size; ++i)
+    {
         for (int l = 0; l < nlabels; ++l)
-            data[i*nlabels+l] = mydist(pf+i*cwidth, pc+l*cwidth, 0, cwidth);
+        {
+            // compact = dist2(pf+i*cwidth, pc+l*cwidth, 0, 2) + 9;
+            // compact = 1. / log10(compact);
+            compact = 1;
+            
+            data[i*nlabels+l] = factor * weight[i] * compact * dist2(pf+i*cwidth, pc+l*cwidth, 2, cwidth);
+        }
+    }
 }
 
 double MotionLayers::smoothFn(int p1, int p2, int l1, int l2, void *pData)
@@ -422,14 +457,21 @@ double MotionLayers::smoothFn(int p1, int p2, int l1, int l2, void *pData)
     const int dataWidth = 6;
     const double weight = 1;
     const double penalty = 3;
-    const double sigma = 3;
+    const double sigma = 0.05;
     double *ptr = (double *)pData;
     double cost;
     
     if (l1 == l2) return 0;
 
-    cost = dist1(ptr+p1*dataWidth, ptr+p2*dataWidth, 0, dataWidth);
-    cost = weight * exp(-cost*cost/(2*sigma*sigma)) + penalty;
+    cost = dist2(ptr+p1*dataWidth, ptr+p2*dataWidth, 0, dataWidth/2);
+    cost += dist2(ptr+p1*dataWidth, ptr+p2*dataWidth, dataWidth/2, dataWidth);
+    
+    cost = weight * exp(-cost/sigma) + penalty;
+    // if (cost >= sigma) cost = penalty + sigma;
+    // else cost += penalty;
 
+    // printf("smooth: %.6f\n", cost);
+    cost = 1;
+    
     return cost;
 }

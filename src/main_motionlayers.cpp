@@ -133,7 +133,7 @@ int main(int argc, char *argv[])
                   u[cur], v[cur]);
 
         flow2color(ucimg, layers, layers);
-        sprintf(buf, outImg, "refine", i);
+        sprintf(buf, outImg, "kcluster-refine", i);
         imwrite(buf, ucimg);
 
         coverLabels(tmp, im[cur], ucimg);

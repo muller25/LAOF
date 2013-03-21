@@ -41,11 +41,11 @@ public:
     void createCenterByLabels(Image<T> &centers, int numOfLabels,
                               const Image<T1> &labels, const Image<T> &samples);
     
-    inline static void dataFn(double *data, int nlabels,
-                              const DImage &centers, const DImage &features);
+    inline static void dataFn(double *data, int nlabels, const DImage &centers,
+                              const DImage &features, const DImage &weight);
    
     static double smoothFn(int p1, int p2, int l1, int l2, void *pData);
-    static double mydist(double *p1, double *p2, int start, int end);
+    inline static double kmdist(double *p1, double *p2, int start, int end);
 
 private:
     const static int sWidth = 2;// spatial info width
@@ -123,6 +123,5 @@ void MotionLayers::createCenterByLabels(Image<T> &centers, int numOfLabels,
     delete []count;
     // printf("done\n");
 }
-
 
 #endif

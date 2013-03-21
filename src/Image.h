@@ -84,7 +84,10 @@ public:
 
     template <typename T1>
     void eigen(Image<T1> &eigenValue, Image<T1> &eigenVector);
-    
+
+    template <typename T1>
+    void toCIELab(Image<T1> &dst) const;
+     
     inline bool isEmpty() const
     {return (pData==NULL || width==0 || height==0 || channels==0);}
 
@@ -353,6 +356,27 @@ bool Image<T>::isSymmetric() const
     }
 
     return true;
+}
+
+template <class T>
+template <typename T1>
+void Image<T>::toCIELab(Image<T1> &dst) const
+{
+    assert(dst.isFloat() && channels == 3);
+
+    cv::Mat in, out, tmp;
+
+    convertTo(tmp);
+    tmp.convertTo(in, CV_32FC3);
+    cv::cvtColor(in, out, CV_BGR2Lab);
+
+    if (typeid(T1) == typeid(double) || typeid(T1) == typeid(long double))
+    {
+        out.convertTo(tmp, CV_64FC3);
+        dst.convertFrom(tmp);
+    }
+    else
+        dst.convertFrom(out);
 }
 
 typedef Image<double> DImage;

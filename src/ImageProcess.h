@@ -8,18 +8,45 @@
 template <class I, class L>
 void coverLabels(Image<I> &res, const Image<I> &im, const Image<L> &labels)
 {
-    assert(im.match3D(labels));
+    assert(im.match2D(labels));
 
-    const double factor = 0.4;
+    const double factor = 0.3;
     int width = im.nWidth(), height = im.nHeight(), channels = im.nChannels();
+    int lchannels = labels.nChannels();
     
     res.create(width, height, channels);
-    for(int i = 0; i < labels.nElements(); ++i)
+    if (lchannels == 1)
     {
-        res[i] = im[i]*factor;
-        if (typeid(I) == typeid(L)) res[i] += labels[i]*(1-factor);
-        else if (im.isFloat() && !labels.isFloat()) res[i] += (double)labels[i]/255.*(1-factor);
-        else res[i] += labels[i]*(1-factor)*255;
+        int ioffset;
+        for(int i = 0; i < labels.nSize(); ++i)
+        {
+            ioffset = i * channels;
+            for (int k = 0; k < channels; ++k)
+            {
+                res[ioffset+k] = im[ioffset+k]*factor;
+            
+                if (typeid(I) == typeid(L))
+                    res[ioffset+k] += labels[i]*(1-factor);
+                else if (im.isFloat() && !labels.isFloat())
+                    res[ioffset+k] += (double)labels[i]/255.*(1-factor);
+                else
+                    res[ioffset+k] += labels[i]*(1-factor)*255;
+            }
+        }
+    } else {
+        assert(lchannels == channels);
+        
+        for (int i = 0; i < labels.nElements(); ++i)
+        {
+            res[i] = im[i]*factor;
+            
+            if (typeid(I) == typeid(L))
+                res[i] += labels[i]*(1-factor);
+            else if (im.isFloat() && !labels.isFloat())
+                res[i] += (double)labels[i]/255.*(1-factor);
+            else
+                res[i] += labels[i]*(1-factor)*255;
+        }
     }
 }
 
