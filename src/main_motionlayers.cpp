@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
         imreadf(u[next], buf);
         sprintf(buf, inFile, "v", i+1);
         imreadf(v[next], buf);
-
+        
         ml.kcluster(centers, layers, nlabels, u[cur], v[cur]);
 
         // show trusted points
@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
         sprintf(buf, outImg, "trusted_points", i);
         imwrite(buf, tmp);
 
-        // show spectral cluster result
+        // show kmeans cluster result
         flow2color(ucimg, layers, layers);
         sprintf(buf, outImg, "kcluster", i);
         imwrite(buf, ucimg);

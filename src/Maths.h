@@ -219,6 +219,14 @@ inline void addWeighted(Image<T> &res, const Image<T1> &m1, double val1,
 }
 
 template <class T>
+inline void absolute(Image<T> &dst, Image<T> &src)
+{
+    dst.create(src.nWidth(), src.nHeight(), src.nChannels());
+    for (int i = 0; i < src.nElements(); ++i)
+        dst[i] = fabs(src[i]);
+}
+
+template <class T>
 inline T enforceRange(const T &num, const T &minVal, const T &maxVal)
 {
     return std::min(std::max(num, minVal), maxVal);

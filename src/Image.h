@@ -87,7 +87,13 @@ public:
 
     template <typename T1>
     void toCIELab(Image<T1> &dst) const;
-     
+
+    inline void absolute()
+    {
+        for (int i = 0; i < elements; ++i)
+            pData[i] = fabs(pData[i]);
+    }
+    
     inline bool isEmpty() const
     {return (pData==NULL || width==0 || height==0 || channels==0);}
 

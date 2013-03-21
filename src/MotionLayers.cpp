@@ -176,7 +176,7 @@ void MotionLayers::refine(DImage &centers, DImage &layers, int labels,
 
 void MotionLayers::kcluster(DImage &centers, DImage &layers, int nlabels,
                             const DImage &u, const DImage &v)
-{ 
+{
     assert(u.match3D(v) && u.nChannels() == 1);
 
     const int wsize = 2;
@@ -349,7 +349,7 @@ void MotionLayers::refine(DImage &centers, DImage &layers, int nlabels,
             extra[i*echannels+k] = im1[i*channels + k];
 
         for (int k = 0; k < channels; ++k)
-            extra[i*echannels+channels+k] = warp[i*channels+k];
+            extra[i*echannels+channels+k] = warp[i*channels + k];
     }
 
     DImage covUV;
@@ -357,11 +357,8 @@ void MotionLayers::refine(DImage &centers, DImage &layers, int nlabels,
     const double truncate = 0.2;
     double maxVal = -1;
     covariance(covUV, u, v, wsize);
-    for (int i = 0; i < covUV.nElements(); ++i)
-    {
-        covUV[i] = fabs(covUV[i]);
-        if (maxVal < covUV[i]) maxVal = covUV[i];
-    }
+    covUV.absolute();
+    maxVal = covUV.max();
 
     // normalize
     if (maxVal < ESP)
@@ -375,7 +372,7 @@ void MotionLayers::refine(DImage &centers, DImage &layers, int nlabels,
             covUV[i] = 1 - covUV[i];
         }
     }
-
+    
     double *data = NULL;    
     GCoptimization *gc = NULL;
     try{
@@ -389,8 +386,8 @@ void MotionLayers::refine(DImage &centers, DImage &layers, int nlabels,
             gc->setDataCost(data);
         
             printf("Before optimization energy is %.6f\n",gc->compute_energy());
-            gc->expansion(3);
-            // gc->swap(3);
+            // gc->expansion(3);
+            gc->swap(3);
             printf("After  optimization energy is %.6f\n",gc->compute_energy());
 
             for (int i = 0; i < size; ++i)
@@ -434,7 +431,7 @@ double MotionLayers::kmdist(double *p1, double *p2, int start, int end)
 void MotionLayers::dataFn(double *data, int nlabels, const DImage &centers,
                           const DImage &features, const DImage &weight)
 {
-    const double factor = 5;
+    const double factor = 1;
     int size = features.nHeight(), cwidth = centers.nWidth();
     double *pc = centers.ptr(), *pf = features.ptr();
     double compact = 0;
@@ -443,11 +440,9 @@ void MotionLayers::dataFn(double *data, int nlabels, const DImage &centers,
     {
         for (int l = 0; l < nlabels; ++l)
         {
-            // compact = dist2(pf+i*cwidth, pc+l*cwidth, 0, 2) + 9;
-            // compact = 1. / log10(compact);
-            compact = 1;
-            
-            data[i*nlabels+l] = factor * weight[i] * compact * dist2(pf+i*cwidth, pc+l*cwidth, 2, cwidth);
+            compact = dist2(pf+i*cwidth, pc+l*cwidth, 0, 2) + 9;
+            compact = 1. / log10(compact);
+            data[i*nlabels+l] = factor * weight[i] * dist2(pf+i*cwidth, pc+l*cwidth, 2, cwidth);
         }
     }
 }
@@ -456,7 +451,7 @@ double MotionLayers::smoothFn(int p1, int p2, int l1, int l2, void *pData)
 {
     const int dataWidth = 6;
     const double weight = 1;
-    const double penalty = 3;
+    const double penalty = 5;
     const double sigma = 0.05;
     double *ptr = (double *)pData;
     double cost;
@@ -467,11 +462,6 @@ double MotionLayers::smoothFn(int p1, int p2, int l1, int l2, void *pData)
     cost += dist2(ptr+p1*dataWidth, ptr+p2*dataWidth, dataWidth/2, dataWidth);
     
     cost = weight * exp(-cost/sigma) + penalty;
-    // if (cost >= sigma) cost = penalty + sigma;
-    // else cost += penalty;
-
-    // printf("smooth: %.6f\n", cost);
-    cost = 1;
     
     return cost;
 }
