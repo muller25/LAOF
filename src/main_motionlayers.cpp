@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
         sprintf(buf, inFile, "v", i+1);
         imreadf(v[next], buf);
 
-        ml.scluster(centers, layers, nlabels, u[cur], v[cur]);
+        ml.kcluster(centers, layers, nlabels, u[cur], v[cur]);
 
         // show trusted points
         tmp.create(width, height);
@@ -121,11 +121,11 @@ int main(int argc, char *argv[])
 
         // show spectral cluster result
         flow2color(ucimg, layers, layers);
-        sprintf(buf, outImg, "scluster", i);
+        sprintf(buf, outImg, "kcluster", i);
         imwrite(buf, ucimg);
 
         coverLabels(tmp, im[cur], ucimg);
-        sprintf(buf, outImg, "merge-sc", i);
+        sprintf(buf, outImg, "merge-kc", i);
         imwrite(buf, tmp);
 
         // refine layers

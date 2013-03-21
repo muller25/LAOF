@@ -22,6 +22,9 @@ public:
                 const DImage &im1, const DImage &im2,
                 const DImage &features);
 
+    void kcluster(DImage &centers, DImage &layers, int nlabels,
+                  const DImage &u, const DImage &v);
+
     void scluster(DImage &centers, DImage &layers, int numOfClusters,
                   const DImage &u, const DImage &v);
 

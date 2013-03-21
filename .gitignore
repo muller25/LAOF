@@ -22,11 +22,13 @@ tests/image
 tests/layers
 tests/gc
 tests/seg
+tests/cluster
 src/of
 src/adof
 src/stof
 src/em
 src/run
+src/layers
 gc/*
 
 *cscope.out

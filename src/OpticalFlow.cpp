@@ -831,28 +831,30 @@ void OpticalFlow::adC2FFlow(DImage &u, DImage &v,
                 genInImageMask(mask, mpyr1[k], mpyr2[k], u, v);
 
             // co-variance orientation, magnitued
-            const int wsize = 5;
-            const double truncate = 0.1;
-            double maxVal = -1;
-            covariance(covUV, u, v, wsize);
-            for (int i = 0; i < covUV.nElements(); ++i)
-            {
-                covUV[i] = fabs(covUV[i]);
-                if (maxVal < covUV[i]) maxVal = covUV[i];
-            }
+            // const int wsize = 2;
+            // const double truncate = 0.1;
+            // double maxVal = -1;
+            // covariance(covUV, u, v, wsize);
+            // for (int i = 0; i < covUV.nElements(); ++i)
+            // {
+            //     covUV[i] = fabs(covUV[i]);
+            //     if (maxVal < covUV[i]) maxVal = covUV[i];
+            // }
 
-            // normalize
-            if (maxVal < ESP)
-                D.set(1);
-            else
-            {
-                for (int i = 0; i < covUV.nElements(); ++i)
-                {
-                    D[i] = covUV[i] / maxVal;
-                    if (D[i] <= truncate) D[i] = 0;
-                    D[i] = 1 - D[i];
-                }
-            }
+            // // normalize
+            // if (maxVal < ESP)
+            //     D.set(1);
+            // else
+            // {
+            //     for (int i = 0; i < covUV.nElements(); ++i)
+            //     {
+            //         D[i] = covUV[i] / maxVal;
+            //         if (D[i] <= truncate) D[i] = 0;
+            //         D[i] = 1 - D[i];
+            //     }
+            // }
+            // no adaptive weight
+            D.set(1);
             
             adIRLS2(du, dv, D, Ix, Iy, It, mask, u, v, as, nIRLSIter, nSORIter+k*3);
             
@@ -1089,26 +1091,27 @@ void OpticalFlow::temporalSmooth(DImage &u0, DImage &v0,
         const int wsize = 5;
         const double truncate = 0.1;
         double maxVal = -1;
-        covariance(covUV, u0, v0, wsize);
-        for (int i = 0; i < covUV.nElements(); ++i)
-        {
-            covUV[i] = fabs(covUV[i]);
-            if (maxVal < covUV[i]) maxVal = covUV[i];
-        }
+        // covariance(covUV, u0, v0, wsize);
+        // for (int i = 0; i < covUV.nElements(); ++i)
+        // {
+        //     covUV[i] = fabs(covUV[i]);
+        //     if (maxVal < covUV[i]) maxVal = covUV[i];
+        // }
 
-        // normalize
-        if (maxVal < ESP)
-            D.set(1);
-        else
-        {
-            for (int i = 0; i < covUV.nElements(); ++i)
-            {
-                D[i] = covUV[i] / maxVal;
-                if (D[i] <= truncate) D[i] = 0;
-                D[i] = 1 - D[i];
-            }
-        }
-
+        // // normalize
+        // if (maxVal < ESP)
+        //     D.set(1);
+        // else
+        // {
+        //     for (int i = 0; i < covUV.nElements(); ++i)
+        //     {
+        //         D[i] = covUV[i] / maxVal;
+        //         if (D[i] <= truncate) D[i] = 0;
+        //         D[i] = 1 - D[i];
+        //     }
+        // }
+        D.set(1);
+        
         for (int irls = 0; irls < nIRLSIter; ++irls)
         {
             add(uu, u0, du);// uu = u + du

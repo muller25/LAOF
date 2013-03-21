@@ -11,7 +11,7 @@ DEL				= rm -rf
 
 GC				= ../gc
 LAOF			= ../src
-TARGET 			= flow2color pyramid imop cluster layers tests gc seg
+TARGET 			= flow2color pyramid imop cluster tests gc seg
 
 all: $(TARGET)
 	@echo "DONE"
@@ -22,10 +22,10 @@ test_Image.o: test_Image.cpp $(LAOF)/Image.h
 test_Maths.o: test_Maths.cpp $(LAOF)/Maths.h
 	$(CXX) $(CXXFLAGS) $(INCDIR) -I$(LAOF) -c $< -o $@
 
-test_hist.o: test_hist.cpp $(LAOF)/Histogram.h
-	$(CXX) $(CXXFLAGS) $(INCDIR) -I$(LAOF) -c $< -o $@
+#test_hist.o: test_hist.cpp $(LAOF)/Histogram.h
+#	$(CXX) $(CXXFLAGS) $(INCDIR) -I$(LAOF) -c $< -o $@
 
-tests: test_Maths.o test_Image.o test_hist.o
+tests: test_Maths.o test_Image.o #test_hist.o
 	$(LINK) $(LFLAGS) -o $@ $^ -L$(LIBDIR) -lgtest -lgtest_main -lpthread $(OPENCVLIBS)
 
 flow2color: test_Flow2Color.o $(LAOF)/Flow2Color.o
@@ -44,12 +44,6 @@ test_cluster.o: test_cluster.cpp $(LAOF)/ML.h
 	$(CXX) $(CXXFLAGS) $(INCDIR) -I$(LAOF) -c $< -o $@
 
 cluster: test_cluster.o 
-	$(LINK) $(LFLAGS) -o $@ $^ $(OPENCVLIBS)
-
-test_MotionLayers.o: test_MotionLayers.cpp $(LAOF)/MotionLayers.h
-	$(CXX) $(CXXFLAGS) $(INCDIR) -I$(LAOF) -c $< -o $@
-
-layers: test_MotionLayers.o $(LAOF)/MotionLayers.o $(LAOF)/Flow2Color.o $(GC)/GCoptimization.o $(GC)/LinkedBlockList.o
 	$(LINK) $(LFLAGS) -o $@ $^ $(OPENCVLIBS)
 
 test_gc.o: test_gc.cpp

@@ -174,46 +174,72 @@ void MotionLayers::refine(DImage &centers, DImage &layers, int labels,
     delete []data;
 }
 
-double MotionLayers::smoothFn(int p1, int p2, int l1, int l2, void *pData)
-{
-    const int dataWidth = 6;
-    const double weight = 1;
-    const double penalty = 3;
-    const double sigma = 3;
-    double *ptr = (double *)pData;
-    double cost;
-    
-    if (l1 == l2) return 0;
-
-    cost = dist1(ptr+p1*dataWidth, ptr+p2*dataWidth, 0, dataWidth);
-    cost = weight * exp(-cost*cost/(2*sigma*sigma)) + penalty;
-
-    return cost;
-}
-
 double MotionLayers::mydist(double *p1, double *p2, int start, int end)
 {
-    double dist = 0;
+    double cost = 0, dist = 0;
     int idx = 0;
     
     // spatial info
-    // dist += dist2(p1, p2, idx, idx+sWidth);
-    // idx += sWidth;
+    dist = dist2(p1, p2, idx, idx+sWidth) + 10;
+    idx += sWidth;
     
     // image info
     // dist += dist2(p1, p2, idx, idx+iWidth);
     // idx += iWidth;
     
     // flow info
-    dist += dist2(p1, p2, idx, idx+fWidth);
-    dist += (1 - (similarity(p1, p2, idx, idx+fWidth) + 1) / 2);
+    cost += log10(dist) * dist2(p1, p2, idx, idx+fWidth);
     idx += fWidth;
     
     // reverse flow info
-    dist += dist2(p1, p2, idx, idx+fWidth);
-    dist += (1 - (similarity(p1, p2, idx, idx+fWidth) + 1) / 2);
+    // dist += dist2(p1, p2, idx, idx+fWidth);
+    // dist += (1 - (similarity(p1, p2, idx, idx+fWidth) + 1) / 2);
     
-    return dist;
+    return cost;
+}
+
+void MotionLayers::kcluster(DImage &centers, DImage &layers, int nlabels,
+                            const DImage &u, const DImage &v)
+{ 
+    assert(u.match3D(v) && u.nChannels() == 1);
+
+    const int wsize = 2;
+    const double threshold = ESP;
+    int height = u.nHeight(), width = u.nWidth();
+    
+    DImage covUV;
+    int trust = 0, totalPoints = u.nSize();
+    int *t2id = new int[totalPoints];
+    
+    // count trusted points    
+    covariance(covUV, u, v, wsize);
+    for (int i = 0; i < totalPoints; ++i)
+        if (covUV[i] <= threshold)
+            t2id[trust++] = i;
+    
+    printf("trusted points: %d\n", trust);
+
+    // generate trusted samples
+    int swidth = 4, offset;
+    DImage samples(swidth, trust);
+    for (int i = 0; i < trust; ++i)
+    {
+        offset = t2id[i];
+        samples[i*swidth] = offset % width;
+        samples[i*swidth+1] = offset / width;
+        samples[i*swidth+2] = u[offset];
+        samples[i*swidth+3] = v[offset];
+    }
+
+    // run kmeans
+    UCImage ucimg;
+    kmeans(centers, ucimg, samples, nlabels, MotionLayers::mydist);
+
+    layers.create(width, height, 1, -1);
+    for (int i = 0; i < trust; ++i)
+        layers[t2id[i]] = ucimg[i];
+
+    delete []t2id;
 }
 
 void MotionLayers::scluster(DImage &centers, DImage &layers, int nlabels,
@@ -221,7 +247,7 @@ void MotionLayers::scluster(DImage &centers, DImage &layers, int nlabels,
 {
     assert(u.match3D(v) && u.nChannels() == 1);
 
-    const int wsize = 1;
+    const int wsize = 2;
     const double threshold = ESP;
     const int neighbour = 5 * wsize;
 
@@ -330,15 +356,17 @@ void MotionLayers::refine(DImage &centers, DImage &layers, int nlabels,
 {
     assert(centers.ptr() != NULL);
     
-    int size = im1.nSize();
+    int size = im1.nSize(), cwidth = centers.nWidth();
     int width = im1.nWidth(), height = im1.nHeight(), channels = im1.nChannels();
-    DImage warp, features(2, size), extra(width, height, channels*2);
+    DImage warp, features(cwidth, size), extra(width, height, channels*2);
 
     warpImage(warp, im1, im2, u, v);
     for (int i = 0; i < size; ++i)
     {
-        features[i*2] = u[i];
-        features[i*2+1] = v[i];
+        features[i*4] = i % width;
+        features[i*4+1] = i / width;
+        features[i*4+2] = u[i];
+        features[i*4+3] = v[i];
 
         for (int k = 0; k < channels; ++k)
             extra[i*channels*2 + k] = im1[i*channels + k];
@@ -386,5 +414,22 @@ void MotionLayers::dataFn(double *data, int nlabels,
     
     for (int i = 0; i < size; ++i)
         for (int l = 0; l < nlabels; ++l)
-            data[i*nlabels+l] = dist2(pf+i*cwidth, pc+l*cwidth, 0, cwidth);
+            data[i*nlabels+l] = mydist(pf+i*cwidth, pc+l*cwidth, 0, cwidth);
+}
+
+double MotionLayers::smoothFn(int p1, int p2, int l1, int l2, void *pData)
+{
+    const int dataWidth = 6;
+    const double weight = 1;
+    const double penalty = 3;
+    const double sigma = 3;
+    double *ptr = (double *)pData;
+    double cost;
+    
+    if (l1 == l2) return 0;
+
+    cost = dist1(ptr+p1*dataWidth, ptr+p2*dataWidth, 0, dataWidth);
+    cost = weight * exp(-cost*cost/(2*sigma*sigma)) + penalty;
+
+    return cost;
 }

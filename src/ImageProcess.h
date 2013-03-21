@@ -5,29 +5,21 @@
 #include "Maths.h"
 
 // cover labels onto image
-template <class T, class T1>
-void coverLabels(Image<T> &res, const Image<T> &im, const Image<T1> &labels)
+template <class I, class L>
+void coverLabels(Image<I> &res, const Image<I> &im, const Image<L> &labels)
 {
-    assert(im.match2D(labels));
-    
+    assert(im.match3D(labels));
+
+    const double factor = 0.4;
     int width = im.nWidth(), height = im.nHeight(), channels = im.nChannels();
-    int offset;
     
     res.create(width, height, channels);
-    for(int i = 0; i < labels.nSize(); ++i)
+    for(int i = 0; i < labels.nElements(); ++i)
     {
-        offset = i * channels;
-        for (int k = 0; k < channels; ++k)
-        {
-            if (labels.isFloat())
-            {
-                if (fabs(labels[i] - 1) < 0.05) res[offset+k] = im[offset+k];
-                else res[offset+k] = im[offset+k] * 0.1 + labels[i] * 0.9;
-            } else {
-                if (labels[i] == 255) res[offset+k] = im[offset+k];
-                else res[offset+k] = im[offset+k]*0.1 + (double)labels[i]/255.*0.9;
-            }
-        }
+        res[i] = im[i]*factor;
+        if (typeid(I) == typeid(L)) res[i] += labels[i]*(1-factor);
+        else if (im.isFloat() && !labels.isFloat()) res[i] += (double)labels[i]/255.*(1-factor);
+        else res[i] += labels[i]*(1-factor)*255;
     }
 }
 
