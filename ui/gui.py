@@ -2,6 +2,7 @@
 import sys
 from os.path import expanduser
 from PyQt4 import QtGui, QtCore
+from PyQt4.phonon import Phonon
 
 class mainWin(QtGui.QMainWindow):
     """
@@ -12,7 +13,7 @@ class mainWin(QtGui.QMainWindow):
         self.init(width, height)
 
     def init(self, width, height):
-        self.resize(width, height)
+        self.setFixedSize(width, height)
         self.setWindowTitle("Video Painterly Rendering System")
 
         # move window to the center of screen
@@ -44,34 +45,41 @@ class mainWin(QtGui.QMainWindow):
         helpMenu = menubar.addMenu("&Help")
         helpMenu.addAction(aboutAction)
 
-        self.IRPanel = IRPanel(self, width, height)
-        # self.VRPanel = VRPanel(self, width, height)
+        self.IRPanel = IRPanel(width, height)
+        self.VRPanel = VRPanel(width, height)
 
-        self.showIRPanel()
+        tab = QtGui.QTabWidget(self)
+        tab.addTab(self.IRPanel, "Image Render")
+        tab.addTab(self.VRPanel, "Video Render")
+
+        self.setCentralWidget(tab)
         self.show()
 
     def open(self):
-        fname = QtGui.QFileDialog.getOpenFileName(self, "Open Video", expanduser("~"),
-                                                  "Videos(*.mp4 *.avi)")
-        print "open video: " + fname
+        fname = QtGui.QFileDialog.getOpenFileName(self, "Open Video", expanduser("~"))#,
+#                                                  "Videos(*.mp4 *.avi)")
+
+        if not fname.isEmpty():
+            print "open video: " + fname
+            self.VRPanel.showVideo(fname)
+            # self.IRPanel.showImage(fname)
+        else:
+            print "do not choose any video"
 
     def save(self):
         fname = QtGui.QFileDialog.getSaveFileName(self, "Save Video", expanduser("~"),
                                                   "Videos(*.mp4 *.avi)")
-        print "save to: " + fname
-
-    def showIRPanel(self):
-        self.setCentralWidget(self.IRPanel)
-
-    def showVRPanel(self):
-        self.setCentralWidget(self.VRPanel)
+        if not fname.isEmpty():
+            print "save to: " + fname
+        else:
+            print "do not choose any video"
 
 class IRPanel(QtGui.QWidget):
     """
     Image Rendering panel
     """
-    def __init__(self, parent, width, height):
-        super(IRPanel, self).__init__(parent)
+    def __init__(self, width, height):
+        super(IRPanel, self).__init__()
         self.init(width, height)
 
     def init(self, width, height):
@@ -79,12 +87,11 @@ class IRPanel(QtGui.QWidget):
 
         # init control panel
         ctrlLayout = QtGui.QVBoxLayout()
-        ctrlLayout.setContentsMargins(0, 0, 0, 0)
-        ctrlLayout.setSpacing(0)
         
         # min stroke slider and label
         self.minStrokeLbl = QtGui.QLabel(self)
         self.setMinStrokeLbl(2)
+        
         minStrokeSLD = QtGui.QSlider(QtCore.Qt.Horizontal, self)
         minStrokeSLD.setSingleStep(1)
         minStrokeSLD.setRange(2, 32)
@@ -137,8 +144,24 @@ class IRPanel(QtGui.QWidget):
         ctrlLayout.addWidget(self.maxStrokeLenLbl)
         ctrlLayout.addWidget(maxStrokeLenSLD)
 
+        # add scale factor to push buttons to the bottom
+        ctrlLayout.addStretch(1)
+
+        # show button
+        runBtn = QtGui.QPushButton("Run", self)
+        runBtn.clicked.connect(self.runBtnClick)
+        ctrlLayout.addWidget(runBtn)
+
         IRlayout.addLayout(ctrlLayout)
         
+        # add image view
+        scrollArea = QtGui.QScrollArea(self)
+        scrollArea.setAlignment(QtCore.Qt.Alignment(QtCore.Qt.AlignCenter))
+        scrollArea.setFixedWidth(width - 220)
+        self.imgView = QtGui.QLabel(self)
+        scrollArea.setWidget(self.imgView)
+        IRlayout.addWidget(scrollArea)
+
         self.setLayout(IRlayout)
 
     def setMinStrokeLbl(self, value):
@@ -156,20 +179,87 @@ class IRPanel(QtGui.QWidget):
     def setMaxStrokeLenLbl(self, value):
         self.maxStrokeLenLbl.setText("maximum stroke length: %d" %value)
 
+    def runBtnClick(self):
+        print "Image rendering..."
+        
+    def showImage(self, fname):
+        img = QtGui.QPixmap(fname)
+        self.imgView.resize(img.size())
+        self.imgView.setPixmap(img)
+        
 class VRPanel(QtGui.QWidget):
     """
     Video Rendering panel
     """
-    def _init__(self, parent, width, height):
-        super(VRPanel, self).__init__(parent)
+    def __init__(self, width, height):
+        super(VRPanel, self).__init__()
         self.init(width, height)
 
     def init(self, width, height):
-        pass
+        VRlayout = QtGui.QHBoxLayout()
+
+        # init control panel
+        ctrlLayout = QtGui.QVBoxLayout()
+
+        lblWidth = 130
+        # spatial smoothness
+        tmpHBox = QtGui.QHBoxLayout()
+        spatialLbl = QtGui.QLabel("sptial smooth", self)
+        spatialLbl.setFixedWidth(lblWidth)
+        self.spatial = QtGui.QLineEdit(self)
+        tmpHBox.addWidget(spatialLbl)
+        tmpHBox.addWidget(self.spatial)
+        ctrlLayout.addLayout(tmpHBox)
+        
+        # temporal smoothness
+        tmpHBox = QtGui.QHBoxLayout()
+        temporalLbl = QtGui.QLabel("temporal smooth", self)
+        temporalLbl.setFixedWidth(lblWidth)
+        self.temporal = QtGui.QLineEdit(self)
+        tmpHBox.addWidget(temporalLbl)
+        tmpHBox.addWidget(self.temporal)
+        ctrlLayout.addLayout(tmpHBox)
+
+        # segment similarity
+        tmpHBox = QtGui.QHBoxLayout()
+        segmentLbl = QtGui.QLabel("segment smooth", self)
+        segmentLbl.setFixedWidth(lblWidth)
+        self.segment = QtGui.QLineEdit(self)
+        tmpHBox.addWidget(segmentLbl)
+        tmpHBox.addWidget(self.segment)
+        ctrlLayout.addLayout(tmpHBox)
+
+        # run button
+        ctrlLayout.addStretch(1)
+        runBtn = QtGui.QPushButton("Run", self)
+        runBtn.clicked.connect(self.runBtnClick)
+        ctrlLayout.addWidget(runBtn)
+
+        VRlayout.addLayout(ctrlLayout)
+        
+        # add video player
+        vlayout = QtGui.QVBoxLayout()
+        self.player = Phonon.VideoPlayer(self)
+        self.seekSlider = Phonon.SeekSlider(self)
+
+        vlayout.addWidget(self.player, 1)
+        vlayout.addWidget(self.seekSlider)
+        VRlayout.addLayout(vlayout, 1)
+
+        self.setLayout(VRlayout)
+
+    def runBtnClick(self):
+        print "video rendering..."
+
+    def showVideo(self, fname):
+        self.player.load(Phonon.MediaSource(fname))
+        self.seekSlider.setMediaObject(self.player.mediaObject())
+        # self.player.play()
     
 if __name__ == "__main__":
     app = QtGui.QApplication(sys.argv)
-    width = 800
-    height = 600
+    app.setApplicationName("Video Painterly Rendering System")
+    width = 1000
+    height = 800
     win = mainWin(width, height)
     sys.exit(app.exec_())
