@@ -32,6 +32,9 @@ public:
                 const DImage &im1, const DImage &im2,
                 const DImage &u, const DImage &v);
 
+    void LabComfirmity(DImage &prob, const DImage &im, const DImage &mask);
+    void OMComfirmity(DImage &prob, const DImage &u, const DImage &v, const DImage &mask);
+
     // make sure layer order
     template <class T>
     void reArrangeLabels(Image<T> &layers, int labels);

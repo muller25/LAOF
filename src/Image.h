@@ -160,16 +160,14 @@ void Image<T>::convertFrom(const cv::Mat &im)
     int height = im.rows, width = im.cols, channels = im.channels();
     create(width, height, channels);
 
-    int step = im.step1(), ioffset, offset;
-    T *pi = (T *)im.data;
+    int ioffset, offset;
     for (int h = 0; h < height; ++h)
     {
         for (int w = 0; w < width; ++w)
         {
             offset = (h * width + w) * channels;
-            ioffset = h * step + w * channels;
             for (int k = 0; k < channels; ++k)
-                pData[offset + k] = pi[ioffset + k];
+                pData[offset + k] = im.at<T>(h, w, k);
         }
     }
 }
