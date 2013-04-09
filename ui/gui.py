@@ -51,18 +51,18 @@ class mainWin(QtGui.QMainWindow):
         tab = QtGui.QTabWidget(self)
         tab.addTab(self.IRPanel, "Image Render")
         tab.addTab(self.VRPanel, "Video Render")
-
+        tab.currentChanged.connect(self.tabChanged)
         self.setCentralWidget(tab)
         self.show()
 
     def open(self):
-        fname = QtGui.QFileDialog.getOpenFileName(self, "Open Video", expanduser("~"))#,
-#                                                  "Videos(*.mp4 *.avi)")
+        fname = QtGui.QFileDialog.getOpenFileName(self, "Open Video", expanduser("~"),
+                                                  "Videos(*.mp4 *.avi)")
 
         if not fname.isEmpty():
             print "open video: " + fname
             self.VRPanel.showVideo(fname)
-            # self.IRPanel.showImage(fname)
+            self.IRPanel.showImage(self.VRPanel.screenshot())
         else:
             print "do not choose any video"
 
@@ -73,6 +73,11 @@ class mainWin(QtGui.QMainWindow):
             print "save to: " + fname
         else:
             print "do not choose any video"
+
+    def tabChanged(self, curIdx):
+        # ir panel
+        if curIdx == 0:
+            self.IRPanel.showImage(self.VRPanel.screenshot())
 
 class IRPanel(QtGui.QWidget):
     """
@@ -87,6 +92,15 @@ class IRPanel(QtGui.QWidget):
 
         # init control panel
         ctrlLayout = QtGui.QVBoxLayout()
+
+        # algorithm switcher
+        tmpLbl = QtGui.QLabel("choose algorithm to use", self)
+        ctrlLayout.addWidget(tmpLbl)
+        
+        algoSwitcher = QtGui.QListWidget(self)
+        algoSwitcher.addItem(self.tr("CDIR"))
+        
+        ctrlLayout.addWidget(algoSwitcher)
         
         # min stroke slider and label
         self.minStrokeLbl = QtGui.QLabel(self)
@@ -113,10 +127,10 @@ class IRPanel(QtGui.QWidget):
 
         # stroke step slider and label
         self.strokeLbl = QtGui.QLabel(self)
-        self.setStrokeLbl(2)
+        self.setStrokeLbl(1)
         strokeSLD = QtGui.QSlider(QtCore.Qt.Horizontal, self)
         strokeSLD.setSingleStep(1)
-        strokeSLD.setRange(2, 32)
+        strokeSLD.setRange(1, 30)
         strokeSLD.valueChanged[int].connect(self.setStrokeLbl)
         
         ctrlLayout.addWidget(self.strokeLbl)
@@ -182,8 +196,7 @@ class IRPanel(QtGui.QWidget):
     def runBtnClick(self):
         print "Image rendering..."
         
-    def showImage(self, fname):
-        img = QtGui.QPixmap(fname)
+    def showImage(self, img):
         self.imgView.resize(img.size())
         self.imgView.setPixmap(img)
         
@@ -200,8 +213,17 @@ class VRPanel(QtGui.QWidget):
 
         # init control panel
         ctrlLayout = QtGui.QVBoxLayout()
-
         lblWidth = 130
+
+        # algorithm switcher
+        tmpLbl = QtGui.QLabel("choose algorithm to use", self)
+        ctrlLayout.addWidget(tmpLbl)
+        
+        algoSwitcher = QtGui.QListWidget(self)
+        algoSwitcher.addItem(self.tr("LAOF"))
+        
+        ctrlLayout.addWidget(algoSwitcher)
+
         # spatial smoothness
         tmpHBox = QtGui.QHBoxLayout()
         spatialLbl = QtGui.QLabel("sptial smooth", self)
@@ -222,7 +244,7 @@ class VRPanel(QtGui.QWidget):
 
         # segment similarity
         tmpHBox = QtGui.QHBoxLayout()
-        segmentLbl = QtGui.QLabel("segment smooth", self)
+        segmentLbl = QtGui.QLabel("segment similarity", self)
         segmentLbl.setFixedWidth(lblWidth)
         self.segment = QtGui.QLineEdit(self)
         tmpHBox.addWidget(segmentLbl)
@@ -240,21 +262,52 @@ class VRPanel(QtGui.QWidget):
         # add video player
         vlayout = QtGui.QVBoxLayout()
         self.player = Phonon.VideoPlayer(self)
+        self.player.setFixedWidth(width-220)
         self.seekSlider = Phonon.SeekSlider(self)
-
+        self.media = None
+        
+        playout = QtGui.QHBoxLayout()
+        playout.addStretch(1)
+        self.playIcon = QtGui.QIcon("icons/play.png")
+        self.pauseIcon = QtGui.QIcon("icons/pause.png")
+        self.playBtn = QtGui.QPushButton(self.playIcon, self.tr(""), self)
+        self.playBtn.clicked.connect(self.playBtnClick)
+        playout.addWidget(self.playBtn)
+        playout.addStretch(1)
+        
         vlayout.addWidget(self.player, 1)
         vlayout.addWidget(self.seekSlider)
+        vlayout.addLayout(playout)
+        
         VRlayout.addLayout(vlayout, 1)
-
         self.setLayout(VRlayout)
 
     def runBtnClick(self):
         print "video rendering..."
 
+    def playBtnClick(self):
+        if self.player.isPlaying():
+            self.player.pause()
+            self.playBtn.setIcon(self.playIcon)
+            return
+        
+        if self.media is None:
+            self.player.stop()
+            self.playBtn.setIcon(self.playIcon)
+            return
+
+        self.player.play()
+        self.playBtn.setIcon(self.pauseIcon)
+            
     def showVideo(self, fname):
         self.player.load(Phonon.MediaSource(fname))
-        self.seekSlider.setMediaObject(self.player.mediaObject())
-        # self.player.play()
+        self.media = self.player.mediaObject()
+        
+        self.playBtn.setIcon(self.playIcon)
+        self.seekSlider.setMediaObject(self.media)
+            
+    def screenshot(self):
+        return QtGui.QPixmap.grabWindow(self.player.winId())
     
 if __name__ == "__main__":
     app = QtGui.QApplication(sys.argv)
