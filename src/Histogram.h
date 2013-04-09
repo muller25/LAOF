@@ -3,102 +3,49 @@
 
 #include "Image.h"
 
-template <class T, class T1, class T2>
-void calcHist(Image<T> &hist, const Image<T1> &m, const Image<T2> &mask,
-              T1 minV, T1 maxV, int bins=16)
+// normalized lab histogram
+template<class I, class M>
+void LabHist(DImage &hist, Image<T> &im, Image<M> &mask)
 {
-    assert(maxV > minV && mask.nChannels() == 1);
-    
-    int channels = m.nChannels(), size = m.nSize();
-    double interval = (double)(maxV - minV + 1) / bins;
-    int idx;
+    assert(im.match2D(mask) && im.nChannels() == 3);
 
-    hist.create(bins * channels, 1);
-    for (int i = 0; i < size; ++i)
+    // convert to lab color space
+    cv::Mat imat, lab, maskMat, tmp;
+
+    if (typeid(T) != typeid(float))
     {
-        // not in mask
-        if (mask.isZero(i)) continue;
+        im.covertTo(tmp);
+        tmp.convertTo(imat, CV_32FC3);
+    }
+    else
+        im.convertTo(imat);
         
-        for (int k = 0; k < channels; ++k)
-        {
-            idx = (m[i*channels+k] - minV) / interval;
-            hist[k*bins+idx]++;
-        }
-    }
+    cv::cvtColor(imat, lab, CV_BGR2Lab);
 
-    // normalize
-    T total;
-    for (int k = 0; k < channels; ++k)
+    // convert mask
+    if (typeid(M) != typeid(uchar))
     {
-        total = 0;
-        for (int b = 0; b < bins; ++b)
-            total += hist[k*bins+b];
-
-        for (int b = 0; b < bins; ++b)
-            hist[k*bins+b] /= total;
+        mask.convertTo(tmp);
+        tmp.convertTo(maskMat, CV_8U);
     }
-}
+    else
+        mask.convertTo(maskMat);
 
-template <class T, class T1>
-T getHistVal(Image<T> &hist, const Image<T1> &m, int idx, T1 minV, T1 maxV)
-{
-    int channels = m.nChannels();
-    int bins = hist.nWidth() / channels;
-    double interval = (double)(maxV - minV + 1) / bins;
+    const int histSize = {10, 12, 12};
+    const int channels = {0, 1, 2};
+                          
+    // l varies from [0, 100]
+    const float lranges[] = {0, 101};
+    // a varies from [-127, 127]
+    const float aranges[] = {-127, 128};
+    // b varies from [-127, 127]
+    const float branges[] = {-127, 128};
 
-    T val = 0;
-    int imVal;
-    for (int k = 0; k < channels; ++k)
-    {
-        imVal = (m[idx*channels+k] - minV) / interval;
-        val += hist[k*bins+imVal];
-    }
+    const float *ranges[] = {lranges, aranges, branges};
 
-    return val;
-}
-
-// oeraitation * strength
-template <class T, class T1, class T2>
-void calcOMHist(Image<T> &hist, const Image<T1> &m, const Image<T2> &mask,
-                int bins=18)
-{
-    assert(m.nChannels() == 2 && mask.nChannels() == 1);
-    double interval = 360. / bins, theta;
-    T1 x, y;
-    T total = 0;
-    int idx;
+    cv::Mat histMat;
     
-    hist.create(bins, 1);
-    for (int i = 0; i < m.nSize(); ++i)
-    {
-        if (mask.isZero(i)) continue;
-   
-        x = m[i*2];
-        y = m[i*2+1];
-
-        // arc to degree
-        theta = (atan2(y, x) + PI) / PI * 180.;
-        idx = theta / interval;
-        hist[idx] += theta * sqrt(x*x + y*y);
-        total += hist[idx];
-    }
-
-    for (int i = 0; i < bins; ++i)
-        hist[idx] /= total;
-}
-
-template <class T, class T1>
-T getOMHistVal(Image<T> &hist, const Image<T1> &m, int idx)
-{
-    assert(m.nChannels() == 2);
-    
-    int bins = hist.nWidth();
-    double interval = 360./bins;
-    T1 x = m[idx*2];
-    T1 y = m[idx*2+1];
-    double theta = (atan2(y, x) + PI) / PI * 180.;
-    int pos = theta / interval;
-    return hist[pos];
+                            
 }
 
 #endif
