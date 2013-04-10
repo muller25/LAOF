@@ -111,21 +111,31 @@ int main(int argc, char *argv[])
         imreadf(v[next], buf);
 
         printf("running kmeans...\n");
-        ml.kcluster(centers, layers, nlabels, u[cur], v[cur]);
+        ml.kcluster(centers, layers, nlabels, im[cur], im[next],
+                    u[cur], v[cur]);
         printf("kmeans done\n");
         
         // show trusted points
-        ucimg.create(width, height);
+        tmp.create(width, height);
         for (int j = 0; j < layers.nSize(); ++j)
-            if (layers[j] >= 0) ucimg[j] = 1;
+            if (layers[j] >= 0) tmp[j] = 1;
 
         sprintf(buf, outImg, "trusted_points", i);
-        imwrite(buf, ucimg);
+        imwrite(buf, tmp);
 
         // show kmeans cluster result
         showLayers(ucimg, layers);
         sprintf(buf, outImg, "kcluster", i);
         imwrite(buf, ucimg);
+
+        // show image under each layer
+        for (int l = 0; l < nlabels; ++l)
+        {
+            genLayerMask(ucimg, layers, l);
+            cut(tmp, im[cur], ucimg);
+            sprintf(buf, outImg, "kseg", i*10+l);
+            imwrite(buf, tmp);
+        }
         
         // refine layers
         printf("refining layers...\n");
@@ -143,7 +153,7 @@ int main(int argc, char *argv[])
         {
             genLayerMask(ucimg, layers, l);
             cut(tmp, im[cur], ucimg);
-            sprintf(buf, outImg, "seg", i*10+l);
+            sprintf(buf, outImg, "rseg", i*10+l);
             imwrite(buf, tmp);
         }
         

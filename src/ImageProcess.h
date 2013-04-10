@@ -4,6 +4,22 @@
 #include "Image.h"
 #include "Maths.h"
 
+#include <cv.h>
+
+// convert bgr color space to lab color space
+template <class I, class T>
+void BGR2Lab(Image<T> &lab, const Image<I> &bgr)
+{
+    // convert to lab color space
+    cv::Mat bgrMat, labMat, tmp;
+
+    bgr.convertTo(tmp);
+    tmp.convertTo(bgrMat, CV_32FC3);
+    cv::cvtColor(bgrMat, labMat, CV_BGR2Lab);
+
+    lab.convertFrom(labMat);
+}
+
 // cover labels onto image
 template <class I, class L>
 void coverLabels(Image<I> &res, const Image<I> &im, const Image<L> &labels)

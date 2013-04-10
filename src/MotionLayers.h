@@ -25,6 +25,7 @@ public:
                 const DImage &features);
 
     void kcluster(DImage &centers, DImage &layers, int nlabels,
+                  const DImage &im1, const DImage &im2,
                   const DImage &u, const DImage &v);
 
     void scluster(DImage &centers, DImage &layers, int numOfClusters,
@@ -49,8 +50,8 @@ public:
     void createCenterByLabels(Image<T> &centers, int numOfLabels,
                               const Image<T1> &labels, const Image<T> &samples);
 
-    inline void dataFn(double *data, int nlabels, const DImage &layers,
-                       const DImage &u, const DImage &v, const DImage &im);
+    inline void dataFn(double *data, int nlabels, const DImage &centers, const DImage &layers,
+                       const DImage &u, const DImage &v, const DImage &im1, const DImage &im2);
     static double smoothFn(int p1, int p2, int l1, int l2, void *pData);
     inline static double kmdist(double *p1, double *p2, int start, int end);
 
@@ -58,6 +59,8 @@ private:
     const static int sWidth = 2;// spatial info width
     const static int iWidth = 3;// image info width
     const static int fWidth = 2;// flow info width
+    static double mins;
+    static double maxs;
 };
 
 // arrange layers from largest component to smallest
@@ -136,12 +139,11 @@ void MotionLayers::createCenterByLabels(Image<T> &centers, int numOfLabels,
 template <class I, class M>
 void MotionLayers::LabComfirmity(DImage &prob, const Image<I> &im, const Image<M> &mask)
 {
-    // convert to lab color space
-    cv::Mat imat, lab, maskMat, tmp;
+    // suppose im is in lab color space
+    cv::Mat imMat, maskMat, tmp;
 
     im.convertTo(tmp);
-    tmp.convertTo(imat, CV_32FC3);
-    cv::cvtColor(imat, lab, CV_BGR2Lab);
+    tmp.convertTo(imMat, CV_32FC3);
 
     // convert mask
     mask.convertTo(tmp);
@@ -153,19 +155,13 @@ void MotionLayers::LabComfirmity(DImage &prob, const Image<I> &im, const Image<M
     const int histSize[] = {lbins, abins, bbins};
     const int channels[] = {0, 1, 2};
 
-    // l varies from [0, 100]
-    const float lranges[] = {0, 101};
-                             
-    // a varies from [-127, 127]
-    const float aranges[] = {-127, 128};
-
-    // b varies from [-127, 127]
-    const float branges[] = {-127, 128};
-
+    const float lranges[] = {0, 101};        // l varies from [0, 100]
+    const float aranges[] = {-127, 128};     // a varies from [-127, 127]
+    const float branges[] = {-127, 128};     // b varies from [-127, 127]
     const float *ranges[] = {lranges, aranges, branges};
         
     cv::Mat hist;
-    cv::calcHist(&imat, 1, channels, maskMat, hist, 3, histSize, ranges, true, false);
+    cv::calcHist(&imMat, 1, channels, maskMat, hist, 3, histSize, ranges, true, false);
 
     // normalize
     int totalPixels = mask.nonZeros();
@@ -176,13 +172,12 @@ void MotionLayers::LabComfirmity(DImage &prob, const Image<I> &im, const Image<M
 
     // back project
     cv::Mat backproj;
-    calcBackProject(&imat, 1, channels, hist, backproj, ranges, 1, true);
+    calcBackProject(&imMat, 1, channels, hist, backproj, ranges, 1, true);
     prob.convertFrom(backproj);
     
     // show histogram image
     static int hcount = 0;
     static int ccount = 0;
-    static int mcount = 0;
     char buf[256];
     int scale = 10;
     cv::Mat histImgMat = cv::Mat::zeros(abins*scale, bbins*scale, CV_8UC3);
@@ -193,9 +188,9 @@ void MotionLayers::LabComfirmity(DImage &prob, const Image<I> &im, const Image<M
             float c1 = 0, c2 = 0, c3 = 0;
             for (int c = 0; c < lbins; c += 3)
             {
-                c1 += hist.at<c, a, b>();
-                c2 += hist.at<c+1, a, b>();
-                c3 += hist.at<c+2, a, b>();
+                c1 += hist.at<float>(c, a, b);
+                c2 += hist.at<float>(c+1, a, b);
+                c3 += hist.at<float>(c+2, a, b);
             }
             
             cv::Scalar color(cvRound(c1*255), cvRound(c2*255), cvRound(c3*255));
@@ -207,11 +202,6 @@ void MotionLayers::LabComfirmity(DImage &prob, const Image<I> &im, const Image<M
 
     sprintf(buf, "lab-hist-%d.jpg", hcount++);
     cv::imwrite(buf, histImgMat);
-
-    DImage area;
-    cut(area, im, mask);
-    sprintf(buf, "mask-%d.jpg", mcount++);
-    imwrite(buf, area);
     
     sprintf(buf, "lab-comfirmity-%d.jpg", ccount++);
     imwrite(buf, prob);

@@ -176,6 +176,7 @@ void MotionLayers::refine(DImage &centers, DImage &layers, int labels,
 
 // kmeans cluster, -1 for untrusted areas
 void MotionLayers::kcluster(DImage &centers, DImage &layers, int nlabels,
+                            const DImage &im1, const DImage &im2,
                             const DImage &u, const DImage &v)
 {
     assert(u.match3D(v) && u.nChannels() == 1);
@@ -216,7 +217,7 @@ void MotionLayers::kcluster(DImage &centers, DImage &layers, int nlabels,
     layers.create(width, height, 1, -1);
     for (int i = 0; i < trust; ++i)
         layers[t2id[i]] = ucimg[i];
-
+    
     delete []t2id;
 }
 
@@ -339,10 +340,6 @@ double MotionLayers::kmdist(double *p1, double *p2, int start, int end)
     dist = dist2(p1, p2, idx, idx+sWidth) + 9;
     idx += sWidth;
     
-    // image info
-    // dist += dist2(p1, p2, idx, idx+iWidth);
-    // idx += iWidth;
-    
     // flow info
     cost += log10(dist) * dist2(p1, p2, idx, idx+fWidth);
     idx += fWidth;
@@ -358,21 +355,30 @@ void MotionLayers::refine(DImage &centers, DImage &layers, int nlabels,
     assert(centers.ptr() != NULL);
 
     int size = im1.nSize(), width = im1.nWidth(), height = im1.nHeight();
-    
+    DImage im1lab, im2lab;
     double *data = NULL;    
     GCoptimization *gc = NULL;
+
+    // color space convertion
+    BGR2Lab(im1lab, im1);
+    BGR2Lab(im2lab, im2);
+    
     try{
 		gc = new GCoptimizationGridGraph(width, height, nlabels);
+
+        // init data term
         data = new double[nlabels*size];
-        dataFn(data, nlabels, layers, u, v, im1);
-        gc->setSmoothCost(MotionLayers::smoothFn, im1.ptr());
+        dataFn(data, nlabels, centers, layers, u, v, im1lab, im2lab);
         gc->setDataCost(data);
+        gc->setSmoothCost(MotionLayers::smoothFn, im1lab.ptr());
         
         printf("Before optimization energy is %.6f\n",gc->compute_energy());
-        // gc->expansion(3);
-        gc->swap(3);
+        gc->expansion(3);
+        // gc->swap(3);
         printf("After  optimization energy is %.6f\n",gc->compute_energy());
 
+        printf("smooth: %.6f .. %.6f\n", mins, maxs);
+        
         for (int i = 0; i < size; ++i)
             layers[i] = gc->whatLabel(i);
 	}
@@ -385,18 +391,25 @@ void MotionLayers::refine(DImage &centers, DImage &layers, int nlabels,
 }
 
 // D(lp) = -w1 * ln(Cp | lp) - w2 * ln(fp | lp)
-void MotionLayers::dataFn(double *data, int nlabels, const DImage &layers,
-                          const DImage &u, const DImage &v, const DImage &im)
+void MotionLayers::dataFn(double *data, int nlabels, const DImage &centers, const DImage &layers,
+                          const DImage &u, const DImage &v, const DImage &im1, const DImage &im2)
 {
     printf("calculating data term...\n");
-    
-    const double omega1 = 1;
-    const double omega2 = 1;
 
-    int size = im.nSize(), offset;
-    DImage labProb, omProb, om;
+    const double omegap = 1;
+    const double omegac = 0.5;
+    const double omegat = 0;
+    const double omegaf = 0.085;
+    double mind = DBL_MAX;
+    double maxd = 0;
+    
+    int size = im1.nSize(), width = im1.nWidth(), channels = im1.nChannels(), offset;
+    DImage labProb, omProb, om, warp;
     UCImage mask;
 
+    warpImage(warp, im1, im2, u, v);
+    substract(warp, im1);
+    
     // 根据u，v计算方向-强度(om)图，并归一化强度
     double maxrad = -1;
     om.create(u.nWidth(), u.nHeight(), 2);
@@ -416,41 +429,65 @@ void MotionLayers::dataFn(double *data, int nlabels, const DImage &layers,
             om[i*2+1] /= maxrad;
 
     // 计算data term
-    double lp, omp;
+    double lp, omp, cx, cy, x, y, pCost, tCost;
+    int cwidth = centers.nWidth();
     for (int l = 0; l < nlabels; ++l)
     {
         genLayerMask(mask, layers, l);
-        LabComfirmity(labProb, im, mask);
+        LabComfirmity(labProb, im1, mask);
         OMComfirmity(omProb, om, mask);
+        cx = centers[l*cwidth];
+        cy = centers[l*cwidth+1];
         for (int i = 0; i < size; ++i)
         {
             // truncate probability smaller ESP 
-            if (fabs(labProb[i]) < ESP) lp = log(ESP);
-            else lp = log(labProb[i]);
+            if (fabs(labProb[i]) < ESP) lp = -log(ESP);
+            else lp = -log(labProb[i]);
 
             // truncate probability smaller ESP
-            if (fabs(omProb[i]) < ESP) omp = log(ESP);
-            else omp = log(omProb[i]);
+            if (fabs(omProb[i]) < ESP) omp = -log(ESP);
+            else omp = -log(omProb[i]);
+
+            // position
+            x = i % width - cx;
+            y = i / width - cy;
+            pCost = log10(sqrt(x * x + y * y) + 10);
+
+            // motion
+            tCost = 0;
+            for (int c = 0; c < channels; ++c)
+                tCost = warp[i*channels+c] * warp[i*channels+c];
+            tCost = sqrt(tCost);
             
-            data[i*nlabels+l] = -omega1 * lp - omega2 * omp;
+            data[i*nlabels+l] = omegap * pCost + omegac * lp + omegaf * omp + omegat * tCost;
+            
+            mind = std::min(mind, data[i*nlabels+l]);
+            maxd = std::max(maxd, data[i*nlabels+l]);
         }
     }
 
+    printf("data: %.6f .. %.6f\n", mind, maxd);
     printf("done\n");
 }
 
+double MotionLayers::mins = DBL_MAX;
+double MotionLayers::maxs = 0;
+
 double MotionLayers::smoothFn(int p1, int p2, int l1, int l2, void *pData)
 {
-    const double weight = 1;
-    const double penalty = 5;
-    const double sigma = 0.05;
+    const double weight = 8;
+    const double tao = 10;
     double *ptr = (double *)pData;
     double cost;
     
     if (l1 == l2) return 0;
 
     cost = dist2(ptr+p1*3, ptr+p2*3, 0, 3);
-    cost = weight * exp(-cost/sigma) + penalty;
+    cost = PI / 2 - atan(cost - tao);
+    cost = weight * cost;
+
+    mins = std::min(mins, cost);
+    maxs = std::max(maxs, cost);
     
     return cost;
 }
