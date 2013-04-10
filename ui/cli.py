@@ -110,6 +110,9 @@ if __name__ == "__main__":
         outfile = params["Files"]["outfile"]
 
     print "converting %s into frames... done" %infile
-    print "calculating dense correspondences... done"
-    print "stroke propagation... done"
+
+    for i in range(1, 3):
+        print "======== iteration %d ========" %i
+        print "calculating dense correspondences... done"
+        print "stroke propagation... done"
     print "saving to %s... done" %outfile

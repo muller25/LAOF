@@ -31,7 +31,7 @@ em: main_em.o $(OBJS) $(GC)/GCoptimization.o $(GC)/LinkedBlockList.o
 layers: main_motionlayers.o MotionLayers.o Flow2Color.o $(GC)/GCoptimization.o $(GC)/LinkedBlockList.o
 	$(LINK) $(LFLAGS) -o $@ $^ $(OPENCVLIBS)
 
-main_motionlayers.o: main_motionlayers.cpp ImageProcess.h
+main_motionlayers.o: main_motionlayers.cpp ImageProcess.h Utils.h
 	$(CXX) $(CXXFLAGS) $(INCDIR) -c $< -o $@
 
 OpticalFlow.o: OpticalFlow.cpp OpticalFlow.h Maths.h Image.h GaussianPyramid.h ImageProcess.h
@@ -54,4 +54,4 @@ OFPara.o: OFPara.cpp OFPara.h Maths.h ImageProcess.h Image.h
 
 .PHONY: clean
 clean:
-	-$(DEL) *.o $(TARGET) cscope.out *.yml
+	-$(DEL) *.o $(TARGET) cscope.out *.yml *.jpg

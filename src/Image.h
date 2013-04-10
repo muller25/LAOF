@@ -154,20 +154,42 @@ void Image<T>::convertTo(cv::Mat &im) const
     }
 }
 
+// rounded element if from (double, float, long double) to (int,char,short,long)
 template <class T>
 void Image<T>::convertFrom(const cv::Mat &im)
 {
     int height = im.rows, width = im.cols, channels = im.channels();
     create(width, height, channels);
 
-    int ioffset, offset;
+    cv::Mat tmp;
+    if (typeid(T) == typeid(uchar))
+        im.convertTo(tmp, CV_8UC(channels));
+    else if (typeid(T) == typeid(int))
+        im.convertTo(tmp, CV_32SC(channels));
+    else if (typeid(T) == typeid(short))
+        im.convertTo(tmp, CV_16SC(channels));
+    else if (typeid(T) == typeid(unsigned short))
+        im.convertTo(tmp, CV_16UC(channels));
+    else if (typeid(T) == typeid(float))
+        im.convertTo(tmp, CV_32FC(channels));
+    else if (typeid(T) == typeid(double))
+        im.convertTo(tmp, CV_64FC(channels));
+    else {
+        printf("unknown data type, can't convert cv::Mat to Image<T>\n");
+        im.convertTo(tmp, CV_64FC(channels));
+    }
+
+    int step = tmp.step1();
+    T *ptr = (T *)tmp.data;
+    int offset, moffset;
     for (int h = 0; h < height; ++h)
     {
         for (int w = 0; w < width; ++w)
         {
             offset = (h * width + w) * channels;
+            moffset = h * step + w * channels;
             for (int k = 0; k < channels; ++k)
-                pData[offset + k] = im.at<T>(h, w, k);
+                pData[offset + k] = ptr[moffset + k];
         }
     }
 }

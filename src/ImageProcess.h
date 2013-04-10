@@ -232,10 +232,27 @@ void split(std::vector< Image<T> > &arr, const Image<T> &m)
     }
 }
 
-// cut rect in src, where left upper pos is (lux, luy), right bottom pos is (rbx, rby)
+// 显示mask覆盖的图像区域。mask的取值应该只有0，1，且显示mask=1的区域
+template <class I, class M>
+void cut(Image<I> &res, const Image<I> &im, const Image<M> &mask)
+{
+    assert(im.match2D(mask) && mask.nChannels() == 1);
+
+    int offset, channels = im.nChannels();
+    res.create(im.nWidth(), im.nHeight(), channels);
+    for (int i = 0; i < im.nSize(); ++i)
+    {
+        if (mask.isZero(i)) continue;
+
+        offset = i * channels;
+        for (int k = 0; k < channels; ++k)
+            res[offset + k] = im[offset + k];
+    }
+}
+
+// 显示矩形覆盖的图像区域。lux, luy为矩形左上角坐标，rbx,rby为矩形右下角坐标
 template <class T>
-void cutRect(Image<T> &dst, const Image<T> &src,
-             int lux, int luy, int rbx, int rby)
+void cut(Image<T> &dst, const Image<T> &src, int lux, int luy, int rbx, int rby)
 {
     assert(lux <= rbx && luy <= rby && src.ptr() != NULL);
 

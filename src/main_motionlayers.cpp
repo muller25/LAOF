@@ -3,7 +3,8 @@
 #include "Image.h"
 #include "Flow2Color.h"
 #include "Maths.h"
-
+#include "ImageProcess.h"
+#include "Utils.h"
 #include <vector>
 
 /*
@@ -108,38 +109,44 @@ int main(int argc, char *argv[])
         imreadf(u[next], buf);
         sprintf(buf, inFile, "v", i+1);
         imreadf(v[next], buf);
-        
-        ml.kcluster(centers, layers, nlabels, u[cur], v[cur]);
 
+        printf("running kmeans...\n");
+        ml.kcluster(centers, layers, nlabels, u[cur], v[cur]);
+        printf("kmeans done\n");
+        
         // show trusted points
-        tmp.create(width, height);
+        ucimg.create(width, height);
         for (int j = 0; j < layers.nSize(); ++j)
-            if (layers[j] >= 0) tmp[j] = 1;
+            if (layers[j] >= 0) ucimg[j] = 1;
 
         sprintf(buf, outImg, "trusted_points", i);
-        imwrite(buf, tmp);
+        imwrite(buf, ucimg);
 
         // show kmeans cluster result
-        flow2color(ucimg, layers, layers);
+        showLayers(ucimg, layers);
         sprintf(buf, outImg, "kcluster", i);
         imwrite(buf, ucimg);
-
-        coverLabels(tmp, im[cur], ucimg);
-        sprintf(buf, outImg, "merge-kc", i);
-        imwrite(buf, tmp);
-
+        
         // refine layers
+        printf("refining layers...\n");
         ml.refine(centers, layers, nlabels, im[cur], im[next],
                   u[cur], v[cur]);
-
-        flow2color(ucimg, layers, layers);
-        sprintf(buf, outImg, "kcluster-refine", i);
+        printf("done\n");
+        
+        // show refined layers
+        showLayers(ucimg, layers);
+        sprintf(buf, outImg, "refine", i);
         imwrite(buf, ucimg);
 
-        coverLabels(tmp, im[cur], ucimg);
-        sprintf(buf, outImg, "merge-refine", i);
-        imwrite(buf, tmp);
-       
+        // show image under each layer
+        for (int l = 0; l < nlabels; ++l)
+        {
+            genLayerMask(ucimg, layers, l);
+            cut(tmp, im[cur], ucimg);
+            sprintf(buf, outImg, "seg", i*10+l);
+            imwrite(buf, tmp);
+        }
+        
         cur = 1 - cur;
         next = 1 - next;
     }

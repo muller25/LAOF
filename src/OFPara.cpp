@@ -53,10 +53,10 @@ void OFPara::split(std::vector<OFPara> &paras, int labels,
         rbx = enforceRange(std::max(l1_rbx, l2_rbx) + border, 0, width-1);
         rby = enforceRange(std::max(l1_rby, l2_rby) + border, 0, height-1);
 
-        cutRect(p.mask1, tmp1, lux, luy, rbx, rby);
-        cutRect(p.mask2, tmp2, lux, luy, rbx, rby);
-        cutRect(p.im1, im1, lux, luy, rbx, rby);
-        cutRect(p.im2, im2, lux, luy, rbx, rby);
+        cut(p.mask1, tmp1, lux, luy, rbx, rby);
+        cut(p.mask2, tmp2, lux, luy, rbx, rby);
+        cut(p.im1, im1, lux, luy, rbx, rby);
+        cut(p.im2, im2, lux, luy, rbx, rby);
         p.lux = lux, p.luy = luy, p.rbx = rbx, p.rby = rby;
         paras.push_back(p);
     }

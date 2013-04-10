@@ -3,6 +3,8 @@
 #include "ImageIO.h"
 #include "Maths.h"
 
+#include <cv.h>
+
 TEST(TestImage, isEmpty)
 {
     DImage dm;
@@ -47,7 +49,6 @@ TEST(TestImage, isSymmetric)
     EXPECT_TRUE(dm.isSymmetric());
 }
 
-
 TEST(TestImage, eigen)
 {
     int n = 3;
@@ -72,5 +73,112 @@ TEST(TestImage, eigen)
         multiply(eigenVector, values[i]);
         
         EXPECT_TRUE(equal(tmp, eigenVector));
+    }
+}
+
+TEST(TestImage, convertTo)
+{
+    cv::Mat mat;
+    int width = 300, height = 300, offset, moffset, step;
+    DImage dm(width, height);
+
+    randFill(dm, -100., 100.);
+    dm.convertTo(mat);
+
+    step = mat.step1();
+    double *dptr = (double *)mat.data;
+    for (int h = 0; h < height; ++h)
+    {
+        for (int w = 0; w < width; ++w)
+        {
+            offset = h * width + w;
+            moffset = h * step + w;
+            EXPECT_DOUBLE_EQ(dm[offset], dptr[moffset]);
+        }
+    }
+
+    Image<float> fm(width, height);
+
+    randFill(fm, (float)-100., (float)100.);
+    fm.convertTo(mat);
+
+    step = mat.step1();
+    float *fptr = (float *)mat.data;
+    for (int h = 0; h < height; ++h)
+    {
+        for (int w = 0; w < width; ++w)
+        {
+            offset = h * width + w;
+            moffset = h * step + w;
+            EXPECT_DOUBLE_EQ(fm[offset], fptr[moffset]);
+        }
+    }
+}
+
+TEST(TestImage, convertFrom)
+{
+    int width = 300, height = 300, channels = 3, offset, moffset, step;
+    cv::Mat mat(height, width, CV_8UC(channels));
+    cv::RNG rng;
+    DImage dm;
+    
+    rng.fill(mat, cv::RNG::UNIFORM, -100, 100);
+    step = mat.step1();
+    uchar *ptr = mat.data;
+
+    dm.convertFrom(mat);
+    for (int h = 0; h < height; ++h)
+    {
+        for (int w = 0; w < width; ++w)
+        {
+            offset = (h * width + w) * channels;
+            moffset = h * step + w * channels;
+            for (int k = 0; k < channels; ++k)
+            {
+                double tmp = ptr[moffset+k];
+                EXPECT_DOUBLE_EQ(dm[offset+k], tmp);
+            }
+        }
+    }
+
+    IImage im;
+    im.convertFrom(mat);
+    for (int h = 0; h < height; ++h)
+    {
+        for (int w = 0; w < width; ++w)
+        {
+            offset = (h * width + w) * channels;
+            moffset = h * step + w * channels;
+
+            for (int k = 0; k < channels; ++k){
+                int tmp = ptr[moffset+k];
+                EXPECT_EQ(im[offset+k], tmp);
+            }
+        }
+    }
+
+    cv::Mat dmat(height, width, CV_64FC(channels));
+    rng.fill(dmat, cv::RNG::UNIFORM, -100., 100.);
+    step = dmat.step1();
+    double *dptr = (double *)dmat.data;
+
+    im.convertFrom(dmat);
+    for (int h = 0; h < height; ++h)
+    {
+        for (int w = 0; w < width; ++w)
+        {
+            offset = (h * width + w) * channels;
+            moffset = h * step + w * channels;
+            for (int k = 0; k < channels; ++k)
+            {
+                int tmp;
+                if (dptr[moffset + k] < 0)
+                    tmp = dptr[moffset + k] - 0.5;
+                else
+                    tmp = dptr[moffset + k] + 0.5;
+                
+                EXPECT_EQ(im[offset+k], tmp);
+            }
+        }
     }
 }

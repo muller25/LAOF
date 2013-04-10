@@ -2,7 +2,7 @@
 #include "MotionLayers.h"
 #include "ML.h"
 #include "Maths.h"
-#include "ImageProcess.h"
+#include "Utils.h"
 
 // extract spatial info from image
 void MotionLayers::spatialInfo(DImage &info, const DImage &im)
@@ -212,6 +212,7 @@ void MotionLayers::kcluster(DImage &centers, DImage &layers, int nlabels,
     UCImage ucimg;
     kmeans(centers, ucimg, samples, nlabels, MotionLayers::kmdist);
 
+    // -1 for untrusted point
     layers.create(width, height, 1, -1);
     for (int i = 0; i < trust; ++i)
         layers[t2id[i]] = ucimg[i];
@@ -356,8 +357,7 @@ void MotionLayers::refine(DImage &centers, DImage &layers, int nlabels,
 {
     assert(centers.ptr() != NULL);
 
-    int size = im1.nSize(), cwidth = centers.nWidth();
-    int width = im1.nWidth(), height = im1.nHeight(), channels = im1.nChannels();
+    int size = im1.nSize(), width = im1.nWidth(), height = im1.nHeight();
     
     double *data = NULL;    
     GCoptimization *gc = NULL;
@@ -369,8 +369,8 @@ void MotionLayers::refine(DImage &centers, DImage &layers, int nlabels,
         gc->setDataCost(data);
         
         printf("Before optimization energy is %.6f\n",gc->compute_energy());
-        gc->expansion(3);
-        // gc->swap(3);
+        // gc->expansion(3);
+        gc->swap(3);
         printf("After  optimization energy is %.6f\n",gc->compute_energy());
 
         for (int i = 0; i < size; ++i)
@@ -388,25 +388,59 @@ void MotionLayers::refine(DImage &centers, DImage &layers, int nlabels,
 void MotionLayers::dataFn(double *data, int nlabels, const DImage &layers,
                           const DImage &u, const DImage &v, const DImage &im)
 {
+    printf("calculating data term...\n");
+    
     const double omega1 = 1;
     const double omega2 = 1;
 
-    int size = im.nSize();
-    DImage lab, om, mask;
+    int size = im.nSize(), offset;
+    DImage labProb, omProb, om;
+    UCImage mask;
 
+    // 根据u，v计算方向-强度(om)图，并归一化强度
+    double maxrad = -1;
+    om.create(u.nWidth(), u.nHeight(), 2);
+    for (int i = 0; i < size; ++i)
+    {
+        offset = i * 2;
+
+        // 方向, [-PI, PI]
+        om[offset] = atan2(v[i], u[i]);
+
+        // 强度， [0, 1]
+        om[offset+1] = sqrt(u[i] * u[i] + v[i] * v[i]);
+        maxrad = std::max(om[offset+1], maxrad);
+    }
+    if (fabs(maxrad) > ESP)
+        for (int i = 0; i < size; ++i)
+            om[i*2+1] /= maxrad;
+
+    // 计算data term
+    double lp, omp;
     for (int l = 0; l < nlabels; ++l)
     {
         genLayerMask(mask, layers, l);
-        LabComfirmity(lab, im, mask);
-        OMComfirmity(om, u, v, mask);
+        LabComfirmity(labProb, im, mask);
+        OMComfirmity(omProb, om, mask);
         for (int i = 0; i < size; ++i)
-            data[i*nlabels+l] = -omega1 * log(lab[i]) - omega2 * log(om[i]);
+        {
+            // truncate probability smaller ESP 
+            if (fabs(labProb[i]) < ESP) lp = log(ESP);
+            else lp = log(labProb[i]);
+
+            // truncate probability smaller ESP
+            if (fabs(omProb[i]) < ESP) omp = log(ESP);
+            else omp = log(omProb[i]);
+            
+            data[i*nlabels+l] = -omega1 * lp - omega2 * omp;
+        }
     }
+
+    printf("done\n");
 }
 
 double MotionLayers::smoothFn(int p1, int p2, int l1, int l2, void *pData)
 {
-    const int dataWidth = 6;
     const double weight = 1;
     const double penalty = 5;
     const double sigma = 0.05;
@@ -415,167 +449,8 @@ double MotionLayers::smoothFn(int p1, int p2, int l1, int l2, void *pData)
     
     if (l1 == l2) return 0;
 
-    cost = dist2(ptr+p1*dataWidth, ptr+p2*dataWidth, 0, dataWidth/2);
-    cost += dist2(ptr+p1*dataWidth, ptr+p2*dataWidth, dataWidth/2, dataWidth);
-    
+    cost = dist2(ptr+p1*3, ptr+p2*3, 0, 3);
     cost = weight * exp(-cost/sigma) + penalty;
     
     return cost;
-}
-
-// generate normalized Lab histogram and then back project to prob
-void MotionLayers::LabComfirmity(DImage &prob, const DImage &im, const DImage &mask)
-{
-    // convert to lab color space
-    cv::Mat imat, lab, maskMat, tmp;
-
-    im.covertTo(tmp);
-    tmp.convertTo(imat, CV_32FC3);
-    cv::cvtColor(imat, lab, CV_BGR2Lab);
-
-    // convert mask
-    mask.convertTo(tmp);
-    tmp.convertTo(maskMat, CV_8U);
-
-    const int abins = 12;
-    const int bbins = 12;
-    const int histSize[] = {abins, bbins};
-    const int channels[] = {1, 2};
-        
-    // a varies from [-127, 127]
-    const float aranges[] = {-127, 128};
-
-    // b varies from [-127, 127]
-    const float branges[] = {-127, 128};
-
-    const float *ranges[] = {aranges, branges};
-        
-    cv::Mat hist;
-    cv::calcHist(&imat, 1, channels, maskMat, hist, 2, histSize, ranges, true, false);
-
-    // normalize
-    double maxVal = 0;
-    cv::minMaxLoc(hist, 0, &maxVal, 0, 0);
-    for (int a = 0; a < abins; ++a)
-        for (int b = 0; b < bbins; ++b)
-            hist.at<float>(a, b) /= maxVal;
-
-    // back project
-    cv::Mat backproj;
-    calcBackProject(&imat, 1, channels, hist, backproj, ranges, 1, true);
-    prob.convertFrom(backproj);
-    
-    // show histogram image
-    static int count = 0;
-    char buf[256];
-    int scale = 10;
-    cv::Mat histImgMat = cv::Mat::zeros(abins*scale, bbins*scale, CV_8UC3);
-    for (int a = 0; a < abins; ++a)
-    {
-        for (int b = 0; b < bbins; ++b)
-        {
-            float binVal = hist.at<float>(a, b);
-            int intensity = cvRound(binVal*255);
-            cv::rectangle(histImgMat, cv::Point(a*scale, b*scale),
-                          cv::Point((a+1)*scale-1, (b+1)*scale-1),
-                          cv::Scalar::all(intensity), CV_FILLED);
-        }
-    }
-
-    sprintf(buf, "lab-hist-%d.jpg", count++);
-    cv::imwrite(buf, histImgMat);
-
-    sprintf(buf, "lab-comfirmity-%d.jpg", count++);
-    imwrite(buf, prob);
-}
-
-// generate normalized OM histogram and then back project to prob
-void MotionLayers::OMComfirmity(DImage &prob, const DImage &u, const DImage &v,
-                                const DImage &mask)
-{
-    int width = u.nWidth(), height = u.nHeight();
-    cv::Mat om(height, width, CV_32FC2);
-    
-    // convert motion info to orientation-magnitute image
-    float minVal = DBL_MAX;
-    float maxVal = -1;
-    float *ptr = (float *)om.data;
-    int step = om.step1(), offset;
-    for (int h = 0; h < height; ++h)
-    {
-        for (int w = 0; w < width; ++w)
-        {
-            offset = h * step + w * 2;
-            
-            // radius, [-pi, pi]
-            om[offset] = atan2(v[i], u[i]);
-
-            // magnitute
-            float tmp = sqrt(u[i]*u[i] + v[i]*v[i]);
-            om[offset+1] = tmp;
-            minVal = std::min(minVal, tmp);
-            maxVal = std::max(maxVal, tmp);
-        }
-    }
-    
-    cv::Mat maskMat, tmp;
-
-    // convert mask
-    mask.convertTo(tmp);
-    tmp.convertTo(maskMat, CV_8U);
-
-    const int obins = 8;
-    const int mbins = 8;
-    const int histSize[] = {obins, mbins};
-    const int channels[] = {0, 1};
-        
-    const float oranges[] = {-PI, PI+1};
-    const float mranges[] = {minVal, maxVal+1};
-    const float *ranges[] = {oranges, mranges};
-        
-    cv::Mat hist;
-    cv::calcHist(&om, 1, channels, maskMat, hist, 2, histSize, ranges, true, false);
-
-    // normalize
-    cv::minMaxLoc(hist, 0, &maxVal, 0, 0);
-    for (int o = 0; o < obins; ++o)
-        for (int m = 0; m < mbins; ++m)
-            hist.at<float>(o, m) /= maxVal;
-
-    // back project
-    cv::Mat backproj;
-    calcBackProject(&om, 1, channels, hist, backproj, ranges, 1, true);
-    prob.convertFrom(backproj);
-   
-    // show image
-    static int count = 0;
-    char buf[256];
-    int scale = 10;
-    cv::Mat histImgMat = cv::Mat::zeros(obins*scale, mbins*scale, CV_8UC3);
-    for (int o = 0; o < obins; ++o)
-    {
-        for (int m = 0; m < mbins; ++m)
-        {
-            float binVal = hist.at<float>(o, m);
-            int intensity = cvRound(binVal*255);
-            cv::rectangle(histImgMat, cv::Point(o*scale, m*scale),
-                          cv::Point((o+1)*scale-1, (m+1)*scale-1),
-                          cv::Scalar::all(intensity), CV_FILLED);
-        }
-    }
-
-    sprintf(buf, "om-hist-%d.jpg", count++);
-    cv::imwrite(buf, histImgMat);
-
-    sprintf(buf, "om-comfirmity-%d.jpg", count++);
-    imwrite(buf, prob);
-}
-
-// generate mask for specific layer
-void MotionLayers::genLayerMask(DImage &mask, const DImage &layers, int layerID)
-{
-    mask.create(layers.nWidth(), layers.nHeight());
-    for (int i = 0; i < layers.nElements(); ++i)
-        if (fabs(layers[i] - layerID) < 0.5)
-            mask[i] = 1;
 }

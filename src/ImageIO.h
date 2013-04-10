@@ -12,7 +12,7 @@ enum ImageType{GRAY, COLOR};
 template <class T>
 void imread(Image<T> &im, const char *filename, ImageType it=COLOR)
 {
-    printf("reading image %s\n", filename);
+    printf("reading image %s... ", filename);
     cv::Mat img;
     
     switch (it)
@@ -32,16 +32,18 @@ void imread(Image<T> &im, const char *filename, ImageType it=COLOR)
         UCImage uc;
         uc.convertFrom(img);
         im2double(im, uc);
+        printf("done\n");
         return;
     }
 
     im.convertFrom(img);
+    printf("done\n");
 }
 
 template <class T>
 bool imreadf(Image <T> &im, const char *filename)
 {
-    printf("reading file %s\n", filename);
+    printf("reading file %s... ", filename);
     
     cv::FileStorage fs(filename, cv::FileStorage::READ);
     cv::Mat m;
@@ -49,12 +51,14 @@ bool imreadf(Image <T> &im, const char *filename)
     if (!fs.isOpened())
     {
         fs.release();
+        printf("failed\n");
         return false;
     }
     
     fs["matrix"] >> m;
     im.convertFrom(m);
     fs.release();
+    printf("done\n");
     return true;
 }
 
