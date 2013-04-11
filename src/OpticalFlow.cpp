@@ -32,7 +32,7 @@ void OpticalFlow::psi_d(DImage &res, const DImage &Ix, const DImage &Iy,
             io = fo * channels;
             for (int k = 0; k < channels; ++k)
             {
-                 tmp = It[io+k] + Ix[io+k]*du[fo] + Iy[io+k]*dv[fo];
+                tmp = It[io+k] + Ix[io+k]*du[fo] + Iy[io+k]*dv[fo];
                 tmp *= tmp;
                 res[io+k] = 0.5 / sqrt(tmp + epsilon);
             }
@@ -367,10 +367,9 @@ void OpticalFlow::biC2FFlow(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
 
     pyr1.build(im1, ratio, minWidth);
     pyr2.build(im2, ratio, minWidth);
+    mpyr1.build(mask1, ratio, minWidth);
+    mpyr2.build(mask2, ratio, minWidth);
 
-    // do not smooth while build pyramid
-    mpyr1.build(mask1, ratio, minWidth, false);
-    mpyr2.build(mask2, ratio, minWidth, false);
     // printf("pyramid constructed\n");
     
     DImage fIm1, fIm2, warpI1, warpI2, Ix, Iy, It, mask;
@@ -423,16 +422,16 @@ void OpticalFlow::biC2FFlow(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
             if (l >= nBiIter-2)
                 genInImageMask(mask, mpyr1[k], mpyr2[k], u1, v1);
             
-//            biIRLS(du1, dv1, Ix, Iy, It, mask, u1, v1, u2, v2, as, ap, nIRLSIter, nSORIter);
-            adIRLS(du1, dv1, Ix, Iy, It, mask, u1, v1, u2, v2, as, ap, nIRLSIter, nSORIter);
+            biIRLS(du1, dv1, Ix, Iy, It, mask, u1, v1, u2, v2, as, ap, nIRLSIter, nSORIter);
+//            adIRLS(du1, dv1, Ix, Iy, It, mask, u1, v1, u2, v2, as, ap, nIRLSIter, nSORIter);
 
             // backward flow
             getGrads(Ix, Iy, It, fIm2, warpI1);
             if (l >= nBiIter-2)
                 genInImageMask(mask, mpyr2[k], mpyr1[k], u2, v2);
             
-//            biIRLS(du2, dv2, Ix, Iy, It, mask, u2, v2, u1, v1, as*pow(ratio, k), ap, nIRLSIter, nSORIter);
-            adIRLS(du2, dv2, Ix, Iy, It, mask, u2, v2, u1, v1, as, ap, nIRLSIter, nSORIter);
+            biIRLS(du2, dv2, Ix, Iy, It, mask, u2, v2, u1, v1, as, ap, nIRLSIter, nSORIter);
+//            adIRLS(du2, dv2, Ix, Iy, It, mask, u2, v2, u1, v1, as, ap, nIRLSIter, nSORIter);
 
             add(u1, du1);
             add(v1, dv1);
@@ -777,14 +776,12 @@ void OpticalFlow::adC2FFlow(DImage &u, DImage &v,
                             const DImage &im1, const DImage &im2,
                             const DImage &mask1, const DImage &mask2,
                             double as, double ratio, int minWidth,
-                            int nOutIter, int nIRLSIter, int nSORIter)
+                            int nOutIter, int nIRLSIter, int nSORIter, bool adaptive)
 {
     GaussianPyramid pyr1, pyr2, mpyr1, mpyr2;
 
     pyr1.build(im1, ratio, minWidth);
     pyr2.build(im2, ratio, minWidth);
-
-    // do not smooth while build pyramid
     mpyr1.build(mask1, ratio, minWidth);
     mpyr2.build(mask2, ratio, minWidth);
 
@@ -828,31 +825,34 @@ void OpticalFlow::adC2FFlow(DImage &u, DImage &v,
             if (l >= nOutIter+k-3)
                 genInImageMask(mask, mpyr1[k], mpyr2[k], u, v);
 
-            // co-variance orientation, magnitued
-            const int wsize = 2;
-            const double truncate = 0.1;
-            double maxVal = -1;
-            covariance(covUV, u, v, wsize);
-            for (int i = 0; i < covUV.nElements(); ++i)
-            {
-                covUV[i] = fabs(covUV[i]);
-                if (maxVal < covUV[i]) maxVal = covUV[i];
-            }
-
-            // normalize
-            if (maxVal < ESP)
-                D.set(1);
-            else
-            {
+            if (adaptive){
+                // co-variance orientation, magnitued
+                const int wsize = 2;
+                const double truncate = 0.1;
+                double maxVal = -1;
+                covariance(covUV, u, v, wsize);
                 for (int i = 0; i < covUV.nElements(); ++i)
                 {
-                    D[i] = covUV[i] / maxVal;
-                    if (D[i] <= truncate) D[i] = 0;
-                    D[i] = 1 - D[i];
+                    covUV[i] = fabs(covUV[i]);
+                    if (maxVal < covUV[i]) maxVal = covUV[i];
                 }
+
+                // normalize
+                if (maxVal < ESP)
+                    D.set(1);
+                else
+                {
+                    for (int i = 0; i < covUV.nElements(); ++i)
+                    {
+                        D[i] = covUV[i] / maxVal;
+                        if (D[i] <= truncate) D[i] = 0;
+                        D[i] = 1 - D[i];
+                    }
+                }
+            } else {
+                // no adaptive weight
+                D.set(1);
             }
-            // no adaptive weight
-            // D.set(1);
             
             adIRLS2(du, dv, D, Ix, Iy, It, mask, u, v, as, nIRLSIter, nSORIter+k*3);
             
@@ -863,26 +863,26 @@ void OpticalFlow::adC2FFlow(DImage &u, DImage &v,
             // for test purpose
             /*
               if (k == 0)
-            {
-                char buf[256];
-                const char *outImg = "/home/iaml/Projects/exp/%s%03d.jpg";
+              {
+              char buf[256];
+              const char *outImg = "/home/iaml/Projects/exp/%s%03d.jpg";
 
-                // show confidence map
-                printf("co-variance: %.6f .. %.6f\n", covUV.min(), covUV.max());
-                printf("confidence: %.6f .. %.6f\n", D.min(), D.max());
+              // show confidence map
+              printf("co-variance: %.6f .. %.6f\n", covUV.min(), covUV.max());
+              printf("confidence: %.6f .. %.6f\n", D.min(), D.max());
 
-                sprintf(buf, outImg, "confidence", l);
-                imwrite(buf, D);
+              sprintf(buf, outImg, "confidence", l);
+              imwrite(buf, D);
 
-                UCImage ucimg;
-                flow2color(ucimg, u, v);
-                sprintf(buf, outImg, "flow", l);
-                imwrite(buf, ucimg);
+              UCImage ucimg;
+              flow2color(ucimg, u, v);
+              sprintf(buf, outImg, "flow", l);
+              imwrite(buf, ucimg);
 
-                coverLabels(tmp, im1, D);
-                sprintf(buf, outImg, "merge", l);
-                imwrite(buf, tmp);
-            }
+              coverLabels(tmp, im1, D);
+              sprintf(buf, outImg, "merge", l);
+              imwrite(buf, tmp);
+              }
             */
         }
     }
@@ -890,9 +890,9 @@ void OpticalFlow::adC2FFlow(DImage &u, DImage &v,
 
 // adaptive optical flow
 void OpticalFlow::adIRLS2(DImage &du, DImage &dv, const DImage &D,
-                         const DImage &Ix, const DImage &Iy, const DImage &It, const DImage &mask,
-                         const DImage &u, const DImage &v,
-                         double as, int nIRLSIter, int nSORIter)
+                          const DImage &Ix, const DImage &Iy, const DImage &It,
+                          const DImage &mask, const DImage &u, const DImage &v,
+                          double as, int nIRLSIter, int nSORIter, bool adaptive)
 {
     int width = Ix.nWidth(), height = Ix.nHeight(), channels = Ix.nChannels();
     DImage Ix2, Iy2, Ixt, Iyt, Ixy, lapU, lapV, ix2, iy2, ixt, iyt, ixy, uu, vv;
@@ -1014,7 +1014,7 @@ void OpticalFlow::stC2FFlow(std::vector<DImage> &u, std::vector<DImage> &v,
                             const std::vector<DImage> &im,
                             const std::vector<DImage> &mask, int i0,
                             double as, double at, double ratio, int minWidth,
-                            int nOutIter, int nIRLSIter, int nSORIter)
+                            int nOutIter, int nIRLSIter, int nSORIter, bool adaptive)
 {
     assert(im.size() == mask.size() && im.size() == 3 &&
            im.size() == u.size() && u.size() == v.size());
@@ -1028,14 +1028,14 @@ void OpticalFlow::stC2FFlow(std::vector<DImage> &u, std::vector<DImage> &v,
     {
         printf("previous flow is not available, preparing... ");
         adC2FFlow(u[i0], v[i0], im[i0], im[i1], mask[i0], mask[i1],
-                  as, ratio, minWidth, nOutIter, nIRLSIter, nSORIter);
+                  as, ratio, minWidth, nOutIter, nIRLSIter, nSORIter, adaptive);
         printf("done\n");
     }
 
     // im1 -> im2
     printf("flow im1 -> im2\n");
     adC2FFlow(u[i1], v[i1], im[i1], im[i2], mask[i1], mask[i2],
-              as, ratio, minWidth, nOutIter, nIRLSIter, nSORIter);
+              as, ratio, minWidth, nOutIter, nIRLSIter, nSORIter, adaptive);
 
     // temporal smooth im0 -> im1
     printf("temporal smooth flow im0 -> im1\n");
@@ -1043,7 +1043,7 @@ void OpticalFlow::stC2FFlow(std::vector<DImage> &u, std::vector<DImage> &v,
            u[i0].min(), u[i0].max(), v[i0].min(), v[i0].max());
 
     temporalSmooth(u[i0], v[i0], u[i1], v[i1], im[i0], im[i1], mask[i0], mask[i1],
-                   as, at, nOutIter, nIRLSIter, nSORIter);
+                   as, at, nOutIter, nIRLSIter, nSORIter, adaptive);
 
     printf("after temporal smooth, u: %.6f .. %.6f, v: %.6f .. %.6f\n",
            u[i0].min(), u[i0].max(), v[i0].min(), v[i0].max());
@@ -1053,8 +1053,8 @@ void OpticalFlow::temporalSmooth(DImage &u0, DImage &v0,
                                  const DImage &u1, const DImage &v1,
                                  const DImage &im0, const DImage &im1,
                                  const DImage &mask0, const DImage &mask1,
-                                 double as, double at,
-                                 int nOutIter, int nIRLSIter, int nSORIter)
+                                 double as, double at, int nOutIter,
+                                 int nIRLSIter, int nSORIter, bool adaptive)
 {
     assert(im0.match3D(im1) && mask0.match3D(mask1) && im0.match2D(mask0) &&
            u1.match3D(u0) && v1.match3D(v0) && u0.match3D(v0) && u0.match2D(im0));

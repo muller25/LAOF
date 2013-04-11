@@ -11,12 +11,12 @@ DEL				= rm -rf
 GC				= ../gc
 OPENCVLIBS		= `pkg-config --libs opencv`
 OBJS			= OpticalFlow.o GaussianPyramid.o Flow2Color.o MotionLayers.o LAOF.o OFPara.o
-TARGET			= em of adof stof layers
+TARGET			= biof adof stof layers em
 
 all: $(TARGET)
 	@echo "DONE"
 
-of: main_of.o OpticalFlow.o GaussianPyramid.o Flow2Color.o
+biof: main_biof.o OpticalFlow.o GaussianPyramid.o Flow2Color.o
 	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS)
 
 adof: main_adof.o OpticalFlow.o GaussianPyramid.o Flow2Color.o

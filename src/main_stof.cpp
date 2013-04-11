@@ -21,13 +21,13 @@ int main(int argc, char *argv[])
     frameEnd = atoi(argv[4]);
 
     // init optical flow parameters
-    const double as = 0.026;
-    const double at = 0.005;
+    const double as = 0.075;
+    const double at = 0.015;
     const double ratio = 0.75;
     const int minWidth = 20;
-    const int nOutIter = 5;//14;
+    const int nOutIter = 14;
     const int nIRLSIter = 1;
-    const int nSORIter = 10;//30;
+    const int nSORIter = 30;
   
     char buf[256], outFile[128], outImg[128];
     std::vector<DImage> im(3), u(3), v(3), mask(3);

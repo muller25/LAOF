@@ -382,6 +382,8 @@ void MotionLayers::refine(DImage &centers, DImage &layers, int nlabels,
             for (int i = 0; i < size; ++i)
                 layers[i] = gc->whatLabel(i);
         }
+        reArrangeLabels(layers, nlabels);
+
 	}
 	catch (GCException e){
 		e.Report();
@@ -399,7 +401,7 @@ void MotionLayers::dataFn(double *data, int nlabels, const DImage &layers,
 
     const double omegap = 1;
     const double omegac = 0.5;
-    const double omegaf = 0.2;
+    const double omegaf = 0.08;
     double mind = DBL_MAX;
     double maxd = 0;
     
@@ -463,14 +465,13 @@ void MotionLayers::OM(DImage &om, const DImage &u, const DImage &v)
             om[i*2+1] /= maxrad;
 }
 
-
 double MotionLayers::mins = DBL_MAX;
 double MotionLayers::maxs = 0;
 
 double MotionLayers::smoothFn(int p1, int p2, int l1, int l2, void *pData)
 {
-    const double weight = 3;
-    const double tao = 11;
+    const double weight = 5;
+    const double tao = 20;
     double *ptr = (double *)pData;
     double cost;
     

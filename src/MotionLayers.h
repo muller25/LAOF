@@ -31,7 +31,7 @@ public:
     void scluster(DImage &centers, DImage &layers, int numOfClusters,
                   const DImage &u, const DImage &v);
 
-    void refine(DImage &centers, DImage &layers, int numOfClusters,
+    void refine(DImage &centers, DImage &layers, int nlabels,
                 const DImage &im1, const DImage &im2,
                 const DImage &u, const DImage &v);
 
@@ -179,37 +179,37 @@ void MotionLayers::LabComfirmity(DImage &prob, const Image<I> &im, const Image<M
     cv::Mat backproj;
     calcBackProject(&imMat, 1, channels, hist, backproj, ranges, 1, true);
     prob.convertFrom(backproj);
-    
-    // show histogram image
-    static int hcount = 0;
-    static int ccount = 0;
-    char buf[256];
-    int scale = 10;
-    cv::Mat histImgMat = cv::Mat::zeros(abins*scale, bbins*scale, CV_8UC3);
-    for (int a = 0; a < abins; ++a)
-    {
-        for (int b = 0; b < bbins; ++b)
-        {
-            float c1 = 0, c2 = 0, c3 = 0;
-            for (int c = 0; c < lbins; c += 3)
-            {
-                c1 += hist.at<float>(c, a, b);
-                c2 += hist.at<float>(c+1, a, b);
-                c3 += hist.at<float>(c+2, a, b);
-            }
-            
-            cv::Scalar color(cvRound(c1*255), cvRound(c2*255), cvRound(c3*255));
-            cv::rectangle(histImgMat, cv::Point(a*scale, b*scale),
-                          cv::Point((a+1)*scale-1, (b+1)*scale-1),
-                          color, CV_FILLED);
-        }
-    }
 
-    sprintf(buf, "lab-hist-%d.jpg", hcount++);
-    cv::imwrite(buf, histImgMat);
+    // show histogram image
+    // static int hcount = 0;
+    // static int ccount = 0;
+    // char buf[256];
+    // int scale = 10;
+    // cv::Mat histImgMat = cv::Mat::zeros(abins*scale, bbins*scale, CV_8UC3);
+    // for (int a = 0; a < abins; ++a)
+    // {
+    //     for (int b = 0; b < bbins; ++b)
+    //     {
+    //         float c1 = 0, c2 = 0, c3 = 0;
+    //         for (int c = 0; c < lbins; c += 3)
+    //         {
+    //             c1 += hist.at<float>(c, a, b);
+    //             c2 += hist.at<float>(c+1, a, b);
+    //             c3 += hist.at<float>(c+2, a, b);
+    //         }
+            
+    //         cv::Scalar color(cvRound(c1*255), cvRound(c2*255), cvRound(c3*255));
+    //         cv::rectangle(histImgMat, cv::Point(a*scale, b*scale),
+    //                       cv::Point((a+1)*scale-1, (b+1)*scale-1),
+    //                       color, CV_FILLED);
+    //     }
+    // }
+
+    // sprintf(buf, "lab-hist-%d.jpg", hcount++);
+    // cv::imwrite(buf, histImgMat);
     
-    sprintf(buf, "lab-comfirmity-%d.jpg", ccount++);
-    imwrite(buf, prob);
+    // sprintf(buf, "lab-comfirmity-%d.jpg", ccount++);
+    // imwrite(buf, prob);
 }
 
 // om为运动u，v的方向-强度图
@@ -255,28 +255,28 @@ void MotionLayers::OMComfirmity(DImage &prob, const DImage &om, const Image<M> &
     prob.convertFrom(backproj);
    
     // show image
-    static int hcount = 0;
-    static int ccount = 0;
-    char buf[256];
-    int scale = 10;
-    cv::Mat histImgMat = cv::Mat::zeros(obins*scale, mbins*scale, CV_8U);
-    for (int o = 0; o < obins; ++o)
-    {
-        for (int m = 0; m < mbins; ++m)
-        {
-            float binVal = hist.at<float>(o, m);
-            int intensity = cvRound(binVal*255);
-            cv::rectangle(histImgMat, cv::Point(o*scale, m*scale),
-                          cv::Point((o+1)*scale-1, (m+1)*scale-1),
-                          intensity, CV_FILLED);
-        }
-    }
+    // static int hcount = 0;
+    // static int ccount = 0;
+    // char buf[256];
+    // int scale = 10;
+    // cv::Mat histImgMat = cv::Mat::zeros(obins*scale, mbins*scale, CV_8U);
+    // for (int o = 0; o < obins; ++o)
+    // {
+    //     for (int m = 0; m < mbins; ++m)
+    //     {
+    //         float binVal = hist.at<float>(o, m);
+    //         int intensity = cvRound(binVal*255);
+    //         cv::rectangle(histImgMat, cv::Point(o*scale, m*scale),
+    //                       cv::Point((o+1)*scale-1, (m+1)*scale-1),
+    //                       intensity, CV_FILLED);
+    //     }
+    // }
 
-    sprintf(buf, "om-hist-%d.jpg", hcount++);
-    cv::imwrite(buf, histImgMat);
+    // sprintf(buf, "om-hist-%d.jpg", hcount++);
+    // cv::imwrite(buf, histImgMat);
 
-    sprintf(buf, "om-comfirmity-%d.jpg", ccount++);
-    imwrite(buf, prob);
+    // sprintf(buf, "om-comfirmity-%d.jpg", ccount++);
+    // imwrite(buf, prob);
 }
 
 // 计算每一个分层的中心坐标 x, y

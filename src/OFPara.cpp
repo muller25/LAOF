@@ -136,4 +136,3 @@ void OFPara::restore(DImage &u1, DImage &v1, DImage &u2, DImage &v2,
         }
     }
 }
-

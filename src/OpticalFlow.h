@@ -55,13 +55,13 @@ public:
                    const DImage &im1, const DImage &im2,
                    const DImage &mask1, const DImage &mask2,
                    double as, double ratio, int minWidth,
-                   int nOutIter, int nIRLSIter, int nSORIter);
+                   int nOutIter, int nIRLSIter, int nSORIter, bool adaptive=true);
 
     // adpative optical flow based on motion covariance
     void adIRLS2(DImage &du, DImage &dv, const DImage &D,
                  const DImage &Ix, const DImage &Iy, const DImage &It, const DImage &mask,
                  const DImage &u, const DImage &v,
-                 double as, int nIRLSIter, int nSORIter);
+                 double as, int nIRLSIter, int nSORIter, bool adaptive=true);
 
     // coarse to fine strategy for adaptive spatial temporal smooth optical flow
     // based on motion covariance
@@ -69,7 +69,7 @@ public:
                    const std::vector<DImage> &im,
                    const std::vector<DImage> &mask, int i0,
                    double as, double at, double ratio, int minWidth,
-                   int nOutIter, int nIRLSIter, int nSORIter);
+                   int nOutIter, int nIRLSIter, int nSORIter, bool adaptive=true);
 
     // temporal smooth operator for optical flow
     // based on motion covariance
@@ -77,8 +77,8 @@ public:
                         const DImage &u1, const DImage &v1,
                         const DImage &im0, const DImage &im1,
                         const DImage &mask0, const DImage &mask1,
-                        double as, double at,
-                        int nOutIter, int nIRLSIter, int nSORIter);
+                        double as, double at, int nOutIter,
+                        int nIRLSIter, int nSORIter, bool adaptive=true);
 };
 
 #endif

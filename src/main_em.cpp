@@ -6,13 +6,13 @@
 
 char *inPattern, *outDir;
 int frameStart, frameEnd;
-int numOfSegs;
+int nsegs;
 
 int main(int argc, char *argv[])
 {
     if (argc != 6)
     {
-        printf("./em input_pattern output_dir start end #_of_seg\n");
+        printf("./em input_pattern output_dir start end #seg\n");
         return 1;
     }
     
@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
     outDir = argv[2];
     frameStart = atoi(argv[3]);
     frameEnd = atoi(argv[4]);
-    numOfSegs = atoi(argv[5]);
+    nsegs = atoi(argv[5]);
     
     char outFile[128], outImg[128];
     std::vector<DImage> im(2), mask(2), u(2), v(2), ur(2), vr(2);

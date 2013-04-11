@@ -4,15 +4,33 @@
 #include "Flow2Color.h"
 #include <vector>
 
+char *inImg, *outDir;
+int frameStart, frameEnd;
+
 int main(int argc, char *argv[])
 {
-    const char *inImg = "/home/iaml/Projects/exp/lena/in/lena.avi.%03d.bmp";
-    const char *outFile = "/home/iaml/Projects/exp/lena/out/%s%03d.yml";
-    const char *outImg = "/home/iaml/Projects/exp/lena/out/%s%03d.jpg";
+    if (argc != 5)
+    {
+        printf("./biof input_pattern output_dir start end\n");
+        return 1;
+    }
+    
+    inImg = argv[1];
+    outDir = argv[2];
+    frameStart = atoi(argv[3]);
+    frameEnd = atoi(argv[4]);
+
+    char outFile[128], outImg[128];
+    memset(outFile, 0, sizeof(outFile));
+    memset(outImg, 0, sizeof(outImg));
+    strcat(outFile, outDir);
+    strcat(outFile, "%s%03d.yml");
+    strcat(outImg, outDir);
+    strcat(outImg, "%s%03d.jpg");
 
     // init optical flow parameters
-    const double as = 0.026;
-    const double ap = 0.012;
+    const double as = 0.025;
+    const double ap = 0.015;
     const double ratio = 0.75;
     const int minWidth = 20;
     const int nBiIter = 5;//14;
@@ -26,14 +44,14 @@ int main(int argc, char *argv[])
     int cur, next, width, height;
     OpticalFlow of;
     
-    sprintf(buf, inImg, 0);
+    sprintf(buf, inImg, frameStart);
     imread(im[0], buf);
     width = im[0].nWidth(), height = im[0].nHeight();
     mask1.create(width, height, 1, 1);
     mask2.create(width, height, 1, 1);
     cur = 0;
     next = 1;
-    for (int i = 1; i < 10; ++i)
+    for (int i = frameStart+1; i <= frameEnd; ++i)
     {
         sprintf(buf, inImg, i);
         imread(im[next], buf);
