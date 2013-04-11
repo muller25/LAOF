@@ -41,6 +41,11 @@ public:
     template <class M>
     void OMComfirmity(DImage &prob, const DImage &om, const Image<M> &mask);
 
+    void OM(DImage &om, const DImage &u, const DImage &v);
+
+    template <class M>
+    void maskCenter(double &x, double &y, const Image<M> &mask);
+
     // make sure layer order
     template <class T>
     void reArrangeLabels(Image<T> &layers, int labels);
@@ -50,8 +55,8 @@ public:
     void createCenterByLabels(Image<T> &centers, int numOfLabels,
                               const Image<T1> &labels, const Image<T> &samples);
 
-    inline void dataFn(double *data, int nlabels, const DImage &centers, const DImage &layers,
-                       const DImage &u, const DImage &v, const DImage &im1, const DImage &im2);
+    inline void dataFn(double *data, int nlabels, const DImage &layers,
+                       const DImage &om, const DImage &im1, const DImage &im2);
     static double smoothFn(int p1, int p2, int l1, int l2, void *pData);
     inline static double kmdist(double *p1, double *p2, int start, int end);
 
@@ -274,4 +279,26 @@ void MotionLayers::OMComfirmity(DImage &prob, const DImage &om, const Image<M> &
     imwrite(buf, prob);
 }
 
+// 计算每一个分层的中心坐标 x, y
+template <class M>
+void MotionLayers::maskCenter(double &x, double &y, const Image<M> &mask)
+{
+    int width = mask.nWidth(), total = 0;
+    x = 0, y = 0;
+    
+    for (int i = 0; i < mask.nSize(); ++i)
+    {
+        if (mask.isZero(i)) continue;
+
+        x += i % width;
+        y += i / width;
+        total++;
+    }
+
+    if (total != 0)
+    {
+        x /= total;
+        y /= total;
+    }
+}
 #endif
