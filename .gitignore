@@ -29,6 +29,7 @@ src/stof
 src/em
 src/run
 src/layers
+PainterlyRendering/pr
 gc/*
 
 *cscope.out

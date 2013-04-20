@@ -49,16 +49,16 @@ int main(int argc, char *argv[])
     imread(im[1], buf);
     
     // to save time
-    DImage tmp;
-    imresize(tmp, im[0], 0.5);
-    tmp.copyTo(im[0]);
-    sprintf(buf, outImg, "im", frameStart);
-    imwrite(buf, tmp);
+    // DImage tmp;
+    // imresize(tmp, im[0], 0.5);
+    // tmp.copyTo(im[0]);
+    // sprintf(buf, outImg, "im", frameStart);
+    // imwrite(buf, tmp);
 
-    imresize(tmp, im[1], 0.5);
-    tmp.copyTo(im[1]);
-    sprintf(buf, outImg, "im", frameStart+1);
-    imwrite(buf, tmp);
+    // imresize(tmp, im[1], 0.5);
+    // tmp.copyTo(im[1]);
+    // sprintf(buf, outImg, "im", frameStart+1);
+    // imwrite(buf, tmp);
     
     width = im[0].nWidth(), height = im[0].nHeight();
     mask[0].create(width, height, 1, 1);
@@ -72,10 +72,10 @@ int main(int argc, char *argv[])
         imread(im[next], buf);
 
         // to save time
-        imresize(tmp, im[next], 0.5);
-        tmp.copyTo(im[next]);
-        sprintf(buf, outImg, "im", i);
-        imwrite(buf, tmp);
+        // imresize(tmp, im[next], 0.5);
+        // tmp.copyTo(im[next]);
+        // sprintf(buf, outImg, "im", i);
+        // imwrite(buf, tmp);
 
         of.stC2FFlow(u, v, im, mask, prev, as, at,
                      ratio, minWidth,

@@ -399,9 +399,9 @@ void MotionLayers::dataFn(double *data, int nlabels, const DImage &layers,
 {
     printf("calculating data term...\n");
 
-    const double omegap = 1;
-    const double omegac = 0.5;
-    const double omegaf = 0.08;
+    const double omegap = 0;
+    const double omegac = 0;
+    const double omegaf = 100;
     double mind = DBL_MAX;
     double maxd = 0;
     
@@ -470,8 +470,8 @@ double MotionLayers::maxs = 0;
 
 double MotionLayers::smoothFn(int p1, int p2, int l1, int l2, void *pData)
 {
-    const double weight = 5;
-    const double tao = 20;
+    const double weight = 3;
+    const double tao = 10;
     double *ptr = (double *)pData;
     double cost;
     
