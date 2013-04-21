@@ -12,7 +12,7 @@ public:
     static IplImage* Processing(IplImage * src,IplImage* edgeImage);
     static void getStrokeOrientation(IplImage* src_image,double * orientation);
     static IplImage* operateLight(IplImage* res,float para);
-    static IplImage* opereateEdge(IplImage* res,int para);
+    static IplImage* operateEdge(IplImage* res,int para);
 
 	//static int max_len;
 	static int max_stroke_length;

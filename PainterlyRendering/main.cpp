@@ -50,10 +50,16 @@ int main(int argc, char *argv[])
     }
     
     IplImage* dstImage = RenderingImage::Processing(srcImage, edgeImage);
-
     cvShowImage("rendered", dstImage);
+/*
+    IplImage *edgeFix = RenderingImage::operateEdge(dstImage, 100);
+    cvShowImage("edge fix", edgeFix);
+
+    IplImage *lightFix = RenderingImage::operateLight(dstImage, 25.0/100);
+    cvShowImage("light fix", lightFix);
+*/    
     cvWaitKey();
-    
+
     cvReleaseImage(&srcImage);
     cvReleaseImage(&edgeImage);
     cvReleaseImage(&dstImage);

@@ -350,7 +350,7 @@ void MainWindow::onMenuEdge(){
 			op_id = 3;
 			reLight = res;
 		}
-		IplImage* p = RenderingImage::opereateEdge(res,value);
+		IplImage* p = RenderingImage::operateEdge(res,value);
 		//IplImage* p = Rendering::opereateEdge(res);
 		res = ImageOperate::IplImageToQImage(p);
 		imageView->setImage(res->copy());

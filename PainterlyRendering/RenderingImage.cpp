@@ -7,8 +7,8 @@
 #include "NormalMap.h"
 #include "Lighting.h"
 #include "MakeBrushMap.h"
-#include "Lighting_Effect.h"
-#include "Edge_Optimization.h"
+#include "LightingEffect.h"
+#include "EdgeOptimization.h"
 
 using namespace std;
 
@@ -67,8 +67,12 @@ IplImage* RenderingImage::Processing(IplImage* srcImage, IplImage* edgeImage){
     memset(PainterlyService::sum_pass,0,src_size*4);
 
     getStrokeOrientation(PainterlyService::src_image,PainterlyService::grad_orient);
-    IplImage *brush = cvLoadImage(brushMapPath);
 
+    // 加载笔刷纹理
+    // IplImage *brush = cvLoadImage(brushMapPath);
+    IplImage *brush = cvCreateImage(cvSize(100, 100), 8, 3);
+    cvSet(brush, cvScalar(255, 255, 255));
+    
     PainterlyService::useTexture=true;
     PainterlyService::color_map = cvCreateImage(cvSize(100,100),8,3);
     /*if(PainterlyService::useTexture)//载入纹理
@@ -121,8 +125,8 @@ IplImage* RenderingImage::Processing(IplImage* srcImage, IplImage* edgeImage){
         cvEqualizeHist(graymap,ehgraymap);
         IplImage* nmap=NormalMap::computeNormalMap(ehgraymap);
         IplImage* res=Lighting::phong(PainterlyService::dst_image,nmap);
-        cvReleaseImage(&(PainterlyService::dst_image));
-        PainterlyService::dst_image = res;
+//        cvReleaseImage(&(PainterlyService::dst_image));
+//        PainterlyService::dst_image = res;
     }
 
     end=clock();
@@ -145,15 +149,15 @@ IplImage* RenderingImage::operateLight(IplImage *dst_map, float para){
 	IplImage* ehmap=cvCreateImage(cvSize(PainterlyService::src_image->width,PainterlyService::src_image->height),8,1);
 	cvEqualizeHist(PainterlyService::height_maps,ehmap);
 
-	light_map = Lighting_Effect::Add_Light(PainterlyService::src_image,ehmap,dst_map,para);
+	light_map = LightingEffect::AddLight(PainterlyService::src_image,ehmap,dst_map,para);
 	return light_map;
 }
 
-IplImage* RenderingImage::opereateEdge(IplImage *dst_map, int para){
+IplImage* RenderingImage::operateEdge(IplImage *dst_map, int para){
     assert(dst_map != NULL);
     
 	IplImage* edge_map = cvCreateImage(cvSize(PainterlyService::src_image->width,PainterlyService::src_image->height),8,3);
-	edge_map = Edge_Optimization::Optimization_edge(PainterlyService::src_image,dst_map,para);
+	edge_map = EdgeOptimization::OptimizationEdge(PainterlyService::src_image,dst_map,para);
 	return edge_map;
 }
 

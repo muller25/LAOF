@@ -1,10 +1,12 @@
 #include "PainterlyService.h"
 #include "CubicBSpline.h"
-#include"SplineStroke.h"
+#include "SplineStroke.h"
+
 #include <cv.h>
-#include<iostream>
-#include"time.h"
-#include<vector>
+#include <iostream>
+#include <time.h>
+#include <vector>
+using namespace std;
 
 #define PI 3.1415926
 #define MAX(a,b)     (a>b?a:b)
@@ -12,7 +14,6 @@
 #define MIN(a,b)     (a<b?a:b)
 #define MIN(a,b,c)   MIN(MIN(a,b),c)
 #define PA 0.4
-using namespace std;
 
 int PainterlyService::NUM_STROKES_PER_FRAME = 500;     // number of strokes per frame
 int PainterlyService::ANIMATE_STROKE = 1;             // animation flag
@@ -27,7 +28,6 @@ int PainterlyService::is_locked_for_animation = 0;    // queue locked status
 int PainterlyService::first_run = 1;                  // first time entering draw_scene
 time_t PainterlyService::current_time = 0;            // random number generator seed
 int PainterlyService::output_written = 0;             // output file written       
-
 
 IplImage* PainterlyService::src_image;            // source image
 IplImage*  PainterlyService::dst_image;            // destination image
@@ -305,20 +305,16 @@ void PainterlyService::difference_image(int * dif_image, const IplImage * ref_im
 /******************************************************************************/
 void PainterlyService::paint_layer(IplImage * dst_image, IplImage * ref_image, int R)
 {
-    cout << "image paint_layer()" << endl;
-    
     //atexit(Exit);
     int grid_step = currentStyle.grid_size * R; 
     int i, j;
     clock_t   start,   finish;   
     double     duration;
 
-    load_step = (float) src_image->width  / ((src_image->height / grid_step) * (src_image->width / grid_step));
-    loading_bar = 0;
-
+    ///////////////////////
+    // 构建笔刷
+    //////////////////////
     start = clock();
-    cout << "before difference_image()" << endl;
-    
     difference_image(dif_image, ref_image, dst_image,R);
     //difference_image(dif_image, ref_image, src_image, R);//parellel
     finish = clock();
@@ -336,6 +332,7 @@ void PainterlyService::paint_layer(IplImage * dst_image, IplImage * ref_image, i
             int ii, jj;
             int index_i = i, index_j = j;
 
+            // 计算 area_error
             //#pragma omp parallel for private(jj) reduction(+:area_error)
             for (ii = -(grid_step / 2); ii <= grid_step / 2; ii++)
             {
@@ -379,13 +376,16 @@ void PainterlyService::paint_layer(IplImage * dst_image, IplImage * ref_image, i
                 {
                     QueueService::queue_add(strokes_queue, stroke);
                 }
-                loading_bar += load_step;
             }
         }
     }
     finish = clock();
     duration = (double)(finish - start) / CLOCKS_PER_SEC;
     cout<<"time of running stroke construction steps: "<< duration <<endl;
+    /////////////////////
+    // 构建笔刷结束
+    ////////////////////
+    
     start = clock();
 
 // CubicBSpline版本
@@ -407,11 +407,9 @@ void PainterlyService::paint_layer(IplImage * dst_image, IplImage * ref_image, i
         }//比上面高效
 		// fout<<stroke->sumGradient/stroke->num_points<<" ";
 
-        /*
-          制定brush中每bristle确定颜色
-        */
-        std::vector<Brush_color> brushcolor;
-        Brush_color bcolor;
+        // 制定brush中每bristle确定颜色
+        std::vector<BrushColor> brushcolor;
+        BrushColor bcolor;
         int point_x,point_y;
         int bi,bj,bii,bjj;
         int cbii,cbjj;
@@ -439,15 +437,15 @@ void PainterlyService::paint_layer(IplImage * dst_image, IplImage * ref_image, i
                 brushcolor.push_back(bcolor);
             }
         }
-        if(color_count==0){
+/*        if(color_count==0){
             cvSaveImage("color.jpg",color_map);
             color_count++;
         }
-		 
+*/		 
         // CvScalar color = CV_RGB((double)stroke->r,(double)stroke->g,(double)stroke->b);
-        CvPoint pt_now;
        
-        //绘制CubicBSpline曲线
+        // 绘制CubicBSpline曲线
+        CvPoint pt_now;
         if(stroke->num_points> 0)
         {
             double t;   // time
@@ -509,9 +507,10 @@ void PainterlyService::paint_layer(IplImage * dst_image, IplImage * ref_image, i
                 //cvCircle(dst_image, pt_now, R, color, -1);
                 //} 
                 //cvCircle(dst_image, pt_now, R, color, -1);
-                int brushR = R;
-                int p_xx,p_yy;
+
                 // 计算笔刷的纹理和高度图
+                int brushR = R;
+                int p_xx, p_yy;
                 for(int hh = -brushR;hh<= brushR;hh++)
                     for(int ww= -brushR;ww<= brushR;ww++){
                         p_xx = pt_now.x+ww;
@@ -533,7 +532,7 @@ void PainterlyService::paint_layer(IplImage * dst_image, IplImage * ref_image, i
                             dst_image->imageData[Index+1] = (uchar)brushcolor[index_tex].g*(I/255.0)+(uchar)dst_image->imageData[Index+1]*(1- I/255.0);
                             dst_image->imageData[Index+0] = (uchar)brushcolor[index_tex].b*(I/255.0)+(uchar)dst_image->imageData[Index+0]*(1- I/255.0);
 
-                            //计算高度图
+                            // 计算高度图
                             int height_map_index = (int)p_yy*height_maps->width+(int)p_xx;
                             count_pass[height_map_index]++;
                             sum_pass[height_map_index] = sum_pass[height_map_index]+I;

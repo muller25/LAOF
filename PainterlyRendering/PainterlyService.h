@@ -12,7 +12,6 @@
 #include <math.h>
 #include <time.h>
 
-
 /******************************************************************************/
 /*** OpenGL & GLUT Headers                                                  ***/
 /******************************************************************************/
@@ -21,7 +20,6 @@
 /*** Multi-Threading Headers                                                ***/
 /******************************************************************************/
 //#include <pthread.h>
-
 
 /******************************************************************************/
 /*** Painterly Rendering Headers                                            ***/
@@ -36,15 +34,12 @@
 
 #include <cv.h>
 #include <highgui.h>
-
-#include<fstream>
 #include <map>
-
 using std::map;
 
-typedef struct Brush_color{
+typedef struct BrushColor{
 	unsigned int r,g,b;
-}Brush_color;
+}BrushColor;
 
 class PainterlyService
 {

@@ -10,7 +10,7 @@ DEL				= rm -rf
 
 OPENCVLIBS		= `pkg-config --libs opencv`
 OBJS			= RenderingImage.o GaussianBlur.o NormalMap.o Lighting.o \
-MakeBrushMap.o Lighting_Effect.o Edge_Optimization.o ImportantMap.o \
+MakeBrushMap.o LightingEffect.o EdgeOptimization.o ImportantMap.o \
 PainterlyService.o PainterlyStyle.o ColorModels.o SplineStroke.o CubicBSpline.o \
 Queue.o main.o
 TARGET			= pr

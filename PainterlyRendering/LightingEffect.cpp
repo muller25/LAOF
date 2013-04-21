@@ -1,4 +1,4 @@
-#include "Lighting_Effect.h"
+#include "LightingEffect.h"
 
 #include <iostream>
 #include <math.h>
@@ -8,11 +8,11 @@ using namespace std;
 //#define PAA 0.255
 #define mins(x,y) (((x)>(y))?(y):(x))
 
-Lighting_Effect::Lighting_Effect(void){}
+LightingEffect::LightingEffect(void){}
 
-Lighting_Effect::~Lighting_Effect(void){}
+LightingEffect::~LightingEffect(void){}
 
-IplImage* Lighting_Effect::Add_Light(IplImage * src,IplImage * height_map,IplImage * dst,float para){
+IplImage* LightingEffect::AddLight(IplImage * src,IplImage * height_map,IplImage * dst,float para){
 	int w1 = src->width;
 	int h1 = src->height;
 	IplImage * dst_i = cvCreateImage(cvGetSize(src),src->depth,3);
