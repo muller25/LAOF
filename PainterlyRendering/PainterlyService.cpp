@@ -64,7 +64,6 @@ map<string, PainterlyStyle> PainterlyService::styles;
 PainterlyStyle PainterlyService::currentStyle;
 
 int color_count = 0;
-// ofstream fout("f://output.txt");
 
 int PainterlyService::descend(const void * a, const void * b)
 {
@@ -104,29 +103,28 @@ SplineStroke* PainterlyService::make_spline_stroke(int x0, int y0, int R, const 
     double js = 0.0;        // jittered saturation
     double jv = 0.0;        // jittered value
 
-    int k;            // for loop counters
-
     SplineStroke * spline_stroke;
 /*
-    int Gx[3][3] = {
-        {-1, 0, 1},
-        {-2, 0, 2},
-        {-1, 0, 1}};
+  int Gx[3][3] = {
+  {-1, 0, 1},
+  {-2, 0, 2},
+  {-1, 0, 1}};
 
-    int Gy[3][3] = {
-        {-1, -2, -1},
-        { 0,  0,  0},
-        { 1,  2,  1}};
+  int Gy[3][3] = {
+  {-1, -2, -1},
+  { 0,  0,  0},
+  { 1,  2,  1}};
 */
-    // convert rgb to hue  
+    // convert rgb to hsv
     ColorModels:: rgb_to_hsv((double) r / 256.0, (double) g / 256.0, (double) b / 256.0, &jh, &js, &jv);
 
     // jitter hsv
+    srand(time(NULL));
     jh += currentStyle.jitter_hue * (rand() % 1000 - 500) / 1000.0 * 360.0 ;
     js += currentStyle.jitter_sat * (rand() % 1000 - 500) / 1000.0;
     jv += currentStyle.jitter_val * (rand() % 1000 - 500) / 1000.0;
 
-    // convert hue back to rgb
+    // convert hsv back to rgb
     ColorModels::hsv_to_rgb(&jr, &jg, &jb, jh, js, jv);
 
     // update jittered color
@@ -151,8 +149,7 @@ SplineStroke* PainterlyService::make_spline_stroke(int x0, int y0, int R, const 
     SplineStrokeService::spline_stroke_add(spline_stroke, x0, y0);
 
     // add control points to spline stroke
-	 
-    for (k = 1; k <= currentStyle.max_stroke_length; k++)
+    for (int k = 1; k <= currentStyle.max_stroke_length; k++)
     {
 //        float gx = 0;
 //        float gy = 0;
@@ -160,6 +157,7 @@ SplineStroke* PainterlyService::make_spline_stroke(int x0, int y0, int R, const 
 //        float sum = 0;
         if (x < 0 || x >= ref_image->width || y < 0 || y >= ref_image->height)
             return spline_stroke;
+        
         int dif_index = (y * ref_image->widthStep + x*3) ;//widthStep
         int d1 = (uchar)ref_image->imageData[dif_index] + (uchar)ref_image->imageData[dif_index + 1] + (uchar)ref_image->imageData[dif_index + 2] - (uchar)dst_image->imageData[dif_index] - (uchar)dst_image->imageData[dif_index + 1] -(uchar) dst_image->imageData[dif_index + 2];
         int d2 = (uchar)ref_image->imageData[dif_index] + (uchar)ref_image->imageData[dif_index + 1] + (uchar)ref_image->imageData[dif_index + 2] - r - g - b;
@@ -226,14 +224,14 @@ SplineStroke* PainterlyService::make_spline_stroke(int x0, int y0, int R, const 
 		 
            x = x + R * dx;
            y = y + R * dy;*/
+
         if (x < 0 || x >= ref_image->width || y < 0 || y >= ref_image->height)
 			return spline_stroke;
-		else{
-            x = x+R*cos(grad_orient[y*src_image->width+x]+PI/2);
-            y = y+R*sin(grad_orient[y*src_image->width+x]+PI/2);
-		}
 
-		/*last_dx = dx;
+        x = x+R*cos(grad_orient[y*src_image->width+x]+PI/2);
+        y = y+R*sin(grad_orient[y*src_image->width+x]+PI/2);
+
+        /*last_dx = dx;
           last_dy =  dy;
 
           //判断是不是边缘
@@ -303,29 +301,27 @@ void PainterlyService::difference_image(int * dif_image, const IplImage * ref_im
 /***        Brush Size R                                                    ***/
 /*** Modifies: dst_image                                                    ***/
 /******************************************************************************/
-void PainterlyService::paint_layer(IplImage * dst_image, IplImage * ref_image, int R)
+void PainterlyService::generate_strokes(IplImage *dst_image, IplImage *ref_image, int R,
+                                        vector<SplineStroke> &strokes_queue)
 {
-    //atexit(Exit);
     int grid_step = currentStyle.grid_size * R; 
     int i, j;
-    clock_t   start,   finish;   
-    double     duration;
-
-    ///////////////////////
-    // 构建笔刷
-    //////////////////////
+    clock_t start, finish;
+    double duration;
+    int width = src_image->width, height = src_image->height;
+    
     start = clock();
-    difference_image(dif_image, ref_image, dst_image,R);
+    difference_image(dif_image, ref_image, dst_image, R);
     //difference_image(dif_image, ref_image, src_image, R);//parellel
     finish = clock();
     duration = (double)(finish - start) / CLOCKS_PER_SEC;
-    cout<<"time of running difference_image(): "<< duration <<endl;
+    cout << "time of running difference_image(): " << duration <<endl;
 
     start = clock();
 // #pragma omp parallel for private(i)	//这里并行修改
-    for (j = src_image->height - 1; j >= 0; j -= grid_step)
+    for (j = height - 1; j >= 0; j -= grid_step)
     {
-        for (i = 0; i < src_image->width; i += grid_step)
+        for (i = 0; i < width; i += grid_step)
         {
             int area_error = 0.0;
             int current_error = -1;
@@ -342,27 +338,23 @@ void PainterlyService::paint_layer(IplImage * dst_image, IplImage * ref_image, i
                     int jjj = j + jj;
                     //边界控制
                     //排除图像像素点小于0区域					
-                    if (iii < 0)
-                        iii = 0;
+                    if (iii < 0) iii = 0;
                     //排除图像像素点大于sizeX区域
-                    if (iii >= src_image->width)
-                        iii = src_image->width - 1;
+                    if (iii >= src_image->width) iii = src_image->width - 1;
                     //排除图像像素点小于0区域
-                    if (jjj < 0)
-                        jjj = 0;
+                    if (jjj < 0) jjj = 0;
                     //排除图像像素点大于sizeX区域
-                    if (jjj >= src_image->height)
-                        jjj = src_image->height - 1;
+                    if (jjj >= src_image->height) jjj = src_image->height - 1;
                     //计算(x,y)区域最大差值点及差值
                     //#pragma omp critical(current_error)
-                    if (current_error <= dif_image[jjj * src_image->width + iii])
+                    if (current_error <= dif_image[jjj * width + iii])
                     {
-                        current_error = dif_image[jjj * src_image->width + iii];
+                        current_error = dif_image[jjj * width + iii];
                         index_i = iii;
                         index_j = jjj;
                     }
 
-                    area_error += dif_image[jjj * src_image->width + iii];
+                    area_error += dif_image[jjj * width + iii];
                 }
             }
 
@@ -370,185 +362,148 @@ void PainterlyService::paint_layer(IplImage * dst_image, IplImage * ref_image, i
             area_error /= (grid_step * grid_step);
             if (area_error > currentStyle.threshold)
             {
-                SplineStroke * stroke = make_spline_stroke(index_i, index_j, R, ref_image);
+                SplineStroke *stroke = make_spline_stroke(index_i, index_j, R, ref_image);
 
 // #pragma omp critical(strokes_queue)//这里并行修改
                 {
-                    QueueService::queue_add(strokes_queue, stroke);
+                    strokes_queue.push_back(*stroke);
+                    // QueueService::queue_add(strokes_queue, stroke);
                 }
             }
         }
     }
     finish = clock();
     duration = (double)(finish - start) / CLOCKS_PER_SEC;
-    cout<<"time of running stroke construction steps: "<< duration <<endl;
-    /////////////////////
-    // 构建笔刷结束
-    ////////////////////
-    
-    start = clock();
+    cout << "time of running stroke construction steps: " << duration <<endl;
+}
 
-// CubicBSpline版本
-//spline_strokes->a queue of control points->rgb, x,y 
-    //得到笔刷的control points
-    cout<<"strokes size:"<<strokes_queue->size<<endl;
-    i=strokes_queue->size;
+void PainterlyService::paint_layer(IplImage *dst_image, IplImage *ref_image, int R,
+                                   vector<SplineStroke> &strokes_queue)
+{
+    clock_t start, end;
     SplineStroke *stroke;
-    //#pragma omp parallel for
-    //for(i =strokes_queue->size ;i >0 ; ++i)
-    //while(strokes_queue->size>0)
+    int width = src_image->width, height = src_image->height;
 
-// #pragma omp parallel for
-    for(j=0;j<i;++j)
+    // CubicBSpline版本, 得到笔刷的control points
+    cout << "strokes size:" << strokes_queue.size() << endl;
+    start = clock();
+    for(int j = 0; j < strokes_queue.size(); ++j)
     {	 	
-// #pragma omp critical(strokes_queue)//这里并行修改
-		{
-            stroke= (SplineStroke *)QueueService::queue_remove(strokes_queue);
-        }//比上面高效
-		// fout<<stroke->sumGradient/stroke->num_points<<" ";
-
+        stroke = &strokes_queue[j];
+        if(stroke->num_points <= 0) continue;
+        
         // 制定brush中每bristle确定颜色
-        std::vector<BrushColor> brushcolor;
-        BrushColor bcolor;
-        int point_x,point_y;
-        int bi,bj,bii,bjj;
-        int cbii,cbjj;
-        point_x = stroke->start_point_x;
-        point_y = stroke->start_point_y;
-        //#pragma omp parallel for private(bj,bcolor,bii,bjj,point_x,point_y)	//这里并行修改
-        //#pragma omp parallel for
-        for(bi=-R;bi<=R;bi++){
-            for(bj=-R;bj<=R;bj++){
-                bii = point_y+bi;
-                bjj = point_x+bj;
-                cbii = 50+bi;
-                cbjj = 50+bj;
-                if(bii<0) bii =0;
-                if(bii>=ref_image->height) bii = ref_image->height-1;
-                if(bjj<0) bjj =0;
-                if(bjj>=ref_image->width) bjj = ref_image->width -1;
-                CvScalar color1 = cvGet2D(ref_image,bii,bjj);
-                if(color_count == 0){
-                    cvSet2D(color_map,cbii,cbjj,color1);
-                }
-                bcolor.r = (uchar)color1.val[2]*PA + (uchar)stroke->r*(1-PA);
-                bcolor.g = (uchar)color1.val[1]*PA + (uchar)stroke->g*(1-PA);
-                bcolor.b = (uchar)color1.val[0]*PA + (uchar)stroke->b*(1-PA);
-                brushcolor.push_back(bcolor);
-            }
-        }
-/*        if(color_count==0){
-            cvSaveImage("color.jpg",color_map);
-            color_count++;
-        }
-*/		 
-        // CvScalar color = CV_RGB((double)stroke->r,(double)stroke->g,(double)stroke->b);
-       
+        int bi, bj, bii, bjj, cbii, cbjj;
+        int point_x = stroke->start_point_x;
+        int point_y = stroke->start_point_y;
+
         // 绘制CubicBSpline曲线
         CvPoint pt_now;
-        if(stroke->num_points> 0)
-        {
-            double t;   // time
-            double x, y;   // x-y coord
-            // uchar r,g,b;
-            CubicBSpline CB;
-            // int dstIndex=0,texIndex=0,mapIndex=0;
-            animate_time = 1.0;
+        double t;   // time
+        double x, y;   // x-y coord
+        uchar r,g,b;
+        CubicBSpline CB;
+        animate_time = 1.0;
 
-            for (t = 0; t <= animate_time; t += animate_time / (1.8*stroke->num_points * stroke->s))//t的细分程度=系数*控制点个数*笔刷半径
-            { 
-                CB.cubic_b_spline(stroke, t, &x, &y);
-                pt_now.x=x;
-                pt_now.y=y;
+        // t的细分程度=系数*控制点个数*笔刷半径
+        for (t = 0; t <= animate_time; t += animate_time / (1.8*stroke->num_points * stroke->s))
+        { 
+            CB.cubic_b_spline(stroke, t, &x, &y);
+            pt_now.x=x;
+            pt_now.y=y;
 
-                /*if(useTexture)
-                  {
-                  double x_next,y_next,t_next;
-                  t_next=t + animate_time / (1.8*stroke->num_points * stroke->s);
+            /*if(useTexture)
+              {
+              double x_next,y_next,t_next;
+              t_next=t + animate_time / (1.8*stroke->num_points * stroke->s);
 
-                  if(t_next>1) 
-                  t_next=t - animate_time / (1.8*stroke->num_points * stroke->s);
+              if(t_next>1) 
+              t_next=t - animate_time / (1.8*stroke->num_points * stroke->s);
 
 						
-                  CB.cubic_b_spline(stroke, t_next, &x_next, &y_next);
-                  double theta=atan2(y_next-y,x_next-x);
+              CB.cubic_b_spline(stroke, t_next, &x_next, &y_next);
+              double theta=atan2(y_next-y,x_next-x);
 
 
-                  if(theta<0) theta+=2*PI;
-                  if(theta>2*PI) theta-=2*PI;
-                  double xo=x+R*cos(theta-PI/2);
-                  double yo=y+R*sin(theta-PI/2);
+              if(theta<0) theta+=2*PI;
+              if(theta>2*PI) theta-=2*PI;
+              double xo=x+R*cos(theta-PI/2);
+              double yo=y+R*sin(theta-PI/2);
 
-                  for(n=0.0;n<=1.0;n+=1.0/(1.3*2*R))
-                  {
-                  x0=xo+n*2*R*cos(theta+PI/2);
-                  y0=yo+n*2*R*sin(theta+PI/2);
-                  if(x0<0||y0<0||x0>=dst_image->width||y0>=dst_image->height)
-                  {
-                  continue;
-                  }
+              for(n=0.0;n<=1.0;n+=1.0/(1.3*2*R))
+              {
+              x0=xo+n*2*R*cos(theta+PI/2);
+              y0=yo+n*2*R*sin(theta+PI/2);
+              if(x0<0||y0<0||x0>=dst_image->width||y0>=dst_image->height)
+              {
+              continue;
+              }
 
-                  dstIndex=(int)y0*map_image->widthStep+(int)x0*3;
-                  texIndex=(int)(tex_image->height*n)*tex_image->widthStep+(int)(tex_image->width*t)*3;
-                  //mapIndex=(int)(tex_image->height*n)*tex_image->widthStep+(int)(tex_image->width*t);
+              dstIndex=(int)y0*map_image->widthStep+(int)x0*3;
+              texIndex=(int)(tex_image->height*n)*tex_image->widthStep+(int)(tex_image->width*t)*3;
+              //mapIndex=(int)(tex_image->height*n)*tex_image->widthStep+(int)(tex_image->width*t);
 
-                  uchar c=tex_image->imageData[texIndex+1];
+              uchar c=tex_image->imageData[texIndex+1];
 								
-                  //纯灰度高度笔刷
-                  map_image->imageData[dstIndex+0]=(uchar)map_image->imageData[dstIndex+0]*((255.0-(uchar)msk_image->imageData[texIndex])/255.0)+c*(((uchar)msk_image->imageData[texIndex])/255.0);
-                  map_image->imageData[dstIndex+1]=(uchar)map_image->imageData[dstIndex+1]*((255.0-(uchar)msk_image->imageData[texIndex])/255.0)+c*(((uchar)msk_image->imageData[texIndex])/255.0);
-                  map_image->imageData[dstIndex+2]=(uchar)map_image->imageData[dstIndex+2]*((255.0-(uchar)msk_image->imageData[texIndex])/255.0)+c*(((uchar)msk_image->imageData[texIndex])/255.0);
+              //纯灰度高度笔刷
+              map_image->imageData[dstIndex+0]=(uchar)map_image->imageData[dstIndex+0]*((255.0-(uchar)msk_image->imageData[texIndex])/255.0)+c*(((uchar)msk_image->imageData[texIndex])/255.0);
+              map_image->imageData[dstIndex+1]=(uchar)map_image->imageData[dstIndex+1]*((255.0-(uchar)msk_image->imageData[texIndex])/255.0)+c*(((uchar)msk_image->imageData[texIndex])/255.0);
+              map_image->imageData[dstIndex+2]=(uchar)map_image->imageData[dstIndex+2]*((255.0-(uchar)msk_image->imageData[texIndex])/255.0)+c*(((uchar)msk_image->imageData[texIndex])/255.0);
 
-                  }
+              }
 
-                  }*/
-                //else
-                //{
-                //cvCircle(dst_image, pt_now, R, color, -1);
-                //} 
-                //cvCircle(dst_image, pt_now, R, color, -1);
+              }*/
+            //else
+            //{
+            //cvCircle(dst_image, pt_now, R, color, -1);
+            //} 
+            //cvCircle(dst_image, pt_now, R, color, -1);
 
-                // 计算笔刷的纹理和高度图
-                int brushR = R;
-                int p_xx, p_yy;
-                for(int hh = -brushR;hh<= brushR;hh++)
-                    for(int ww= -brushR;ww<= brushR;ww++){
-                        p_xx = pt_now.x+ww;
-                        p_yy = pt_now.y+hh;
-                        int ii = hh+brushR;
-                        int jj = ww+brushR;
-                        //int I = (uchar)*(PainterlyService::brush_tex->imageData+PainterlyService::brush_tex->widthStep*ii+jj*3);
-                        CvScalar cc = cvGet2D(PainterlyService::brush_tex,ii,jj);
-                        int I = cc.val[0];
-                        int index_tex = ii*brushR+jj;
-                        if(p_xx>=0&&p_yy>=0&&p_xx<dst_image->width&&p_yy<dst_image->height){
-                            int Index=(int)p_yy*dst_image->widthStep+(int)p_xx*3;
-                            // int index_tex = jj*brush_tex->width+ii;
-                            //dst_image->imageData[Index+2] = (uchar)color.val[2]*(I/255.0)+(uchar)dst_image->imageData[Index+2]*(1- I/255.0);
-                            //dst_image->imageData[Index+1] = (uchar)color.val[1]*(I/255.0)+(uchar)dst_image->imageData[Index+1]*(1- I/255.0);
-                            //dst_image->imageData[Index+0] = (uchar)color.val[0]*(I/255.0)+(uchar)dst_image->imageData[Index+0]*(1- I/255.0);
-                            // 附加纹理
-                            dst_image->imageData[Index+2] = (uchar)brushcolor[index_tex].r*(I/255.0)+(uchar)dst_image->imageData[Index+2]*(1- I/255.0);
-                            dst_image->imageData[Index+1] = (uchar)brushcolor[index_tex].g*(I/255.0)+(uchar)dst_image->imageData[Index+1]*(1- I/255.0);
-                            dst_image->imageData[Index+0] = (uchar)brushcolor[index_tex].b*(I/255.0)+(uchar)dst_image->imageData[Index+0]*(1- I/255.0);
+            // 计算笔刷的纹理和高度图
+            int brushR = R, p_xx, p_yy;
+            for(int hh = -brushR; hh <= brushR; hh++)
+                for(int ww= -brushR; ww <= brushR; ww++){
+                    bii = point_y + hh;
+                    bjj = point_x + ww;
+                    cbii = 50 + hh;
+                    cbjj = 50 + ww;
+                    if(bii < 0) bii = 0;
+                    if(bii >= height) bii = height - 1;
+                    if(bjj < 0) bjj =0;
+                    if(bjj >= width) bjj = width -1;
 
-                            // 计算高度图
-                            int height_map_index = (int)p_yy*height_maps->width+(int)p_xx;
-                            count_pass[height_map_index]++;
-                            sum_pass[height_map_index] = sum_pass[height_map_index]+I;
-                            // int aver = (int)((sum_pass[height_map_index])/(count_pass[height_map_index]));
-                            // int msk_index = ii*new_msk_maps->widthStep+jj*3;
-                            height_maps->imageData[height_maps->widthStep*p_yy+p_xx] = (int)((sum_pass[height_map_index])/(count_pass[height_map_index]));
-                            //height_maps->imageData[height_maps->widthStep*p_yy+p_xx]=(uchar)height_maps->imageData[height_maps->widthStep*p_yy+p_xx]*((255.0-(uchar)new_msk_maps->imageData[msk_index])/255.0)+(uchar)(aver*(((uchar)new_msk_maps->imageData[msk_index])/255.0));
-                            //if(j ==2||j==10||j==40||j==60||j==100||j==120||j==200||j==400||j==800||j==1000){
-                            if(j<0)	{
-                                brush_test->imageData[Index+2] = (uchar)brushcolor[index_tex].r*(I/255.0)+(uchar)brush_test->imageData[Index+2]*(1- I/255.0);
-                                brush_test->imageData[Index+1] = (uchar)brushcolor[index_tex].g*(I/255.0)+(uchar)brush_test->imageData[Index+1]*(1- I/255.0);
-                                brush_test->imageData[Index+0] = (uchar)brushcolor[index_tex].b*(I/255.0)+(uchar)brush_test->imageData[Index+0]*(1- I/255.0);
-                            }
-                        }
+                    CvScalar color = cvGet2D(ref_image,bii,bjj);
+                    if(color_count == 0) cvSet2D(color_map,cbii,cbjj,color);
+
+                    r = (uchar)color.val[2]*PA + (uchar)stroke->r*(1-PA);
+                    g = (uchar)color.val[1]*PA + (uchar)stroke->g*(1-PA);
+                    b = (uchar)color.val[0]*PA + (uchar)stroke->b*(1-PA);
+
+                    p_xx = pt_now.x+ww;
+                    p_yy = pt_now.y+hh;
+                    if(!(p_xx >= 0 && p_yy >=0 && p_xx < width && p_yy < height)) continue;
+
+                    int ii = hh + brushR, jj = ww + brushR;
+                    CvScalar cc = cvGet2D(PainterlyService::brush_tex,ii,jj);
+                    int I = cc.val[0];
+                    int Index=(int)p_yy*dst_image->widthStep+(int)p_xx*3;
+
+                    // 附加纹理
+                    dst_image->imageData[Index+2] = (uchar)r*(I/255.0)+(uchar)dst_image->imageData[Index+2]*(1- I/255.0);
+                    dst_image->imageData[Index+1] = (uchar)g*(I/255.0)+(uchar)dst_image->imageData[Index+1]*(1- I/255.0);
+                    dst_image->imageData[Index+0] = (uchar)b*(I/255.0)+(uchar)dst_image->imageData[Index+0]*(1- I/255.0);
+
+                    // 计算高度图
+                    int height_map_index = (int)p_yy*height_maps->width+(int)p_xx;
+                    count_pass[height_map_index]++;
+                    sum_pass[height_map_index] = sum_pass[height_map_index]+I;
+                    height_maps->imageData[height_maps->widthStep*p_yy+p_xx] = (int)((sum_pass[height_map_index])/(count_pass[height_map_index]));
+                    if(j<0)	{
+                        brush_test->imageData[Index+2] = (uchar)brushcolor[index_tex].r*(I/255.0)+(uchar)brush_test->imageData[Index+2]*(1- I/255.0);
+                        brush_test->imageData[Index+1] = (uchar)brushcolor[index_tex].g*(I/255.0)+(uchar)brush_test->imageData[Index+1]*(1- I/255.0);
+                        brush_test->imageData[Index+0] = (uchar)brushcolor[index_tex].b*(I/255.0)+(uchar)brush_test->imageData[Index+0]*(1- I/255.0);
                     }
-            }
+                }
 
 //整线位置
 #ifdef SHOWMODE
@@ -558,21 +513,9 @@ void PainterlyService::paint_layer(IplImage * dst_image, IplImage * ref_image, i
 		}
     }
 
-    // fout.close();
-
-    //for(i = 0; i< dst_image->width; ++i)
-    //	for(j = 0;j< dst_image->height; ++j)
-    // 	{
-    //		int color_index2 = (j * dst_image->width + i) * 3;
-    //             dst_image->imageData[color_index2 + 2] = ((img->imageData + j*img->widthStep))[i*img->nChannels + 2]; // B
-    //             dst_image->imageData[color_index2 + 1] = ((img->imageData + j*img->widthStep))[i*img->nChannels + 1]; // G
-    //	   dst_image->imageData[color_index2] = ((img->imageData + j*img->widthStep))[i*img->nChannels + 0]; // R
-    //	}
     finish = clock();
     duration = (double)(finish - start) / CLOCKS_PER_SEC;
     cout<<"time of running CubicBSpline drawing steps: "<< duration <<endl;
-
-    //  cvReleaseImage(&img);
 }
 
 void PainterlyService::loadStyles(string name, PainterlyStyle style)

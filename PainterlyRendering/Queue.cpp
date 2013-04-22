@@ -53,7 +53,6 @@ void QueueService::queue_add(Queue * q, void * o)
 {
 	node * n = (node *) malloc(sizeof(node));
 
-
 	n->cell = o;
 	n->next = NULL;
 
@@ -63,8 +62,7 @@ void QueueService::queue_add(Queue * q, void * o)
 		q->head = n;
 		q->tail = n;
 	}
-
-	else
+    else
 	{
 		q->size++;
 		q->tail->next = n;

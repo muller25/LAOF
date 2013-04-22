@@ -50,11 +50,10 @@ void SplineStrokeService::spline_stroke_add(SplineStroke * spline_stroke, int x,
 	point->x = x;
 	point->y = y;
 
-//	#pragma omp critical(queue_add)//这里并行修改
+//	#pragma omp critical(queue_add)//杩欓噷骞惰淇敼
 	{
 		QueueService::queue_add(spline_stroke->points, point);
 	}
-	//free(point);//释放内存
 	spline_stroke->num_points++;
 }
 

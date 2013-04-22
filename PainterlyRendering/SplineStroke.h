@@ -36,7 +36,7 @@ public:
 	/***        b: blue                                                         ***/
 	/*** Returns: a new empty spline stroke                                     ***/
 	/******************************************************************************/
-	static SplineStroke * spline_stroke_create(int s, int r, int g, int b,int x0,int y0);//¼Óµ½Æğµã£¬ÎªÁË¼ÆËã brushÖĞÃ¿bristleÑÕÉ«£»
+	static SplineStroke * spline_stroke_create(int s, int r, int g, int b,int x0,int y0);//åŠ åˆ°èµ·ç‚¹ï¼Œä¸ºäº†è®¡ç®— brushä¸­æ¯bristleé¢œè‰²ï¼›
 
 
 	/******************************************************************************/
