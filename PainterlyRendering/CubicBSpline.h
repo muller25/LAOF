@@ -10,7 +10,7 @@ public:
 	CubicBSpline(void){}
 	~CubicBSpline(void){}
 
-	static void cubic_b_spline(SplineStroke * stroke, double t, double * x, double * y);
+	static void cubic_b_spline(const SplineStroke * stroke, double t, double * x, double * y);
 
 	static void cubic_b_spline_new(SplineStroke * stroke, double t, double * x, double * y);
 };

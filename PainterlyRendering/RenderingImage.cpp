@@ -1,6 +1,9 @@
 #include "RenderingImage.h"
+
 #include <iostream>
 #include <ctime> 
+#include <vector>
+using namespace std;
 
 #include "GaussianBlur.h"
 #include "PainterlyService.h"
@@ -9,8 +12,6 @@
 #include "MakeBrushMap.h"
 #include "LightingEffect.h"
 #include "EdgeOptimization.h"
-
-using namespace std;
 
 int RenderingImage::max_stroke_length = 0;
 int RenderingImage::min_stroke_length = 0;
@@ -55,8 +56,6 @@ IplImage* RenderingImage::Processing(IplImage* srcImage, IplImage* edgeImage){
 	PainterlyService::currentStyle.jitter_sat = 0.0;
 	PainterlyService::currentStyle.jitter_val = 0.0;
 
-    PainterlyService::strokes_queue = QueueService::queue_create();
-
     int src_size = srcWidth * srcHeight;
     PainterlyService::dif_image = new int[src_size];
     PainterlyService::count_pass = new int[src_size];
@@ -89,7 +88,8 @@ IplImage* RenderingImage::Processing(IplImage* srcImage, IplImage* edgeImage){
     PainterlyService::height_maps = cvCreateImage(srcSize,8,1);
     CvScalar msk_color = CV_RGB(255.0,255.0,255.0);
     CvPoint msk_p;
-
+    vector<SplineStroke> strokes_queue[6];
+    
     begin=clock();
     for(int i = 0; i != nlayer; ++i)
     {
@@ -107,7 +107,9 @@ IplImage* RenderingImage::Processing(IplImage* srcImage, IplImage* edgeImage){
             // cvSmooth(PainterlyService::src_image, PainterlyService::ref_image, ksize, ksize, R[i]);
             GaussianBlur::gaussian_blur(PainterlyService::ref_image, PainterlyService::src_image, R[i]);
             // cvSaveImage("F://实验图//guass.jpg",PainterlyService::ref_image);
-            PainterlyService::paint_layer(PainterlyService::dst_image, PainterlyService::ref_image, R[i]);
+
+            PainterlyService::generate_strokes(PainterlyService::dst_image, PainterlyService::ref_image, R[i], strokes_queue[i]);
+            PainterlyService::paint_layer(PainterlyService::dst_image, PainterlyService::ref_image, R[i], strokes_queue[i]);
             finish = clock();
             duration = (double)(finish - start) / CLOCKS_PER_SEC;
             cout<<"time of running paint_layer(): "<< duration <<endl;

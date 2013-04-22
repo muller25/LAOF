@@ -3,7 +3,7 @@
 #include"PainterlyService.h"
 #define POINT(x) ((Point *) QueueService::queue_get(stroke->points, x))
 
-void CubicBSpline::cubic_b_spline(SplineStroke * stroke, double t, double * x, double * y)
+void CubicBSpline::cubic_b_spline(const SplineStroke * stroke, double t, double * x, double * y)
 {
 	double x0, y0;
 	double x1, y1;

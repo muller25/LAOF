@@ -26,7 +26,6 @@
 /******************************************************************************/
 
 #include "GaussianBlur.h"
-#include "Queue.h"
 #include "SplineStroke.h"
 #include "CubicBSpline.h"
 #include "ColorModels.h"
@@ -35,11 +34,9 @@
 #include <cv.h>
 #include <highgui.h>
 #include <map>
+#include <vector>
 using std::map;
-
-typedef struct BrushColor{
-	unsigned int r,g,b;
-}BrushColor;
+using std::vector;
 
 class PainterlyService
 {
@@ -81,10 +78,7 @@ public:
 	static float ANIMATE_SPEED;          // animation speed
 	static int layer_done ;                 // current layer done
 	static int paint_done;                 // painting done
-	static float loading_bar ;            // green loading bar flag
-	static float loading_bar_draw ;       // red loading bar flag
 	static float animate_time ;           // current animation frame
-	static float load_step ;              // loading bar progression step
 	static int is_locked_for_animation ;    // queue locked status
 	static int first_run;                  // first time entering draw_scene
 	static time_t current_time;            // random number generator seed
@@ -93,7 +87,7 @@ public:
 	/******************************************************************************/
 	/*** Strokes Queue                                                          ***/
 	/******************************************************************************/
-	static Queue * strokes_queue;
+	// static Queue * strokes_queue;
 
 
 	/******************************************************************************/
@@ -108,20 +102,20 @@ public:
 	/******************************************************************************/
 	static int descend(const void * a, const void * b);
 
-	static SplineStroke * make_spline_stroke(int x0, int y0, int R, 
-		 const IplImage * ref_image);
+	static SplineStroke *make_spline_stroke(int x0, int y0, int R, const IplImage *ref_image);
 
-	static void difference_image(int * dif_image, const IplImage * ref_image, 
-		const IplImage * dst_image, int R);
+	static void difference_image(int *dif_image, const IplImage *ref_image, 
+		const IplImage *dst_image, int R);
 
-	static void paint_layer(IplImage * dst_image, 
-		IplImage * ref_image, int R);
+	static void generate_strokes(IplImage *dst_image, IplImage *ref_image, int R,
+                                 vector<SplineStroke> &strokes_queue);
+	static void paint_layer(IplImage *dst_image, IplImage *ref_image, int R,
+                            const vector<SplineStroke> &strokes_queue);
 
 	static void loadStyles(string, PainterlyStyle);
 	static CvPoint bernstein(float u, CvPoint *p);
     static CvPoint pointAdd(CvPoint p, CvPoint q);
     static CvPoint pointTimes(float c, CvPoint p);
-
 
 	static map<string, PainterlyStyle> styles;
 	static PainterlyStyle currentStyle;
