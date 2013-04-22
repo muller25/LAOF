@@ -1,69 +1,120 @@
 #include "SplineStroke.h"
-/******************************************************************************/
-/*** C Headers                                                              ***/
-/******************************************************************************/
-#include <stdlib.h>
 
-/******************************************************************************/
-/*** Create Empty Cubic Spline Stroke                                       ***/
-/******************************************************************************/
-SplineStroke * SplineStrokeService::spline_stroke_create(int s, int r, int g, int b,int x0,int y0)
+void SplineStroke::set(int radius, int r, int g, int b, int x0, int y0)
 {
-	SplineStroke * spline = (SplineStroke *) malloc(sizeof(SplineStroke));
-	Queue * points = QueueService::queue_create();
-	spline->r = r;
-	spline->g = g;
-	spline->b = b;
-	spline->s = s;
-	spline->start_point_x = x0;
-	spline->start_point_y = y0;
-	spline->num_points = 0;
-	spline->points = points;
-	spline->sumGradient = 0.0;
-	return spline;
+    m_r = r;
+    m_g = g;
+    m_b = b;
+    m_radius = radius;
+
+    //加到起点，为了计算 brush中每bristle颜色；
+    m_start_point = Point(x0, y0);
 }
 
-
-/******************************************************************************/
-/*** Destroy Cubic Spline Stroke                                            ***/
-/******************************************************************************/
-void SplineStrokeService::spline_stroke_destroy(SplineStroke * s)
+int SplineStroke::nPoints() const
 {
-	while (s->num_points > 0)
-	{
-		Point * p = (Point*)QueueService::queue_remove(s->points);
-		free(p);
-		s->num_points--;
-	}
-
-	free(s->points);
-	free(s);
+    return m_points.size();
 }
 
-
-/******************************************************************************/
-/*** Add Control Point to Cubic Spline Stroke                               ***/
-/******************************************************************************/
-void SplineStrokeService::spline_stroke_add(SplineStroke * spline_stroke, int x, int y)
+const Point& SplineStroke::getStartPoint() const
 {
-	Point * point = (Point *) malloc(sizeof(Point));
-	point->x = x;
-	point->y = y;
-
-//	#pragma omp critical(queue_add)//这里并行修改
-	{
-		QueueService::queue_add(spline_stroke->points, point);
-	}
-	spline_stroke->num_points++;
+    return m_start_point;
 }
 
-/******************************************************************************/
-/*** Get Control Point from Cubic Spline Stroke                             ***/
-/******************************************************************************/
-Point * SplineStrokeService::spline_stroke_get(SplineStroke * s, int index)
+Point& SplineStroke::getStartPoint()
 {
-	if (index < 0 || index >= s->num_points) 
-		return NULL;
+    return m_start_point;
+}
 
-	return (Point *) QueueService::queue_get(s->points, index);
+int SplineStroke::nRadius() const
+{
+    return m_radius;
+}
+
+int SplineStroke::getColorR() const
+{
+    return m_r;
+}
+
+int SplineStroke::getColorG() const
+{
+    return m_g;
+}
+
+int SplineStroke::getColorB() const
+{
+    return m_b;
+}
+
+void SplineStroke::add(int x, int y)
+{
+    m_points.push_back(Point(x, y));
+}
+
+Point& SplineStroke::get(int index)
+{
+    assert(index >= 0 && index < m_points.size());
+    return m_points[index];
+}
+
+const Point& SplineStroke::get(int index) const
+{
+    assert(index >= 0 && index < m_points.size());
+    return m_points[index];
+}
+
+void SplineStroke::cubic_b_spline(Point2d &p, double t) const
+{
+	double x0, y0, x1, y1, x2, y2, x3, y3;
+    double tt, tt2, tt3, omtt, omtt3;
+	int index, npoints = m_points.size()
+    
+	if (npoints == 0) return;
+	if (t > 1) t = 1;
+
+	index = (int)(t * (npoints - 3.0));
+	tt = (double) (t - (double)index / ((double)npoints - 3.0)) * (npoints - 3.0);
+
+	if (index < 0) index = 0;
+	if (index > npoints - 4) index = npoints - 4;
+
+    Point p0 = m_points[0];
+    if (npoints == 1){
+		p.x = (double)p0.x + (0.5-t) * m_radius;
+		p.y = (double)p0.y;
+        return;
+    }
+
+    Point p1 = m_points[1];
+    if (npoints == 2){
+        p.x = (double)p0.x * (1.0 - t) + (p1.x * t);
+        p.y = (double)p0.y * (1.0 - t) + (p1.y * t);
+        return;
+    }
+    
+    Point p2 = m_points[2];
+    if (npoints == 3){
+		int ax = p0.x - 2 * p1.x + p2.x;
+		int bx = 2 * (p1.x - p0.x);
+		int ay = p0.y - 2 * p1.y + p2.y;
+		int by = 2 * (p1.y - p0.y);
+		*x = ax * t * t + bx * t + p0.x;
+		*y = ay * t * t + by * t + p0.y;
+        return;
+    }
+    
+    p0 = m_points[index];
+    x0 = p0.x, y0 = p0.y;
+    p1 = m_points[index + 1];
+    x1 = p1.x, y1 = p1.y;
+    p2 = m_points[index + 2];
+    x2 = p2.x, y2 = p2.y;
+    p3 = m_points[index + 3];
+    x3 = p3.x, y3 = p3.y;
+	tt2 = tt * tt;
+	tt3 = tt * tt2;
+	omtt = 1.0 - tt;
+	omtt3 = omtt * omtt * omtt;
+	p.x = (omtt3 * x0 + (3 * tt3 - 6 * tt2 + 4) * x1 + (-3 * tt3 + 3 * tt2 + 3 * tt + 1) * x2 + tt3 * x3) / 6.0; 
+	p.y = (omtt3 * y0 + (3 * tt3 - 6 * tt2 + 4) * y1 + (-3 * tt3 + 3 * tt2 + 3 * tt + 1) * y2 + tt3 * y3) / 6.0; 
 }

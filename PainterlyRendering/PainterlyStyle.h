@@ -10,15 +10,11 @@ class PainterlyStyle
 {
 public:
 	PainterlyStyle(void){}
-	~PainterlyStyle(void){
-		/*if (brush_radius != NULL)
-			delete brush_radius;
-			brush_radius = NULL;*/
-	}
+	~PainterlyStyle(void){}
 
 	virtual void initParameter(
 		int num_layers,
-		int * brush_radius,
+		int *brush_radius,
 		float blur_factor,
 		int max_stroke_length,
 		int min_stroke_length,

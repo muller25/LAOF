@@ -1,61 +1,34 @@
-#ifndef _SPLINE_STROKE_H_
-#define _SPLINE_STROKE_H_
-#pragma once
+#ifndef _SplineStroke_H
+#define _SplineStroke_H
 
-#include "Queue.h"
+#include <cv.h>
+using namespace cv;
 
-typedef struct Point
-{
-	int x, y;
+#include <vector>
+using std::vector;
 
-} Point;
-
-typedef struct SplineStroke
-{
-	int num_points;
-	int s;
-	unsigned int r ,g,b;
-	int start_point_x,start_point_y;
-	Queue * points;
-	float sumGradient;
-
-} SplineStroke;
-
-class SplineStrokeService
+class SplineStroke
 {
 public:
-	SplineStrokeService(void){}
-	~SplineStrokeService(void){}
+    SplineStroke(){}
+    inline void set(int s, int r, int g, int b, int x0, int y0);
+    inline void add(int x, int y);
+    void cubic_b_spline(Point2d &p, double t) const;
 
-	/******************************************************************************/
-	/*** Creates an empty spline stroke                                         ***/
-	/***                                                                        ***/
-	/*** Input: s: radius of control points                                     ***/
-	/***        r: red                                                          ***/
-	/***        g: green                                                        ***/
-	/***        b: blue                                                         ***/
-	/*** Returns: a new empty spline stroke                                     ***/
-	/******************************************************************************/
-	static SplineStroke * spline_stroke_create(int s, int r, int g, int b,int x0,int y0);//加到起点，为了计算 brush中每bristle颜色；
+    inline Point& get(int index);
+    inline const Point& get(int index) const;
+    inline const Point SplineStroke::getStartPoint() const;
+    inline int nPoints() const;
+    inline int SplineStroke::nRadius() const;
+    inline int SplineStroke::getColorR() const;
+    inline int SplineStroke::getColorG() const;
+    inline int SplineStroke::getColorB() const;
 
-
-	/******************************************************************************/
-	/*** Destroy a spline stroke                                                ***/
-	/***                                                                        ***/
-	/*** Input: spline stroke:                                                  ***/
-	/******************************************************************************/
-	static void spline_stroke_destroy(SplineStroke * spline_stroke);
-
-
-	/******************************************************************************/
-	/*** Add Control Point to Cubic Spline Stroke at (x, y)                     ***/
-	/******************************************************************************/
-	static void spline_stroke_add(SplineStroke * spline_stroke, int x, int y);
-
-
-	/******************************************************************************/
-	/*** Get Control Point from Cubic Spline Stroke                             ***/
-	/******************************************************************************/
-	static Point * spline_stroke_get(SplineStroke * s, int index);
+private:
+	int m_radius;
+	unsigned int m_r, m_g, m_b;
+    Point m_start_point;
+	vector<Point> m_points;
 };
+
 #endif

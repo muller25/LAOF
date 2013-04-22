@@ -9,10 +9,9 @@ LIBDIR 			= .
 DEL				= rm -rf
 
 OPENCVLIBS		= `pkg-config --libs opencv`
-OBJS			= RenderingImage.o GaussianBlur.o NormalMap.o Lighting.o \
-MakeBrushMap.o LightingEffect.o EdgeOptimization.o ImportantMap.o \
-PainterlyService.o PainterlyStyle.o ColorModels.o SplineStroke.o CubicBSpline.o \
-Queue.o main.o
+OBJS			= NormalMap.o Lighting.o MakeBrushMap.o LightingEffect.o \
+EdgeOptimization.o ImportantMap.o PainterlyService.o PainterlyStyle.o \
+ColorModels.o SplineStroke.o main.o
 TARGET			= pr
 
 all: $(TARGET)
