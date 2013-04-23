@@ -11,18 +11,42 @@ class SplineStroke
 {
 public:
     SplineStroke(){}
-    inline void set(int s, int r, int g, int b, int x0, int y0);
-    inline void add(int x, int y);
-    void cubic_b_spline(Point2d &p, double t) const;
+    inline void set(int radius, int r, int g, int b, int x0, int y0)
+    {
+        m_r = r;
+        m_g = g;
+        m_b = b;
+        m_radius = radius;
 
-    inline Point& get(int index);
-    inline const Point& get(int index) const;
-    inline const Point SplineStroke::getStartPoint() const;
-    inline int nPoints() const;
-    inline int SplineStroke::nRadius() const;
-    inline int SplineStroke::getColorR() const;
-    inline int SplineStroke::getColorG() const;
-    inline int SplineStroke::getColorB() const;
+        //加到起点，为了计算 brush中每bristle颜色；
+        m_start_point = Point(x0, y0);
+    }
+
+    inline int nPoints() const{return m_points.size();}
+    inline Point getStartPoint(){return m_start_point;}
+    inline const Point getStartPoint() const{return m_start_point;}
+
+    inline int nRadius() const{return m_radius;}
+    inline int getColorR() const{return m_r;}
+    inline int getColorG() const{return m_g;}
+    inline int getColorB() const{return m_b;}
+    inline void add(int x, int y){
+        m_points.push_back(Point(x, y));
+    }
+
+    inline Point& get(int index)
+    {
+        assert(index >= 0 && index < m_points.size());
+        return m_points[index];
+    }
+
+    inline const Point& get(int index) const
+    {
+        assert(index >= 0 && index < m_points.size());
+        return m_points[index];
+    }
+
+    void cubic_b_spline(Point2d &p, double t) const;
 
 private:
 	int m_radius;

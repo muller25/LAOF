@@ -5,34 +5,47 @@
 using namespace cv;
 
 #include <vector>
-using std::vector;
+using namespace std;
 
 #include "PainterlyStyle.h"
 #include "SplineStroke.h"
 
+#ifndef _PI_
+#define _PI_
+const double PI = atan(1.0) * 4;
+#endif
+
 class PainterlyService
 {
 public:
-	PainterlyService();
-	virtual ~PainterlyService(){clear();};
+    PainterlyService();
+	virtual ~PainterlyService(){
+        clear();
+        if (m_brush_radius != NULL) delete []m_brush_radius;
+        m_brush_radius = NULL;
+    };
     virtual void clear();
 
     void setSourceImage(const Mat &src);
     void setTexture(const char *path = NULL);
+    void setCanvas(const Mat &dst){dst.copyTo(m_dst);}
+    
     void getEdgeMap();
     void getStrokeOrientation();
 
-	SplineStroke *make_spline_stroke(int x0, int y0, int R, const Mat &ref);
+    void make_spline_stroke(SplineStroke &spline_stroke,
+                            int x0, int y0, int R, const Mat &ref);
+
     void difference_image(int *diff, const Mat &ref, int R);
-    void generate_strokes(vector<SplineStroke> &strokes_queue, const Mat &ref, int R);
-    void paint_layer(const Mat &ref, int R, const vector<SplineStroke> &strokes_queue);
+    void generate_strokes(vector<SplineStroke> &strokes_queue, int R, Mat &ref);
+    void paint_layer(const vector<SplineStroke> &strokes_queue, int R, Mat &ref);
+    void paint_layer(const vector<SplineStroke> &strokes_queue, int R);
     void render();
 
-    Mat &getRenderedImage() const{return m_dst;}
     Mat &getRenderedImage() {return m_dst;}
     
 private:
-	Mat m_src, m_dst, m_edge_map, m_texture;
+	Mat m_src, m_dst, m_edge_map, m_texture, m_height_maps;
     int m_width, m_height;
     int *m_count_pass, *m_sum_pass;
     double *m_grad_orient;
@@ -40,8 +53,8 @@ private:
     
     // 渲染参数
 	PainterlyStyle currentStyle;
-    const int m_nlayer = 6;
-    const int m_brush_radius[m_nlayer];
+    int *m_brush_radius;
+    int m_nlayer;
 };
 
 #endif

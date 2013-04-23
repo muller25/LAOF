@@ -1,4 +1,4 @@
-#include "RenderingImage.h"
+#include "PainterlyService.h"
 
 #include <cv.h>
 #include <highgui.h>
@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
     ps.setSourceImage(src);
     ps.render();
     
-    cvShowImage("rendered", ps.getRenderedImage());
+    imwrite("rendered.jpg", ps.getRenderedImage());
 /*
     IplImage *edgeFix = RenderingImage::operateEdge(dstImage, 100);
     cvShowImage("edge fix", edgeFix);
@@ -30,7 +30,6 @@ int main(int argc, char *argv[])
     IplImage *lightFix = RenderingImage::operateLight(dstImage, 25.0/100);
     cvShowImage("light fix", lightFix);
 */    
-    cvWaitKey();
     
 	return 0;
 }

@@ -1,73 +1,11 @@
 #include "SplineStroke.h"
 
-void SplineStroke::set(int radius, int r, int g, int b, int x0, int y0)
-{
-    m_r = r;
-    m_g = g;
-    m_b = b;
-    m_radius = radius;
-
-    //加到起点，为了计算 brush中每bristle颜色；
-    m_start_point = Point(x0, y0);
-}
-
-int SplineStroke::nPoints() const
-{
-    return m_points.size();
-}
-
-const Point& SplineStroke::getStartPoint() const
-{
-    return m_start_point;
-}
-
-Point& SplineStroke::getStartPoint()
-{
-    return m_start_point;
-}
-
-int SplineStroke::nRadius() const
-{
-    return m_radius;
-}
-
-int SplineStroke::getColorR() const
-{
-    return m_r;
-}
-
-int SplineStroke::getColorG() const
-{
-    return m_g;
-}
-
-int SplineStroke::getColorB() const
-{
-    return m_b;
-}
-
-void SplineStroke::add(int x, int y)
-{
-    m_points.push_back(Point(x, y));
-}
-
-Point& SplineStroke::get(int index)
-{
-    assert(index >= 0 && index < m_points.size());
-    return m_points[index];
-}
-
-const Point& SplineStroke::get(int index) const
-{
-    assert(index >= 0 && index < m_points.size());
-    return m_points[index];
-}
 
 void SplineStroke::cubic_b_spline(Point2d &p, double t) const
 {
 	double x0, y0, x1, y1, x2, y2, x3, y3;
     double tt, tt2, tt3, omtt, omtt3;
-	int index, npoints = m_points.size()
+	int index, npoints = m_points.size();
     
 	if (npoints == 0) return;
 	if (t > 1) t = 1;
@@ -98,11 +36,12 @@ void SplineStroke::cubic_b_spline(Point2d &p, double t) const
 		int bx = 2 * (p1.x - p0.x);
 		int ay = p0.y - 2 * p1.y + p2.y;
 		int by = 2 * (p1.y - p0.y);
-		*x = ax * t * t + bx * t + p0.x;
-		*y = ay * t * t + by * t + p0.y;
+		p.x = ax * t * t + bx * t + p0.x;
+		p.y = ay * t * t + by * t + p0.y;
         return;
     }
-    
+
+    Point p3;
     p0 = m_points[index];
     x0 = p0.x, y0 = p0.y;
     p1 = m_points[index + 1];
