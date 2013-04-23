@@ -4,6 +4,11 @@ from os.path import expanduser
 from PyQt4 import QtGui, QtCore
 from PyQt4.phonon import Phonon
 
+cachedDir = os.path.join(expanduser("~"), "cache")
+imDir = os.path.join(cacheDir, "im")
+flowDir = os.path.join(cacheDir, "flow")
+renderDir = os.path.join(cacheDir, "render")
+
 class mainWin(QtGui.QMainWindow):
     """
     main window
@@ -11,7 +16,7 @@ class mainWin(QtGui.QMainWindow):
     def __init__(self, width, height):
         super(mainWin, self).__init__()
         self.init(width, height)
-
+        os.mkdirs(
     def init(self, width, height):
         self.setFixedSize(width, height)
         self.setWindowTitle("Video Painterly Rendering System")

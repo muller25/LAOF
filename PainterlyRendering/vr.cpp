@@ -11,8 +11,10 @@ using namespace std;
 
 bool imreadf(Mat &m, const char *filename);
 void propagate(list<SplineStroke> *strokes_queue, int nlayer,
-               const Mat &src, const Mat &u, const Mat &v);
-bool removeStrokes(const SplineStroke &stroke);
+               const Mat &u, const Mat &v);
+void removeStrokes(list<SplineStroke> *strokes_queue, int nlayer, const Mat &src);
+void addStrokes(list<SplineStroke> &strokes_queue, const list<SplineStroke> &pre_strokes_queue,
+                const Mat &taken);
 
 int main(int argc, char *argv[])
 {
@@ -33,10 +35,10 @@ int main(int argc, char *argv[])
     frameStart = atoi(argv[4]);
     frameEnd = atoi(argv[5]);
 
-    Mat canvas, src, render, u, v;
+    Mat canvas, src, render, u, v, taken;
     PainterlyService ps;
     const int nlayer = ps.nlayer();
-    const int preRenderInterval = 6;
+    const int preRenderInterval = 4;
     int preload, frame;
     list<SplineStroke> strokes_queue[nlayer], pre_strokes_queue[nlayer];
     
@@ -45,15 +47,27 @@ int main(int argc, char *argv[])
 
     src = imread(buf);
     ps.setSourceImage(src);
-    ps.render(strokes_queue, nlayer);
-    ps.getRenderedImage(render, src);
-    sprintf(buf, out, frameStart);
+    src.copyTo(render);
+    ps.render(render, strokes_queue, nlayer);
+    sprintf(buf, out, "out", frameStart);
     imwrite(buf, render);
-    
+
+    canvas = Mat::zeros(src.rows, src.cols, CV_8UC3);
     for (int count = 1; count <= (frameEnd - frameStart); ++count)
     {
         frame = count + frameStart;
-        if (count % preRenderInterval == 1){
+        if (count % preRenderInterval == 1)
+        {
+            cout << "adding strokes..." << endl;
+            for (int i = 0; i < nlayer; ++i)
+            {
+                if (strokes_queue[i].empty() || pre_strokes_queue[i].empty()) continue;
+                
+                taken = Mat::zeros(src.rows, src.cols, src.type());
+                ps.paint_layer(taken, strokes_queue[i], i);
+                addStrokes(strokes_queue[i], pre_strokes_queue[i], taken);
+            }
+            
             preload = frameStart + count + preRenderInterval;
             if (preload > frameEnd) preload = frameEnd;
             
@@ -62,8 +76,11 @@ int main(int argc, char *argv[])
 
             src = imread(buf);
             ps.setSourceImage(src);
-            ps.render(pre_strokes_queue, nlayer);
-            ps.getRenderedImage(canvas, src);
+            src.copyTo(canvas);
+            ps.render(canvas, pre_strokes_queue, nlayer);
+
+            sprintf(buf, out, "pre", preload);
+            imwrite(buf, canvas);
         }
 
         sprintf(buf, im, frame);
@@ -72,12 +89,19 @@ int main(int argc, char *argv[])
         imreadf(u, buf);
         sprintf(buf, flow, "v", frame-1);
         imreadf(v, buf);
-        propagate(strokes_queue, nlayer, src, u, v);
-        
+
+        propagate(strokes_queue, nlayer, u, v);
+        removeStrokes(strokes_queue, nlayer, src);
+
         ps.setSourceImage(src);
-        ps.render(strokes_queue, nlayer);
-        ps.getRenderedImage(render, canvas);
-        sprintf(buf, out, frame);
+        canvas.copyTo(render);
+        ps.paint_layer(render, strokes_queue, nlayer);
+        sprintf(buf, out, "out", frame);
+        imwrite(buf, render);
+
+        render.setTo(0);
+        ps.paint_layer(render, strokes_queue, nlayer);
+        sprintf(buf, out, "nobg", frame);
         imwrite(buf, render);
     }
     
@@ -104,17 +128,13 @@ bool imreadf(Mat &m, const char *filename)
 }
 
 void propagate(list<SplineStroke> *strokes_queue, int nlayer,
-               const Mat &src, const Mat &u, const Mat &v)
+               const Mat &u, const Mat &v)
 {
-    assert(src.channels() == 3 && u.type() == CV_64F);
+    assert(u.type() == CV_64F);
 
-    cout << "propagating strokes..." << endl;
-    
-    const int threshold = 30;
-    const double fadeStep = 0.2;
-    
-    int sstep = src.step1(), fstep = u.step1();
-    uchar *ps = src.data;
+    cout << "propagating strokes...";
+
+    int offset, step = u.step1(), width = u.cols, height = u.rows;
     double *pu = (double*)u.data, *pv = (double*)v.data;
     
     for (int i = 0; i < nlayer; ++i)
@@ -126,25 +146,79 @@ void propagate(list<SplineStroke> *strokes_queue, int nlayer,
             for (int k = 0; k < iter->nPoints(); ++k)
             {
                 Point p = iter->get(k);
-                int foffset = p.y * fstep + p.x;
-                int ioffset = p.y * sstep + p.x * 3;
-                p.x += cvRound(pu[foffset]);
-                p.y += cvRound(pv[foffset]);
-                
-                iter->setControlPoint(k, p);
+                if (p.y >= height || p.y < 0 || p.x >= width || p.x < 0) continue;
 
-                int diff = iter->ColorR() + iter->ColorG() + iter->ColorB();
-                diff = abs(diff - ps[ioffset] - ps[ioffset+1] - ps[ioffset+2]);
-                if (diff >= threshold) iter->fadeOut(fadeStep);
+                offset = p.y * step + p.x;
+                p.x += cvRound(pu[offset]);
+                p.y += cvRound(pv[offset]);
+                iter->setControlPoint(k, p);
             }
         }
-
-        cout << "remove strokes..." << endl;
-        strokes_queue[i].remove_if(removeStrokes);
     }
+
+    cout << "done" << endl;
 }
 
-bool removeStrokes(const SplineStroke &stroke)
+void removeStrokes(list<SplineStroke> *strokes_queue, int nlayer, const Mat &src)
 {
-    return stroke.isTransparent();
+    assert(src.channels() == 3);
+    cout << "removing strokes...";
+    
+    const int threshold = 60;
+    const double fadeStep = 0.2;
+    int offset, diff, color, step = src.step1(), width = src.cols, height = src.rows;
+    uchar *ptr = src.data;
+
+    for (int i = 0; i < nlayer; ++i)
+    {
+        if (strokes_queue[i].empty()) continue;
+
+        for (list<SplineStroke>::iterator iter = strokes_queue[i].begin(); iter != strokes_queue[i].end();)
+        {
+            color = iter->ColorR() + iter->ColorG() + iter->ColorB();
+            for (int k = 0; k < iter->nPoints(); ++k)
+            {
+                Point p = iter->get(k);
+
+                // out of boundary
+                if (p.y >= height || p.y < 0 || p.x >= width || p.x < 0) continue;
+                
+                offset = p.y * step + p.x * 3;
+                diff = abs(ptr[offset] + ptr[offset+1] + ptr[offset+2] - color);
+                if (diff > threshold) {
+                    iter->fadeOut(fadeStep);
+                    break;
+                }
+            }
+
+            if (iter->isTransparent()) iter = strokes_queue[i].erase(iter);
+            else iter++;
+        }
+    }
+
+    cout << "done" << endl;
+}
+
+void addStrokes(list<SplineStroke> &strokes_queue, const list<SplineStroke> &pre_strokes_queue,
+                const Mat &taken)
+{
+    assert(taken.channels() == 3);
+    
+    int offset, width = taken.cols, height = taken.rows, step = taken.step1();
+    uchar *p = taken.data;
+
+    for (list<SplineStroke>::const_iterator iter = pre_strokes_queue.begin(); iter != pre_strokes_queue.end(); ++iter)
+    {
+        for (int k = 0; k < iter->nPoints(); ++k)
+        {
+            Point point = iter->get(k);
+            if (point.x >= width || point.y >= height || point.x < 0 || point.y < 0) continue;
+
+            offset = point.y * step + point.x * 3;
+            if (p[offset] != 0 || p[offset+1] != 0 || p[offset+2] != 0) continue;
+
+            strokes_queue.push_front(*iter);
+            break;
+        }
+    }
 }

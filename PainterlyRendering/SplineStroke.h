@@ -29,12 +29,22 @@ public:
     inline const Point getStartPoint() const{return m_start_point;}
     inline int nRadius() const{return m_radius;}
     inline double nAlpha() const{return m_alpha;}
+    inline Scalar color() const{
+        Scalar color(m_b, m_g, m_r);
+        return color;
+    }
+    
     inline int ColorR() const{return m_r;}
     inline int ColorG() const{return m_g;}
     inline int ColorB() const{return m_b;}
     inline void setAlpha(double alpha){m_alpha = alpha;}
     inline bool isTransparent() const{return fabs(m_alpha) < 1e-6;}
-    inline void fadeOut(double step){m_alpha += step;}
+
+    inline void fadeOut(double step){
+        m_alpha -= step;
+        if (m_alpha < 0) m_alpha = 0;
+        if (m_alpha > 1) m_alpha = 1;
+    }
     
     inline Point& get(int index)
     {
@@ -53,6 +63,8 @@ public:
         assert(index >= 0 && index < (int)m_points.size());
         m_points[index] = p;
     }
+
+    inline void resize(int size){m_points.resize(size);}
     
     void cubic_b_spline(Point2d &p, double t) const;
 

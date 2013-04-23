@@ -16,14 +16,13 @@ int main(int argc, char *argv[])
     
     cout << "loading image " << argv[1] << endl;
 
-    Mat render, src = imread(argv[1]);
+    Mat src = imread(argv[1]);
     PainterlyService ps;
 
     ps.setSourceImage(src);
-    ps.render();
-    ps.getRenderedImage(render, src);
+    ps.render(src);
     
-    imwrite("rendered.jpg", render);
+    imwrite("rendered.jpg", src);
 /*
     IplImage *edgeFix = RenderingImage::operateEdge(dstImage, 100);
     cvShowImage("edge fix", edgeFix);

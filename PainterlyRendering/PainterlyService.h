@@ -31,21 +31,23 @@ public:
     
     void getEdgeMap();
     void getStrokeOrientation();
-    void getRenderedImage(Mat &dst, const Mat &render) const;
-    void make_spline_stroke(SplineStroke &spline_stroke,
-                            int x0, int y0, int R, const Mat &ref);
+    void make_spline_stroke(SplineStroke &spline_stroke, int x0, int y0, int R,
+                            const Mat &dst, const Mat &ref);
 
-    void difference_image(int *diff, const Mat &ref, int R);
-    void generate_strokes(list<SplineStroke> &strokes_queue, int R, Mat &ref);
-    void paint_layer(const list<SplineStroke> &strokes_queue, int R, Mat &ref);
-    void paint_layer(const list<SplineStroke> &strokes_queue, int R);
-    void render();
-    void render(list<SplineStroke> *strokes_queue, int nlayer);
+    void difference_image(int *diff, const Mat &dst, const Mat &ref, int R);
+    void generate_strokes(list<SplineStroke> &strokes_queue, int R,
+                          const Mat &canvas, const Mat &ref);
+    void paint_layer(Mat &canvas, const list<SplineStroke> &strokes_queue, int R, const Mat &ref);
+    void paint_layer(Mat &canvas, const list<SplineStroke> &strokes_queue, int layerId);
+    void paint_layer(Mat &canvas, const list<SplineStroke> *strokes_queue, int nlayer);
+    
+    void render(Mat &canvas);
+    void render(Mat &canvas, list<SplineStroke> *strokes_queue, int nlayer);
 
     inline int nlayer() const{return m_nlayer;}
     
 private:
-	Mat m_src, m_dst, m_edge_map, m_texture, m_height_maps;
+	Mat m_src, m_edge_map, m_texture, m_height_maps;
     int m_width, m_height;
     int *m_count_pass, *m_sum_pass;
     double *m_grad_orient;
