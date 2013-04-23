@@ -4,7 +4,7 @@
 #include <cv.h>
 using namespace cv;
 
-#include <vector>
+#include <list>
 using namespace std;
 
 #include "PainterlyStyle.h"
@@ -28,21 +28,21 @@ public:
 
     void setSourceImage(const Mat &src);
     void setTexture(const char *path = NULL);
-    void setCanvas(const Mat &dst){dst.copyTo(m_dst);}
     
     void getEdgeMap();
     void getStrokeOrientation();
-
+    void getRenderedImage(Mat &dst, const Mat &render) const;
     void make_spline_stroke(SplineStroke &spline_stroke,
                             int x0, int y0, int R, const Mat &ref);
 
     void difference_image(int *diff, const Mat &ref, int R);
-    void generate_strokes(vector<SplineStroke> &strokes_queue, int R, Mat &ref);
-    void paint_layer(const vector<SplineStroke> &strokes_queue, int R, Mat &ref);
-    void paint_layer(const vector<SplineStroke> &strokes_queue, int R);
+    void generate_strokes(list<SplineStroke> &strokes_queue, int R, Mat &ref);
+    void paint_layer(const list<SplineStroke> &strokes_queue, int R, Mat &ref);
+    void paint_layer(const list<SplineStroke> &strokes_queue, int R);
     void render();
+    void render(list<SplineStroke> *strokes_queue, int nlayer);
 
-    Mat &getRenderedImage() {return m_dst;}
+    inline int nlayer() const{return m_nlayer;}
     
 private:
 	Mat m_src, m_dst, m_edge_map, m_texture, m_height_maps;

@@ -1,6 +1,5 @@
 #include "SplineStroke.h"
 
-
 void SplineStroke::cubic_b_spline(Point2d &p, double t) const
 {
 	double x0, y0, x1, y1, x2, y2, x3, y3;

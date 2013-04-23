@@ -17,39 +17,48 @@ public:
         m_g = g;
         m_b = b;
         m_radius = radius;
+        m_alpha = 1.0;
 
         //加到起点，为了计算 brush中每bristle颜色；
         m_start_point = Point(x0, y0);
     }
 
+    inline void add(int x, int y){m_points.push_back(Point(x, y));}
     inline int nPoints() const{return m_points.size();}
     inline Point getStartPoint(){return m_start_point;}
     inline const Point getStartPoint() const{return m_start_point;}
-
     inline int nRadius() const{return m_radius;}
-    inline int getColorR() const{return m_r;}
-    inline int getColorG() const{return m_g;}
-    inline int getColorB() const{return m_b;}
-    inline void add(int x, int y){
-        m_points.push_back(Point(x, y));
-    }
-
+    inline double nAlpha() const{return m_alpha;}
+    inline int ColorR() const{return m_r;}
+    inline int ColorG() const{return m_g;}
+    inline int ColorB() const{return m_b;}
+    inline void setAlpha(double alpha){m_alpha = alpha;}
+    inline bool isTransparent() const{return fabs(m_alpha) < 1e-6;}
+    inline void fadeOut(double step){m_alpha += step;}
+    
     inline Point& get(int index)
     {
-        assert(index >= 0 && index < m_points.size());
+        assert(index >= 0 && index < (int)m_points.size());
         return m_points[index];
     }
 
     inline const Point& get(int index) const
     {
-        assert(index >= 0 && index < m_points.size());
+        assert(index >= 0 && index < (int)m_points.size());
         return m_points[index];
     }
 
+    inline void setControlPoint(int index, Point &p)
+    {
+        assert(index >= 0 && index < (int)m_points.size());
+        m_points[index] = p;
+    }
+    
     void cubic_b_spline(Point2d &p, double t) const;
 
 private:
 	int m_radius;
+    double m_alpha;
 	unsigned int m_r, m_g, m_b;
     Point m_start_point;
 	vector<Point> m_points;

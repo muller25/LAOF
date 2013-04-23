@@ -1,6 +1,4 @@
 #include "PainterlyService.h"
-
-#include "CubicBSpline.h"
 #include "ColorModels.h"
 
 #include <iostream>
@@ -16,6 +14,7 @@ PainterlyService::PainterlyService()
     m_brush_radius = m_count_pass = m_sum_pass = NULL;
     m_grad_orient = NULL;
     m_nlayer = 6;
+    m_width = m_height = 0;
     
     // 设置笔刷大小，不绘制 R=32
     int radius = 1;
@@ -66,19 +65,21 @@ void PainterlyService::setSourceImage(const Mat &src)
 {
     assert(src.channels() == 3);
 
-    clear();
-    m_width = src.cols, m_height = src.rows;
+    if (m_width != src.cols || m_height != src.rows) {
+        m_width = src.cols, m_height = src.rows;
+        clear();
+        int size = m_width * m_height;
+        m_count_pass = new int[size];
+        m_sum_pass = new int[size];
+        m_grad_orient = new double[size];
+
+        memset(m_count_pass, 0, size * sizeof(int));
+        memset(m_sum_pass, 0, size * sizeof(int));
+    }
+
     src.copyTo(m_src);
     m_dst = Mat::zeros(m_height, m_width, CV_8UC3);
     m_height_maps.create(m_height, m_width, CV_8U);
-    
-    int size = m_width * m_height;
-    m_count_pass = new int[size];
-    m_sum_pass = new int[size];
-    m_grad_orient = new double[size];
-
-    memset(m_count_pass, 0, size * sizeof(int));
-    memset(m_sum_pass, 0, size * sizeof(int));
 
     getEdgeMap();    
     getStrokeOrientation();
@@ -127,6 +128,22 @@ void PainterlyService::getStrokeOrientation()
             m_grad_orient[i*m_width+j] = atan2(gy, gx);
         }
     }
+}
+
+void PainterlyService::getRenderedImage(Mat &dst, const Mat &canvas) const
+{
+    canvas.copyTo(dst);
+    int offset, step = m_dst.step1();
+    uchar *p = dst.data, *pdst = m_dst.data;
+ 
+    for (int h = 0; h < m_height; ++h)
+        for (int w = 0; w < m_width; ++w)
+        {
+            offset = h * step + w * 3;
+            if (pdst[offset] == 0 && pdst[offset+1] == 0 && pdst[offset+2] == 0) continue;
+            for (int k = 0; k < 3; ++k)
+                p[offset+k] = pdst[offset+k];
+        }
 }
 
 void PainterlyService::make_spline_stroke(SplineStroke &spline_stroke,
@@ -239,7 +256,7 @@ void PainterlyService::difference_image(int *diff, const Mat &ref, int R)
 // strokes_queue - stroke queue (out)
 // ref - smoothed src image
 // R - brush stroke radius
-void PainterlyService::generate_strokes(vector<SplineStroke> &strokes_queue,
+void PainterlyService::generate_strokes(list<SplineStroke> &strokes_queue,
                                         int R, Mat &ref)
 {
     assert(m_init);
@@ -315,7 +332,7 @@ void PainterlyService::generate_strokes(vector<SplineStroke> &strokes_queue,
 // ref - smoothed src image
 // R - brush stroke radius
 // strokes_queue - stroke queue
-void PainterlyService::paint_layer(const vector<SplineStroke> &strokes_queue,
+void PainterlyService::paint_layer(const list<SplineStroke> &strokes_queue,
                                    int R, Mat &ref)
 {
     assert(m_init);
@@ -323,30 +340,28 @@ void PainterlyService::paint_layer(const vector<SplineStroke> &strokes_queue,
     int step = ref.step1();
     uchar *pdst = m_dst.data, *pref = ref.data;
     Mat brush_tex(R*2+1, R*2+1, m_texture.type());
-    
     resize(m_texture, brush_tex, brush_tex.size(), 0, 0, INTER_CUBIC);
     
     // CubicBSpline版本, 得到笔刷的control points
     cout << "strokes size: " << strokes_queue.size() << endl;
 
     clock_t start = clock();
-    for(size_t j = 0; j < strokes_queue.size(); ++j)
+    for (list<SplineStroke>::const_iterator iter = strokes_queue.begin(); iter != strokes_queue.end(); iter++)
     {	 	
-        const SplineStroke stroke = strokes_queue[j];
-        if(stroke.nPoints() <= 0) continue;
+        if(iter->nPoints() <= 0) continue;
         
         // 绘制CubicBSpline曲线
-        const Point startPoint = stroke.getStartPoint();
+        const Point startPoint = iter->getStartPoint();
         Point2d newPoint;
         uchar r, g, b;
         int p_xx, p_yy, bii, bjj;
         
         // t的细分程度=系数*控制点个数*笔刷半径
         const int animate_time = 1.0;
-        double time_step = animate_time / (1.8 * stroke.nPoints() * stroke.nRadius());
+        double time_step = animate_time / (1.8 * iter->nPoints() * iter->nRadius());
         for (double t = 0; t <= animate_time; t += time_step)
         { 
-            stroke.cubic_b_spline(newPoint, t);
+            iter->cubic_b_spline(newPoint, t);
 
             for(int hh = -R; hh <= R; hh++)
                 for(int ww= -R; ww <= R; ww++){
@@ -358,9 +373,10 @@ void PainterlyService::paint_layer(const vector<SplineStroke> &strokes_queue,
                     if (bjj >= m_width) bjj = m_width -1;
 
                     int offset = bii * step + bjj * 3;
-                    r = pref[offset+2]*PA + (uchar)stroke.getColorR()*(1-PA);
-                    g = pref[offset+1]*PA + (uchar)stroke.getColorG()*(1-PA);
-                    b = pref[offset]*PA + (uchar)stroke.getColorB()*(1-PA);
+                    double alpha = (1 - PA) * iter->nAlpha();
+                    r = (double)pref[offset+2]*(1-alpha) + (double)iter->ColorR()*alpha;
+                    g = (double)pref[offset+1]*(1-alpha) + (double)iter->ColorG()*alpha;
+                    b = (double)pref[offset]*(1-alpha) + (double)iter->ColorB()*alpha;
 
                     p_xx = newPoint.x + ww;
                     p_yy = newPoint.y + hh;
@@ -386,10 +402,10 @@ void PainterlyService::paint_layer(const vector<SplineStroke> &strokes_queue,
 
     clock_t finish = clock();
     double duration = (double)(finish - start) / CLOCKS_PER_SEC;
-    cout<<"time of running CubicBSpline drawing steps: "<< duration <<endl;
+    cout << "time of running CubicBSpline drawing steps: " << duration << endl;
 }
 
-void PainterlyService::paint_layer(const vector<SplineStroke> &strokes_queue, int R)
+void PainterlyService::paint_layer(const list<SplineStroke> &strokes_queue, int R)
 {
     Mat ref;
     int ksize = R * 2 + 1; // kernel size
@@ -401,8 +417,16 @@ void PainterlyService::paint_layer(const vector<SplineStroke> &strokes_queue, in
 void PainterlyService::render()
 {
     assert(m_init);
+
+    list<SplineStroke> strokes_queue[m_nlayer];
+    render(strokes_queue, m_nlayer);
+}
+
+// image rendering
+void PainterlyService::render(list<SplineStroke> *strokes_queue, int nlayer)
+{
+    assert(m_init && (nlayer >= m_nlayer));
     
-    vector<SplineStroke> strokes_queue[6];
     clock_t begin, finish, start, end;
     double duration;
     Mat ref;
@@ -423,17 +447,9 @@ void PainterlyService::render()
 
         finish = clock();
         duration = (double)(finish - start) / CLOCKS_PER_SEC;
-        cout<<"time of running paint_layer(): "<< duration <<endl;
-    }
-
-    // set canvas
-    m_src.copyTo(m_dst);
-    for (int i = 0; i != m_nlayer; ++i)
-    {
-        if (strokes_queue[i].empty()) continue;
-        paint_layer(strokes_queue[i], m_brush_radius[i]);
+        cout << "time of running paint_layer(): " << duration << endl;
     }
     
     end = clock();
-    cout << "Total time" << (double)(end - begin) / CLOCKS_PER_SEC << "!!!!!\n" << endl;
+    cout << "Total time " << (double)(end - begin) / CLOCKS_PER_SEC << " !!!!!\n" << endl;
 }

@@ -11,13 +11,16 @@ DEL				= rm -rf
 OPENCVLIBS		= `pkg-config --libs opencv`
 OBJS			= NormalMap.o Lighting.o MakeBrushMap.o LightingEffect.o \
 EdgeOptimization.o ImportantMap.o PainterlyService.o PainterlyStyle.o \
-ColorModels.o SplineStroke.o main.o
-TARGET			= pr
+ColorModels.o SplineStroke.o
+TARGET			= pr vr
 
 all: $(TARGET)
 	@echo "DONE"
 
-pr: $(OBJS)
+vr: $(OBJS) vr.o
+	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS)
+
+pr: $(OBJS) pr.o
 	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS)
 
 %.o: %.cpp %.h
@@ -25,4 +28,4 @@ pr: $(OBJS)
 
 .PHONY: clean
 clean:
-	-$(DEL) *.o $(TARGET)
+	-$(DEL) *.o $(TARGET) *.jpg *.out

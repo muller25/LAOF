@@ -24,12 +24,14 @@ tests/gc
 tests/seg
 tests/cluster
 src/of
+src/biof
 src/adof
 src/stof
 src/em
 src/run
 src/layers
 PainterlyRendering/pr
+PainterlyRendering/vr
 gc/*
 
 *cscope.out
