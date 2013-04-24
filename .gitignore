@@ -34,6 +34,9 @@ PainterlyRendering/pr
 PainterlyRendering/vr
 gc/*
 ui/bin/*
+tools/image2video
+tools/video2images
+tools/subVideo2Video
 
 *cscope.out
 *.jpg

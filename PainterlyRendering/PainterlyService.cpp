@@ -23,8 +23,8 @@ PainterlyService::PainterlyService()
     m_brush_radius[2] = 2;
     
     // 设置渲染参数, Impressionism style
-    const int max_stroke_length = 1;//16;
-    const int min_stroke_length = 1;
+    const int max_stroke_length = 4;//16;
+    const int min_stroke_length = 2;
     const int threshold = 46;
     const float grid_size = 2.0;
 
@@ -135,9 +135,9 @@ void PainterlyService::make_spline_stroke(SplineStroke &spline_stroke,
     uchar *pref = ref.data, *pdst = dst.data;
     int step = ref.step1();
     int color_index = y0 * step + x0 * 3;     
-    unsigned int r = (uchar)pref[color_index + 2];
-    unsigned int g = (uchar)pref[color_index + 1];
-    unsigned int b = (uchar)pref[color_index + 0];
+    unsigned int r = pref[color_index + 2];
+    unsigned int g = pref[color_index + 1];
+    unsigned int b = pref[color_index + 0];
 
     int x = x0;             // current x coord
     int y = y0;             // current y coord
@@ -296,9 +296,32 @@ void PainterlyService::generate_strokes(list<SplineStroke> &strokes_queue, int R
             if (area_error <= currentStyle.threshold) continue;
 
             // 生成CubicBSpline曲线
-            SplineStroke stroke;
+            SplineStroke stroke, cbstroke;
             make_spline_stroke(stroke, index_i, index_j, R, canvas, ref);
-            strokes_queue.push_back(stroke);
+
+            // t的细分程度=系数*控制点个数*笔刷半径
+            const int animate_time = 1.0;
+            Point2d newPoint, prePoint(-1, -1);
+            double time_step = animate_time / (1.8 * stroke.nPoints() * R);
+
+            cbstroke.set(R, stroke.color(), index_i, index_j);
+            cbstroke.add(index_i, index_j);
+            for (double t = 0; t <= animate_time; t += time_step)
+            { 
+                stroke.cubic_b_spline(newPoint, t);
+
+                if (newPoint.y >= m_height) newPoint.y = m_height-1;
+                if (newPoint.y < 0) newPoint.y = 0;
+                if (newPoint.x >= m_width) newPoint.x = m_width-1;
+                if (newPoint.x < 0) newPoint.x = 0;
+
+                if (newPoint != prePoint){
+                    cbstroke.add(cvRound(newPoint.x), cvRound(newPoint.y));
+                    newPoint = prePoint;
+                }
+            }
+
+            strokes_queue.push_back(cbstroke);
         }
     }
 
@@ -333,69 +356,59 @@ void PainterlyService::paint_layer(Mat &canvas, const list<SplineStroke> &stroke
         if(iter->nPoints() <= 0) continue;
         
         // 绘制CubicBSpline曲线
-        const Point startPoint = iter->getStartPoint();
-        Point2d newPoint;
+        Point point;
         uchar r, g, b;
         int offset, p_xx, p_yy, bii, bjj;
-        
-        // t的细分程度=系数*控制点个数*笔刷半径
-        const int animate_time = 1.0;
-        double alpha, time_step = 1.1;//animate_time / (1.8 * iter->nPoints() * iter->nRadius());
-        for (double t = 0; t <= animate_time; t += time_step)
-        { 
-            iter->cubic_b_spline(newPoint, t);
+        double alpha = iter->nAlpha();        
 
-            if (newPoint.y >= m_height) newPoint.y = m_height-1;
-            if (newPoint.y < 0) newPoint.y = 0;
-            if (newPoint.x >= m_width) newPoint.x = m_width-1;
-            if (newPoint.x < 0) newPoint.x = 0;
+        for (int i = 0; i < iter->nPoints(); ++i)
+        {
+            point = iter->get(i);
+            offset = point.y * step + point.x * 3;
 
-            offset = newPoint.y * step + newPoint.x * 3;
-            alpha = iter->nAlpha();
-            r = pdst[offset+2]*(1-alpha) + iter->ColorR()*alpha;
-            g = pdst[offset+1]*(1-alpha) + iter->ColorG()*alpha;
-            b = pdst[offset]*(1-alpha) + iter->ColorB()*alpha;
+            r = pdst[offset+2] * (1-alpha) + iter->ColorR() * alpha;
+            g = pdst[offset+1] * (1-alpha) + iter->ColorG() * alpha;
+            b = pdst[offset] * (1-alpha) + iter->ColorB() * alpha;
             Scalar color(b, g, r);
-            circle(canvas, newPoint, iter->nRadius(), color, -1);
-            continue;
-            
-            for(int hh = -R; hh <= R; hh++)
-                for(int ww= -R; ww <= R; ww++){
-                    bii = startPoint.y + hh;
-                    bjj = startPoint.x + ww;
-                    if (bii < 0) bii = 0;
-                    if (bii >= m_height) bii = m_height - 1;
-                    if (bjj < 0) bjj = 0;
-                    if (bjj >= m_width) bjj = m_width -1;
+            circle(canvas, point, R, color, -1);
+             
+            // for(int hh = -R; hh <= R; hh++)
+            //     for(int ww= -R; ww <= R; ww++){
+            //         bii = startPoint.y + hh;
+            //         bjj = startPoint.x + ww;
+            //         if (bii < 0) bii = 0;
+            //         if (bii >= m_height) bii = m_height - 1;
+            //         if (bjj < 0) bjj = 0;
+            //         if (bjj >= m_width) bjj = m_width -1;
 
-                    offset = bii * step + bjj * 3;
-                    alpha = iter->nAlpha();//(1 - PA) * iter->nAlpha();
-                    r = pref[offset+2]*(1-alpha) + iter->ColorR()*alpha;
-                    g = pref[offset+1]*(1-alpha) + iter->ColorG()*alpha;
-                    b = pref[offset]*(1-alpha) + iter->ColorB()*alpha;
+            //         offset = bii * step + bjj * 3;
+            //         alpha = iter->nAlpha();//(1 - PA) * iter->nAlpha();
+            //         r = pref[offset+2]*(1-alpha) + iter->ColorR()*alpha;
+            //         g = pref[offset+1]*(1-alpha) + iter->ColorG()*alpha;
+            //         b = pref[offset]*(1-alpha) + iter->ColorB()*alpha;
 
-                    p_xx = newPoint.x + ww;
-                    p_yy = newPoint.y + hh;
-                    if(!(p_xx >= 0 && p_yy >=0 && p_xx < m_width && p_yy < m_height)) continue;
+            //         p_xx = newPoint.x + ww;
+            //         p_yy = newPoint.y + hh;
+            //         if(!(p_xx >= 0 && p_yy >=0 && p_xx < m_width && p_yy < m_height)) continue;
 
-                    int ii = hh + R, jj = ww + R;
-                    int I = brush_tex.at<uchar>(ii, jj);
-                    int Index = p_yy * step + p_xx * 3;
+            //         int ii = hh + R, jj = ww + R;
+            //         int I = brush_tex.at<uchar>(ii, jj);
+            //         int Index = p_yy * step + p_xx * 3;
 
-                    // 附加纹理
-                    pdst[Index+2] = r*(I/255.0) + pdst[Index+2]*(1- I/255.0);
-                    pdst[Index+1] = g*(I/255.0) + pdst[Index+1]*(1- I/255.0);
-                    pdst[Index+0] = b*(I/255.0) + pdst[Index+0]*(1- I/255.0);
-                    // pdst[Index+2] = r;
-                    // pdst[Index+1] = g;
-                    // pdst[Index] = b;
+            //         // 附加纹理
+            //         pdst[Index+2] = r*(I/255.0) + pdst[Index+2]*(1- I/255.0);
+            //         pdst[Index+1] = g*(I/255.0) + pdst[Index+1]*(1- I/255.0);
+            //         pdst[Index+0] = b*(I/255.0) + pdst[Index+0]*(1- I/255.0);
+            //         // pdst[Index+2] = r;
+            //         // pdst[Index+1] = g;
+            //         // pdst[Index] = b;
                     
-                    // 计算高度图
-                    int height_map_index = p_yy * m_width + p_xx;
-                    m_count_pass[height_map_index]++;
-                    m_sum_pass[height_map_index] += I;
-                    m_height_maps.at<uchar>(p_yy, p_xx) = (int)((m_sum_pass[height_map_index])/(m_count_pass[height_map_index]));
-                }
+            //         // 计算高度图
+            //         int height_map_index = p_yy * m_width + p_xx;
+            //         m_count_pass[height_map_index]++;
+            //         m_sum_pass[height_map_index] += I;
+            //         m_height_maps.at<uchar>(p_yy, p_xx) = (int)((m_sum_pass[height_map_index])/(m_count_pass[height_map_index]));
+            // }
 		}
     }
 
@@ -456,24 +469,22 @@ void PainterlyService::render(Mat &canvas, list<SplineStroke> *strokes_queue, in
     
     clock_t begin, finish, start, end;
     double duration;
-    Mat ref, bg;
-
-    bg = Mat::zeros(m_height, m_width, m_src.type());
+    Mat ref, bg = Mat::zeros(m_height, m_width, m_src.type());
+    int R, ksize;
+    
     begin = clock();
     for(int i = 0; i < m_nlayer; ++i)
     {
-        if(m_brush_radius[i] == 0) continue;
+        R = m_brush_radius[i];
+        if(R == 0) continue;
         
-        cout << "====== Painting Layer:" << i << ", stroke size: " << m_brush_radius[i] << " ======" << endl;
+        cout << "====== Painting Layer:" << i << ", stroke size: " << R << " ======" << endl;
         start = clock();
 
-        int ksize = m_brush_radius[i] * 2 + 1; // kernel size
-        GaussianBlur(m_src, ref, Size(ksize, ksize), m_brush_radius[i]);
-
-        generate_strokes(strokes_queue[i], m_brush_radius[i], bg, ref);
-        paint_layer(bg, strokes_queue[i], i, ref);
+        ksize = 2 * R + 1;
+        GaussianBlur(m_src, ref, Size(ksize, ksize), R);
+        render(bg, strokes_queue[i], i, ref);
         paint_layer(canvas, strokes_queue[i], i, ref);
-
         finish = clock();
         duration = (double)(finish - start) / CLOCKS_PER_SEC;
         cout << "time of running paint_layer(): " << duration << endl;
@@ -481,4 +492,20 @@ void PainterlyService::render(Mat &canvas, list<SplineStroke> *strokes_queue, in
     
     end = clock();
     cout << "Total time " << (double)(end - begin) / CLOCKS_PER_SEC << " !!!!!\n" << endl;
+}
+
+void PainterlyService::render(Mat &canvas, list<SplineStroke> &strokes_queue, int layerId, Mat &ref)
+{
+    generate_strokes(strokes_queue, m_brush_radius[layerId], canvas, ref);
+    paint_layer(canvas, strokes_queue, layerId, ref);
+}
+
+void PainterlyService::render(Mat &canvas, list<SplineStroke> &strokes_queue, int layerId)
+{
+    Mat ref;
+    int R = m_brush_radius[layerId];
+    int ksize = 2 * R + 1;
+    
+    GaussianBlur(m_src, ref, Size(ksize, ksize), R);
+    render(canvas, strokes_queue, layerId, ref);
 }

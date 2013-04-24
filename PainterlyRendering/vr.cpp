@@ -46,10 +46,16 @@ int main(int argc, char *argv[])
     sprintf(buf, im, frameStart);
     cout << "loading image " << buf << endl;
 
+    int ll = 0;
     src = imread(buf);
     ps.setSourceImage(src);
     src.copyTo(render);
     ps.render(render, strokes_queue, nlayer);
+
+    render = Mat::zeros(src.rows, src.cols, src.type());
+    src.setTo(0);
+    ps.paint_layer(render, strokes_queue[ll], ll, src);
+    
     sprintf(buf, out, "out", frameStart);
     imwrite(buf, render);
 
@@ -57,32 +63,32 @@ int main(int argc, char *argv[])
     for (int count = 1; count <= (frameEnd - frameStart); ++count)
     {
         frame = count + frameStart;
-        if (count % preRenderInterval == 1)
-        {
-            cout << "adding strokes..." << endl;
-            for (int i = 0; i < nlayer; ++i)
-            {
-                if (strokes_queue[i].empty() || pre_strokes_queue[i].empty()) continue;
+        // if (count % preRenderInterval == 1)
+        // {
+        //     cout << "adding strokes..." << endl;
+        //     for (int i = 0; i < nlayer; ++i)
+        //     {
+        //         if (strokes_queue[i].empty() || pre_strokes_queue[i].empty()) continue;
                 
-                taken = Mat::zeros(src.rows, src.cols, src.type());
-                ps.paint_layer(taken, strokes_queue[i], i);
-                addStrokes(strokes_queue[i], pre_strokes_queue[i], taken);
-            }
+        //         taken = Mat::zeros(src.rows, src.cols, src.type());
+        //         ps.paint_layer(taken, strokes_queue[i], i);
+        //         addStrokes(strokes_queue[i], pre_strokes_queue[i], taken);
+        //     }
             
-            preload = frameStart + count + preRenderInterval;
-            if (preload > frameEnd) preload = frameEnd;
+        //     preload = frameStart + count + preRenderInterval;
+        //     if (preload > frameEnd) preload = frameEnd;
             
-            sprintf(buf, im, preload);
-            cout << "pre-rendering image " << buf << endl;
+        //     sprintf(buf, im, preload);
+        //     cout << "pre-rendering image " << buf << endl;
 
-            src = imread(buf);
-            ps.setSourceImage(src);
-            src.copyTo(canvas);
-            ps.render(canvas, pre_strokes_queue, nlayer);
+        //     src = imread(buf);
+        //     ps.setSourceImage(src);
+        //     src.copyTo(canvas);
+        //     ps.render(canvas, pre_strokes_queue, nlayer);
 
-            sprintf(buf, out, "pre", preload);
-            imwrite(buf, canvas);
-        }
+        //     sprintf(buf, out, "pre", preload);
+        //     imwrite(buf, canvas);
+        // }
 
         sprintf(buf, im, frame);
         src = imread(buf);
@@ -94,14 +100,16 @@ int main(int argc, char *argv[])
         propagate(strokes_queue, nlayer, u, v);
         removeStrokes(strokes_queue, nlayer, src);
 
-        ps.setSourceImage(src);
-        canvas.copyTo(render);
-        ps.paint_layer(render, strokes_queue, nlayer);
-        sprintf(buf, out, "out", frame);
-        imwrite(buf, render);
+        // ps.setSourceImage(src);
+        // canvas.copyTo(render);
+        // ps.paint_layer(render, strokes_queue, nlayer);
+        
+        // sprintf(buf, out, "out", frame);
+        // imwrite(buf, render);
 
         render.setTo(0);
-        ps.paint_layer(render, strokes_queue, nlayer);
+//        ps.paint_layer(render, strokes_queue, nlayer);
+        ps.paint_layer(render, strokes_queue[ll], ll, canvas);
         sprintf(buf, out, "nobg", frame);
         imwrite(buf, render);
     }
@@ -165,8 +173,8 @@ void removeStrokes(list<SplineStroke> *strokes_queue, int nlayer, const Mat &src
     assert(src.channels() == 3);
     cout << "removing strokes...";
     
-    const int threshold = 60;
-    const double fadeStep = 0.2;
+    const int threshold = 90;
+    const double fadeStep = 0.1;
     int offset, diff, color, step = src.step1(), width = src.cols, height = src.rows;
     uchar *ptr = src.data;
 

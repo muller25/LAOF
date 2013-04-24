@@ -43,7 +43,9 @@ public:
     
     void render(Mat &canvas);
     void render(Mat &canvas, list<SplineStroke> *strokes_queue, int nlayer);
-
+    void render(Mat &canvas, list<SplineStroke> &strokes_queue, int layerId);
+    void render(Mat &canvas, list<SplineStroke> &strokes_queue, int layerId, Mat &ref);
+    
     inline int nlayer() const{return m_nlayer;}
     
 private:

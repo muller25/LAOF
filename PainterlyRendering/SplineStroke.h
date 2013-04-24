@@ -11,6 +11,11 @@ class SplineStroke
 {
 public:
     SplineStroke(){}
+    inline void set(int radius, Scalar color, int x, int y)
+    {
+        set(radius, color.val[2], color.val[1], color.val[0], x, y);
+    }
+    
     inline void set(int radius, int r, int g, int b, int x0, int y0)
     {
         m_r = r;
@@ -24,6 +29,7 @@ public:
     }
 
     inline void add(int x, int y){m_points.push_back(Point(x, y));}
+    
     inline int nPoints() const{return m_points.size();}
     inline Point getStartPoint(){return m_start_point;}
     inline const Point getStartPoint() const{return m_start_point;}
