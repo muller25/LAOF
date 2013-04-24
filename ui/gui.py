@@ -1,13 +1,23 @@
 #-*- coding:utf-8 -*-
-import sys
-from os.path import expanduser
+import sys, os, subprocess, shutil
 from PyQt4 import QtGui, QtCore
 from PyQt4.phonon import Phonon
 
-cachedDir = os.path.join(expanduser("~"), "cache")
-imDir = os.path.join(cacheDir, "im")
-flowDir = os.path.join(cacheDir, "flow")
-renderDir = os.path.join(cacheDir, "render")
+cacheDir = os.path.join(os.path.expanduser("~"), "cache")
+imDir = os.path.join(cacheDir, "im/")
+flowDir = os.path.join(cacheDir, "flow/")
+renderDir = os.path.join(cacheDir, "render/")
+outVideo = os.path.join(cacheDir, "render.avi")
+imPattern = os.path.join(imDir, "%03d.jpg")
+flowPattern = os.path.join(flowDir, "%s%03d.yml")
+renderPattern = os.path.join(renderDir, "out%03d.jpg")
+
+if not os.path.exists(imDir):
+    os.makedirs(imDir)
+if not os.path.exists(flowDir):
+    os.makedirs(flowDir)
+if not os.path.exists(renderDir):
+    os.makedirs(renderDir)
 
 class mainWin(QtGui.QMainWindow):
     """
@@ -16,7 +26,7 @@ class mainWin(QtGui.QMainWindow):
     def __init__(self, width, height):
         super(mainWin, self).__init__()
         self.init(width, height)
-        os.mkdirs(
+        
     def init(self, width, height):
         self.setFixedSize(width, height)
         self.setWindowTitle("Video Painterly Rendering System")
@@ -54,34 +64,36 @@ class mainWin(QtGui.QMainWindow):
         self.VRPanel = VRPanel(width, height)
 
         tab = QtGui.QTabWidget(self)
-        tab.addTab(self.IRPanel, "Image Render")
         tab.addTab(self.VRPanel, "Video Render")
+        tab.addTab(self.IRPanel, "Image Render")
         tab.currentChanged.connect(self.tabChanged)
         self.setCentralWidget(tab)
         self.show()
 
     def open(self):
-        fname = QtGui.QFileDialog.getOpenFileName(self, "Open Video", expanduser("~"),
+        fname = QtGui.QFileDialog.getOpenFileName(self, "Open Video", os.path.expanduser("~"),
                                                   "Videos(*.mp4 *.avi)")
-
         if not fname.isEmpty():
             print "open video: " + fname
             self.VRPanel.showVideo(fname)
-            self.IRPanel.showImage(self.VRPanel.screenshot())
         else:
             print "do not choose any video"
 
     def save(self):
-        fname = QtGui.QFileDialog.getSaveFileName(self, "Save Video", expanduser("~"),
-                                                  "Videos(*.mp4 *.avi)")
+        fname = QtGui.QFileDialog.getSaveFileName(self, "Save Video", os.path.expanduser("~"),
+                                                  "Videos(*.avi)")
         if not fname.isEmpty():
             print "save to: " + fname
+            if os.path.exists(outVideo):
+                shutil.copyfile(outVideo, fname)
+            else:
+                print "you should generate video first"
         else:
             print "do not choose any video"
 
     def tabChanged(self, curIdx):
         # ir panel
-        if curIdx == 0:
+        if curIdx == 1:
             self.IRPanel.showImage(self.VRPanel.screenshot())
 
 class IRPanel(QtGui.QWidget):
@@ -91,7 +103,7 @@ class IRPanel(QtGui.QWidget):
     def __init__(self, width, height):
         super(IRPanel, self).__init__()
         self.init(width, height)
-
+        
     def init(self, width, height):
         IRlayout = QtGui.QHBoxLayout()
 
@@ -199,7 +211,20 @@ class IRPanel(QtGui.QWidget):
         self.maxStrokeLenLbl.setText("maximum stroke length: %d" %value)
 
     def runBtnClick(self):
-        print "Image rendering..."
+        pr = os.path.join("bin", "pr")
+        inFile = os.path.join(cacheDir, "in.jpg")
+        outFile = os.path.join(cacheDir, "out.jpg")
+
+        img = self.imgView.pixmap()
+        if img is None: return
+
+        img.save(inFile, "JPG")
+        proc = subprocess.Popen([pr, inFile, outFile])
+        proc.wait()
+
+        res = QtGui.QPixmap()
+        res.load(outFile)
+        self.showImage(res)
         
     def showImage(self, img):
         self.imgView.resize(img.size())
@@ -212,7 +237,8 @@ class VRPanel(QtGui.QWidget):
     def __init__(self, width, height):
         super(VRPanel, self).__init__()
         self.init(width, height)
-
+        self.videoName = None
+        
     def init(self, width, height):
         VRlayout = QtGui.QHBoxLayout()
 
@@ -234,6 +260,7 @@ class VRPanel(QtGui.QWidget):
         spatialLbl = QtGui.QLabel("sptial smooth", self)
         spatialLbl.setFixedWidth(lblWidth)
         self.spatial = QtGui.QLineEdit(self)
+        self.spatial.setText(str(0.05))
         tmpHBox.addWidget(spatialLbl)
         tmpHBox.addWidget(self.spatial)
         ctrlLayout.addLayout(tmpHBox)
@@ -243,6 +270,7 @@ class VRPanel(QtGui.QWidget):
         temporalLbl = QtGui.QLabel("temporal smooth", self)
         temporalLbl.setFixedWidth(lblWidth)
         self.temporal = QtGui.QLineEdit(self)
+        self.temporal.setText(str(0.015))
         tmpHBox.addWidget(temporalLbl)
         tmpHBox.addWidget(self.temporal)
         ctrlLayout.addLayout(tmpHBox)
@@ -252,6 +280,7 @@ class VRPanel(QtGui.QWidget):
         segmentLbl = QtGui.QLabel("segment similarity", self)
         segmentLbl.setFixedWidth(lblWidth)
         self.segment = QtGui.QLineEdit(self)
+        self.segment.setText(str(0.8))
         tmpHBox.addWidget(segmentLbl)
         tmpHBox.addWidget(self.segment)
         ctrlLayout.addLayout(tmpHBox)
@@ -288,8 +317,35 @@ class VRPanel(QtGui.QWidget):
         self.setLayout(VRlayout)
 
     def runBtnClick(self):
-        print "video rendering..."
+        vr = os.path.join("bin", "vr")
+        flow = os.path.join("bin", "biof")
+        video2im = os.path.join("bin", "video2images")
+        im2video = os.path.join("bin", "image2video")
 
+        if self.videoName is None:
+            print "please choose a video"
+            return
+
+        # video to image
+        v2iProc = subprocess.Popen([video2im, self.videoName, imDir])
+        v2iProc.wait()
+
+        # running laof
+        nfile = len([name for name in os.listdir(imDir) if os.path.isfile(os.path.join(imDir, name))])
+        ofProc = subprocess.Popen([flow, imPattern, flowDir, str(0), str(nfile)])
+        ofProc.wait()
+
+        # video rendering
+        vrProc = subprocess.Popen([vr, imPattern, flowPattern, renderDir, str(0), str(nfile)])
+        vrProc.wait()
+
+        i2vProc = subprocess.Popen([im2video, renderPattern, str(0), str(nfile), outVideo, str(15)])
+        i2vProc.wait()
+
+        self.showVideo(outVideo)
+        
+        print "done"
+        
     def playBtnClick(self):
         if self.player.isPlaying():
             self.player.pause()
@@ -305,6 +361,7 @@ class VRPanel(QtGui.QWidget):
         self.playBtn.setIcon(self.pauseIcon)
             
     def showVideo(self, fname):
+        self.videoName = fname
         self.player.load(Phonon.MediaSource(fname))
         self.media = self.player.mediaObject()
         

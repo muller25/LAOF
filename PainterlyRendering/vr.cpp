@@ -32,6 +32,7 @@ int main(int argc, char *argv[])
     strcpy(im, argv[1]);
     strcpy(flow, argv[2]);
     strcpy(out, argv[3]);
+    strcat(out, "%s%03d.jpg");
     frameStart = atoi(argv[4]);
     frameEnd = atoi(argv[5]);
 

@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
         // sprintf(buf, outImg, "im", i);
         // imwrite(buf, tmp);
 
-        printf("running biDir optical flow from im%d to im%d...\n", i-1, i);
+        printf("running optical flow from im%d to im%d...\n", i-1, i);
         of.biC2FFlow(u1, v1, u2, v2, im[cur], im[next], mask1, mask2,
                      as, ap, ratio, minWidth, nBiIter, nIRLSIter, nSORIter);
         

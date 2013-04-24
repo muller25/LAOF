@@ -33,6 +33,7 @@ src/layers
 PainterlyRendering/pr
 PainterlyRendering/vr
 gc/*
+ui/bin/*
 
 *cscope.out
 *.jpg

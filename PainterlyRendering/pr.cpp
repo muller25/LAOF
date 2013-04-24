@@ -9,8 +9,8 @@ using namespace std;
 
 int main(int argc, char *argv[])
 {
-    if (argc != 2){
-        cout << "usage: ./pr imagePath" << endl;
+    if (argc != 3){
+        cout << "usage: ./pr inImage outImage" << endl;
         return 1;
     }
     
@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
     ps.setSourceImage(src);
     ps.render(src);
     
-    imwrite("rendered.jpg", src);
+    imwrite(argv[2], src);
 /*
     IplImage *edgeFix = RenderingImage::operateEdge(dstImage, 100);
     cvShowImage("edge fix", edgeFix);
