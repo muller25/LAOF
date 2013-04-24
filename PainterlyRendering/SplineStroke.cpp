@@ -17,8 +17,10 @@ void SplineStroke::cubic_b_spline(Point2d &p, double t) const
 
     Point p0 = m_points[0];
     if (npoints == 1){
-		p.x = (double)p0.x + (0.5-t) * m_radius;
-		p.y = (double)p0.y;
+//		p.x = (double)p0.x + (0.5-t) * m_radius;
+//		p.y = (double)p0.y;
+        p.x = p0.x;
+        p.y = p0.y;
         return;
     }
 

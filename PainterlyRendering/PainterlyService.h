@@ -34,9 +34,8 @@ public:
     void make_spline_stroke(SplineStroke &spline_stroke, int x0, int y0, int R,
                             const Mat &dst, const Mat &ref);
 
-    void difference_image(int *diff, const Mat &dst, const Mat &ref, int R);
     void generate_strokes(list<SplineStroke> &strokes_queue, int R,
-                          const Mat &canvas, const Mat &ref);
+                          Mat canvas, const Mat &ref);
     void paint_layer(Mat &canvas, const list<SplineStroke> &strokes_queue, int R, const Mat &ref);
     void paint_layer(Mat &canvas, const list<SplineStroke> &strokes_queue, int layerId);
     void paint_layer(Mat &canvas, const list<SplineStroke> *strokes_queue, int nlayer);
