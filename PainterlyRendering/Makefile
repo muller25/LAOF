@@ -11,11 +11,14 @@ DEL				= rm -rf
 OPENCVLIBS		= `pkg-config --libs opencv`
 OBJS			= NormalMap.o Lighting.o MakeBrushMap.o LightingEffect.o \
 EdgeOptimization.o ImportantMap.o PainterlyService.o PainterlyStyle.o \
-ColorModels.o SplineStroke.o
-TARGET			= pr vr
+ColorModels.o SplineStroke.o RBF.o
+TARGET			= pr vr rbf
 
 all: $(TARGET)
 	@echo "DONE"
+
+rbf: RBF.o test_rbf.o
+	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS)
 
 vr: $(OBJS) vr.o
 	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS)

@@ -1,20 +1,15 @@
-#include <stdio.h>
-#include <vector>
+#include "RBF.h"
 
-#include <cv.h>
+#include <stdio.h>
+
 #include <highgui.h>
 using namespace cv;
 
-typedef double PERCISION;
-
-#define CV_PERCISION CV_64F
-
 const double PI = atan(1.) * 4;
 
-inline double phi(double x)
-{
-    return fabs(x);
-}
+double RBF::factor = 0.125;
+int RBF::wsize = std::max(5 * RBF::factor, 1.);
+int RBF::range = std::max(10 * RBF::factor, 1.);
 
 /*
   描述：
@@ -29,8 +24,8 @@ inline double phi(double x)
   wsize: 极大值窗口
   range： 中心点之间的最小距离
 */
-void rbf_center(std::vector<Point> &centers, const Mat &gm,
-                double thres = 100, int wsize = 5, int range = 10)
+void RBF::rbf_center(vector<Point> &centers, const Mat &gm,
+                     double thres, int wsize, int range)
 {
     centers.clear();
 
@@ -90,7 +85,7 @@ void rbf_center(std::vector<Point> &centers, const Mat &gm,
         }
 }
 
-void rbf_solver(Mat &rbfres, const std::vector<Point> &centers, const Mat &gm)
+void RBF::rbf_solver(Mat &rbfres, const vector<Point> &centers, const Mat &gm)
 {
     // estimate weights
     int len = centers.size();
@@ -135,42 +130,9 @@ void rbf_solver(Mat &rbfres, const std::vector<Point> &centers, const Mat &gm)
         }
 }
 
-void plot_gradient(Mat &show, const Mat &gx, const Mat &gy,
-                   const Mat &im, double factor)
-{
-    assert(im.channels() == 3);
-    
-    int width = im.cols, height = im.rows;
-    PERCISION resolution = 1 / factor;
-    PERCISION len = resolution / 2;
-    int nwidth = width * resolution + len, nheight = height * resolution + len;
-    show = Mat::zeros(nheight, nwidth, CV_8UC3);
-    
-    for (int h = 0; h < height; ++h)
-        for (int w = 0; w < width; ++w)
-        {
-            PERCISION dx = gx.at<PERCISION>(h, w);
-            PERCISION dy = gy.at<PERCISION>(h, w);
-            PERCISION theta = atan2(dy, dx) + PI / 2;
-            int hh = h * resolution + len;
-            int ww = w * resolution + len;
-            int dw = cos(theta) * len * 2;
-            int dh = sin(theta) * len * 2;
-            Vec3b pixel = im.at<Vec3b>(h, w);
-            Scalar color(pixel[0], pixel[1], pixel[2]);
-            
-            line(show, Point(ww, hh), Point(ww+dw, hh+dh), color);
-            line(show, Point(ww, hh), Point(ww-dw, hh-dh), color);
-        }
-}
-
-void rbf(Mat &res, const Mat &src, int radius)
+void RBF::rbf(Mat &res, const Mat &src, int radius)
 {
     assert(src.channels() == 3);
-    
-    const double factor = 0.125;
-    const int wsize = std::max(5 * factor, 1.);
-    const int range = std::max(10 * factor, 1.);
     
     Mat im, gray;
     resize(src, im, Size(0, 0), factor, factor);
@@ -192,7 +154,7 @@ void rbf(Mat &res, const Mat &src, int radius)
     // get source
     printf("calculating rbf sources...\n");
     int width = im.cols, height = im.rows, len;
-    std::vector<Point> centersx, centersy, centers;
+    vector<Point> centersx, centersy, centers;
 
     rbf_center(centers, gm, 100, wsize, range);
     len = centers.size();
@@ -223,16 +185,53 @@ void rbf(Mat &res, const Mat &src, int radius)
     waitKey(0);
 }
 
-int main(int argc, char *argv[])
+void RBF::orientation(Mat &field, const Mat &src, int radius)
 {
-    if (argc < 2){
-        printf("parameters: image\n");
-        return -1;
-    }
+    Mat rbfres;
+    rbf(rbfres, src, radius);
+    orientation(field, rbfres);
+}
 
-    Mat res, im;
-    im = imread(argv[1]);
-    rbf(res, im, 4);
+void RBF::orientation(Mat &field, const Mat &rbfres)
+{
+    assert(rbfres.channels() == 2);
     
-    return 0;
+    int width = rbfres.cols, height = rbfres.rows;
+    field = Mat::zeros(height, width, CV_PERCISION);
+    
+    for (int h = 0; h < height; ++h)
+        for (int w = 0; w < width; ++w)
+        {
+            Vec<PERCISION, 2> gradient = rbfres.at<Vec<PERCISION, 2> >(h, w);
+            field.at<PERCISION>(h, w) = atan2(gradient[1], gradient[0]) + PI / 2;
+        }
+}
+
+void RBF::plot_gradient(Mat &show, const Mat &gx, const Mat &gy,
+                   const Mat &im, double factor)
+{
+    assert(im.channels() == 3);
+    
+    int width = im.cols, height = im.rows;
+    PERCISION resolution = 1 / factor;
+    PERCISION len = resolution / 2;
+    int nwidth = width * resolution + len, nheight = height * resolution + len;
+    show = Mat::zeros(nheight, nwidth, CV_8UC3);
+    
+    for (int h = 0; h < height; ++h)
+        for (int w = 0; w < width; ++w)
+        {
+            PERCISION dx = gx.at<PERCISION>(h, w);
+            PERCISION dy = gy.at<PERCISION>(h, w);
+            PERCISION theta = atan2(dy, dx) + PI / 2;
+            int hh = h * resolution + len;
+            int ww = w * resolution + len;
+            int dw = cos(theta) * len * 2;
+            int dh = sin(theta) * len * 2;
+            Vec3b pixel = im.at<Vec3b>(h, w);
+            Scalar color(pixel[0], pixel[1], pixel[2]);
+            
+            line(show, Point(ww, hh), Point(ww+dw, hh+dh), color);
+            line(show, Point(ww, hh), Point(ww-dw, hh-dh), color);
+        }
 }
