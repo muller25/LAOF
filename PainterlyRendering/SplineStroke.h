@@ -25,14 +25,14 @@ public:
         m_alpha = 1.0;
 
         //加到起点，为了计算 brush中每bristle颜色；
-        m_start_point = Point(x0, y0);
+        m_points.push_back(Point(x0, y0));
     }
 
     inline void add(int x, int y){m_points.push_back(Point(x, y));}
     
     inline int nPoints() const{return m_points.size();}
-    inline Point getStartPoint(){return m_start_point;}
-    inline const Point getStartPoint() const{return m_start_point;}
+    inline Point getStartPoint(){return m_points[0];}
+    inline const Point getStartPoint() const{return m_points[0];}
     inline int nRadius() const{return m_radius;}
     inline double nAlpha() const{return m_alpha;}
     inline Scalar color() const{
@@ -78,7 +78,6 @@ private:
 	int m_radius;
     double m_alpha;
 	unsigned int m_r, m_g, m_b;
-    Point m_start_point;
 	vector<Point> m_points;
 };
 

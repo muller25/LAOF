@@ -11,11 +11,8 @@
 PainterlyService::PainterlyService()
 {
     m_init = false;
-    m_brush_radius = m_count_pass = m_sum_pass = NULL;
-    m_grad_orient = NULL;
     m_width = m_height = 0;
     
-    // 设置笔刷大小，不绘制 R=32
     m_nlayer = 3;
     m_brush_radius = new int[3];
     m_brush_radius[0] = 8;

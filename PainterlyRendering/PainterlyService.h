@@ -5,6 +5,7 @@
 using namespace cv;
 
 #include <list>
+#include <vector>
 using namespace std;
 
 #include "PainterlyStyle.h"
@@ -21,16 +22,14 @@ public:
     PainterlyService();
 	virtual ~PainterlyService(){
         clear();
-        if (m_brush_radius != NULL) delete []m_brush_radius;
-        m_brush_radius = NULL;
     };
     virtual void clear();
 
     void setSourceImage(const Mat &src);
     void setTexture(const char *path = NULL);
-    
-    void getEdgeMap();
     void getStrokeOrientation();
+    void getEdgeMap();
+
     void make_spline_stroke(SplineStroke &spline_stroke, int x0, int y0, int R,
                             const Mat &dst, const Mat &ref);
 
