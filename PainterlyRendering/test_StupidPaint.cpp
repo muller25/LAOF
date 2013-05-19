@@ -20,8 +20,10 @@ int main(int argc, char *argv[])
     StupidPaint::loadTexture();
     StupidPaint::paint(dst, src);
 
-    waitKey(0);
+    imshow("render", dst);
+    waitKey(0);    
+
     imwrite(argv[2], dst);
-    
+
     return 0;
 }

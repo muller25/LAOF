@@ -19,6 +19,8 @@ public:
     static void strokes_placement(Mat &dst, const Mat &src, const vector<Brush> &strokes);
 
     static Vec3b extract_color(const Mat &src, const Mat &mask, int x, int y);
+    static Vec3b extract_color(const Mat &src, int x, int y, int radius);
+
     static void stroke_orient(Mat &orient, const Mat &src);
 
     static void paint(Mat &dst, const Mat &src);
