@@ -22,7 +22,7 @@ void RBF::rbf_center(vector<Point> &centers, const Mat &gm)
 
     double minVal, maxVal, threshold;
     minMaxLoc(gm, &minVal, &maxVal);
-    threshold = maxVal * 0.5;
+    threshold = maxVal * 0.75;
 
 #ifdef DEBUG
     printf("magnitude: %.6f .. %.6f\n", minVal, maxVal);
@@ -98,6 +98,55 @@ void RBF::rbf_solver(Mat &rbfres, const vector<Point> &centers, const Mat &gm)
         }
 }
 
+void RBF::rbf_interpolate(Mat &orient, const Mat &im)
+{
+    vector<Point> centers;
+    rbf_interpolate(orient, centers, im);
+}
+
+void RBF::rbf_interpolate(Mat &orient, vector<Point> &centers, const Mat &im)
+{
+    assert(im.channels() == 3);
+
+    Mat gray;
+    cvtColor(im, gray, CV_BGR2GRAY);
+
+#ifdef DEBUG
+    printf("gradient...\n");
+#endif
+    // gradient
+    Mat gx, gy, abs_gx, abs_gy, gm;
+    Sobel(gray, gx, CV_PERCISION, 1, 0);
+    Sobel(gray, gy, CV_PERCISION, 0, 1);
+    convertScaleAbs(gx, abs_gx);
+    convertScaleAbs(gy, abs_gy);
+    addWeighted(abs_gx, 0.5, abs_gy, 0.5, 0, gm, CV_PERCISION);
+    
+#ifdef DEBUG
+    printf("calculating rbf sources...\n");
+#endif
+    // get source
+    rbf_center(centers, gm);
+
+#ifdef DEBUG
+    printf("centers: %d\n", centers.size());
+    printf("estimate weights and interpolating...\n");
+#endif
+    
+    // estimate weights && interpolate
+    int width = gm.cols, height = gm.rows;
+    Mat local(height, width, CV_PERCISION);
+    for (int h = 0; h < height; ++h)
+        for (int w = 0; w < width; ++w)
+        {
+            PERCISION dx = gx.at<PERCISION>(h, w);
+            PERCISION dy = gy.at<PERCISION>(h, w);
+            local.at<PERCISION>(h, w) = atan2(dy, dx) + CV_PI / 2.;
+        }
+    
+    rbf_solver(orient, centers, local);
+}
+
 void RBF::rbf_interpolate(Mat &rbfx, Mat &rbfy, const Mat &src)
 {
     vector<Point> centers;
@@ -154,6 +203,41 @@ void RBF::plot(Mat &show, const vector<Point> &centers,
             PERCISION dx = gx.at<PERCISION>(h, w);
             PERCISION dy = gy.at<PERCISION>(h, w);
             PERCISION theta = atan2(dy, dx) + CV_PI / 2;
+            int hh = h * resolution + len;
+            int ww = w * resolution + len;
+            int dw = cos(theta) * len * 2;
+            int dh = sin(theta) * len * 2;
+            Vec3b pixel = im.at<Vec3b>(h, w);
+            Scalar color(pixel[0], pixel[1], pixel[2]);
+            
+            line(show, Point(ww, hh), Point(ww+dw, hh+dh), color);
+            line(show, Point(ww, hh), Point(ww-dw, hh-dh), color);
+        }
+
+    for (size_t i = 0; i < centers.size(); ++i)
+    {
+        int x = centers[i].x * resolution + len;
+        int y = centers[i].y * resolution + len;
+        
+        circle(show, Point(x, y), 5, Scalar(255, 0, 0), -1);
+    }
+}
+
+void RBF::plot(Mat &show, const vector<Point> &centers,
+               const Mat &orient, const Mat &im, double factor)
+{
+    assert(im.channels() == 3);
+    
+    int width = im.cols, height = im.rows;
+    PERCISION resolution = factor;
+    PERCISION len = resolution / 2;
+    int nwidth = width * resolution + len, nheight = height * resolution + len;
+    show = Mat::zeros(nheight, nwidth, CV_8UC3);
+    
+    for (int h = 0; h < height; ++h)
+        for (int w = 0; w < width; ++w)
+        {
+            PERCISION theta = orient.at<PERCISION>(h, w);
             int hh = h * resolution + len;
             int ww = w * resolution + len;
             int dw = cos(theta) * len * 2;

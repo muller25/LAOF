@@ -120,7 +120,16 @@ Vec3b StupidPaint::extract_color(const Mat &src, int x, int y, int radius)
 void StupidPaint::stroke_orient(Mat &orient, const Mat &src)
 {
     Mat gx, gy;
-    RBF::rbf_interpolate(gx, gy, src);
+    vector<Point> centers;
+    RBF::rbf_interpolate(gx, gy, centers, src);
+
+    // plot
+    Mat rbfres;
+    double factor = 0.75 / 8;
+    RBF::plot(rbfres, centers, gx, gy, src, 1 / factor);
+    imshow("rbf", rbfres);
+
+//    RBF::rbf_interpolate(gx, gy, src);
 
     int width = src.cols, height = src.rows;
     orient.create(height, width, CV_PERCISION);
@@ -171,7 +180,7 @@ void StupidPaint::strokes_placement(Mat &dst, const Mat &src, const vector<Brush
                 uchar val = amask.at<uchar>(hh, ww);
                 if (val >= 128) continue;
 
-                float aalpha = val / 255.;
+                float aalpha = 0;//val / 255.;
                 Vec3b dcolor = dst.at<Vec3b>(nh, nw);
                 dst.at<Vec3b>(nh, nw) = bcolor * (1-aalpha) * halpha + dcolor * (1-halpha);
             }

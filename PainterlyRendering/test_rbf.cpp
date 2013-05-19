@@ -28,13 +28,17 @@ int main(int argc, char *argv[])
     int ksize = 2 * radius + 1;
     GaussianBlur(im, smooth, Size(ksize, ksize), radius, radius);
 
-    Mat rbfx, rbfy;
+    // Mat rbfx, rbfy;
+    // vector<Point> centers;
+    // RBF::rbf_interpolate(rbfx, rbfy, centers, smooth);
+
+    Mat orient;
     vector<Point> centers;
-    RBF::rbf_interpolate(rbfx, rbfy, centers, smooth);
+    RBF::rbf_interpolate(orient, centers, smooth);
 
     // plot
     Mat rbfres;
-    RBF::plot(rbfres, centers, rbfx, rbfy, im, 1 / factor);
+    RBF::plot(rbfres, centers, orient, im, 1 / factor);
     imshow("rbf", rbfres);
     waitKey(0);
     

@@ -9,7 +9,7 @@ void SplineStroke::cubic_b_spline(Point2d &p, double t) const
 	if (npoints == 0) return;
 	if (t > 1) t = 1;
 
-	index = t * (npoints - 3.0);
+	index = t * (npoints - 3);
 	tt = (t - (double)index / ((double)npoints - 3.0)) * (npoints - 3.0);
 
 	if (index < 0) index = 0;
