@@ -29,7 +29,6 @@ PainterlyService::PainterlyService()
     const int threshold = 20 * 3;
     const float grid_size = 2.0;
 
-    currentStyle.blur_factor = 0.5;
     currentStyle.max_stroke_length = max_stroke_length;
 	currentStyle.min_stroke_length = min_stroke_length;
 	currentStyle.curvature_filter = 1.0;
@@ -43,8 +42,8 @@ PainterlyService::PainterlyService()
 	currentStyle.jitter_sat = 0.0;
 	currentStyle.jitter_val = 0.0;
 
-//    setTexture("brush_map.bmp");
-    setTexture();
+    setTexture("brush_map.bmp");
+//    setTexture();
 }
 
 void PainterlyService::setSourceImage(const Mat &src)
@@ -59,9 +58,7 @@ void PainterlyService::setSourceImage(const Mat &src)
     m_init = true;
     bilateralFilter(m_src, m_reference, 9, 300, 300);
     m_orient = Mat::zeros(m_height, m_width, CV_PERCISION);
-    getEdgeMap();
     getStrokeOrientation();
-
 }
 
 void PainterlyService::setTexture(const char *path)
@@ -71,30 +68,16 @@ void PainterlyService::setTexture(const char *path)
     assert(m_texture.data != NULL);
 }
 
-// 提取图像边缘，修改m_edge_map
-void PainterlyService::getEdgeMap()
-{
-    assert(m_init);
-    
-    Mat smooth, gray;
-    cvtColor(m_reference, smooth, CV_BGR2GRAY);
-    bitwise_not(smooth, gray);
-    
-    // 对灰度图像进行边缘检测
-    const float edge_dect_thres = 100;
-
-    m_edge_map = Mat::zeros(m_height, m_width, CV_8UC3);
-    Canny(gray, smooth,  edge_dect_thres,  edge_dect_thres * 3, 3);
-    m_src.copyTo(m_edge_map, smooth);
-}
-
 void PainterlyService::getStrokeOrientation()
 {
     assert(m_init);
 
-    Mat rbf;
-    RBF::rbf_interpolate(rbf, m_src);
-    
+    Mat rbf, src, tmp;
+    const double factor = 0.125;
+    resize(m_src, src, Size(0, 0), factor, factor);
+    RBF::rbf_interpolate(tmp, src);
+    resize(tmp, rbf, Size(m_width, m_height), 0, 0, INTER_CUBIC);
+
     // gradient
     Mat gray, gx, gy, abs_gx, abs_gy, gm;
     cvtColor(m_src, gray, CV_BGR2GRAY);
@@ -118,15 +101,15 @@ void PainterlyService::getStrokeOrientation()
             PERCISION lo = atan2(dy, dx) + CV_PI / 2.;
             PERCISION go = rbf.at<PERCISION>(h, w);
             PERCISION weight = (gm.at<PERCISION>(h, w) - minVal) / range;
-//            m_orient.at<PERCISION>(h, w) = weight * lo + (1 - weight) * go;
-            m_orient.at<PERCISION>(h, w) = lo;
+            m_orient.at<PERCISION>(h, w) = weight * lo + (1 - weight) * go;
+//            m_orient.at<PERCISION>(h, w) = lo;
         }
 }
 
 void PainterlyService::make_spline_stroke(SplineStroke &spline_stroke, int x0, int y0, int R,
                                           const Mat &canvas, const Mat &coverage)
 {
-    assert(m_init && coverage.type() == CV_32S);
+    assert(m_init && coverage.type() == CV_8U);
     
     Vec3i bcolor = m_reference.at<Vec3b>(y0, x0);
     unsigned int r = bcolor[2];
@@ -185,8 +168,8 @@ void PainterlyService::make_spline_stroke(SplineStroke &spline_stroke, int x0, i
         double d1 = norm(drc, NORM_L1);
         double d2 = norm(drb, NORM_L1);
         double theta = m_orient.at<PERCISION>(y, x);
-        
-        if (k > currentStyle.min_stroke_length && (d1 < d2 || fabs(btheta-theta) > angle_threshold || coverage.at<int>(y, x) >= 1))
+        uchar cover = coverage.at<uchar>(y, x);
+        if (k > currentStyle.min_stroke_length && (d1 < d2 || fabs(btheta-theta) >= angle_threshold || cover >= R))
             break;
 
         x += R * cos(theta);
@@ -306,11 +289,11 @@ void PainterlyService::generate_strokes(list<SplineStroke> &strokes_queue, int R
     strokes_queue.clear();
     int grid_step = currentStyle.grid_size * R;
     int area = grid_step * grid_step;
-    Mat coverage = Mat::zeros(m_height, m_width, CV_32S);
+    Mat coverage = Mat::zeros(m_height, m_width, CV_8U);
     clock_t start = clock();
-    for (int j = m_height - 1; j >= 0; j -= grid_step)
+    for (int j = m_height - R; j >= 0; j -= grid_step)
     {
-        for (int i = 0; i < m_width; i += grid_step)
+        for (int i = R; i < m_width; i += grid_step)
         {
             // 计算 area_error
             double area_error = 0, max_error = -1;
@@ -363,9 +346,9 @@ void PainterlyService::generate_strokes(list<SplineStroke> &strokes_queue, int R
                 for (int h = -R; h <= R; ++h)
                     for (int w = -R; w <= R; ++w)
                     {
-                        int hh = std::max(std::min(ny+h, m_height-1), 0);
-                        int ww = std::max(std::min(nx+w, m_width-1), 0);
-                        coverage.at<int>(hh, ww) += 1;
+                        int hh = ny + h, ww = nx + w;
+                        if (ww < 0 || ww >= m_width || hh < 0 || hh >= m_height) continue;
+                        coverage.at<uchar>(hh, ww) += 1;
                     }
 
                 cbstroke.add(nx, ny);
@@ -377,8 +360,12 @@ void PainterlyService::generate_strokes(list<SplineStroke> &strokes_queue, int R
     }
 
 #ifdef DEBUG
-    imshow("coverage", coverage * 255);
-    waitKey(0);
+    char buf[256];
+    sprintf(buf, "coverage-%d.jpg", R);
+    imwrite(buf, coverage);
+    double minVal, maxVal;
+    minMaxLoc(coverage, &minVal, &maxVal);
+    printf("coverage: %.2f .. %.2f\n", minVal, maxVal);
 #endif
     
     clock_t finish = clock();
@@ -399,7 +386,7 @@ void PainterlyService::paint_layer(Mat &canvas, const list<SplineStroke> &stroke
     Mat brush_tex, bg;
     resize(m_texture, brush_tex, Size(R*2+1, R*2+1), 0, 0, INTER_CUBIC);
     canvas.copyTo(bg);
-    
+
     // CubicBSpline版本, 得到笔刷的control points
     printf("strokes size: %d\n", strokes_queue.size());
 
@@ -409,53 +396,32 @@ void PainterlyService::paint_layer(Mat &canvas, const list<SplineStroke> &stroke
         if(iter->nPoints() <= 0) continue;
 
         double alpha = iter->getAlpha();
-        Point point;
         Vec3b bcolor = iter->getColor();
         for (int i = 0; i < iter->nPoints(); ++i)
         {
-            point = iter->get(i);
-            Vec3b bgcolor = bg.at<Vec3b>(point.y, point.x);
-            Vec3b ccolor = canvas.at<Vec3b>(point.y, point.x);
-            Vec3b color = bgcolor * (1-alpha) + (bcolor * (1-PA) + ccolor * PA) * alpha;
+            Point point = iter->get(i);
+            // Vec3b bgcolor = bg.at<Vec3b>(point.y, point.x);
+            // Vec3b ccolor = canvas.at<Vec3b>(point.y, point.x);
+            // Vec3b color = bgcolor * (1-alpha) + (bcolor * (1-PA) + ccolor * PA) * alpha;
+            // circle(canvas, point, R, Scalar(color[0], color[1], color[2]), -1);
 
-            circle(canvas, point, R, Scalar(color[0], color[1], color[2]), -1);
+            for(int hh = -R; hh <= R; hh++)
+                for(int ww = -R; ww <= R; ww++){
+                    int bhh = point.y + hh, bww = point.x + ww;
+                    if (bhh < 0 || bhh >= m_height || bww >= m_width || bww < 0) continue;
 
+//                    double bristle = ((double)brush_tex.at<uchar>(hh+R, ww+R)) / 255.;
+                    Vec3b ccolor = canvas.at<Vec3b>(bhh, bww);
+                    Vec3b bgcolor = bg.at<Vec3b>(bhh, bww);
+//                    Vec3b ncolor = bcolor * bristle + ccolor * (1 - bristle);
+                    Vec3b ncolor = bcolor;
+                    Vec3b color = ncolor * alpha + bgcolor * (1-alpha);
+                    canvas.at<Vec3b>(bhh, bww) = color;
+                }
 #ifdef DEBUG
 //            imshow("painter", canvas);
 //            waitKey(10);
 #endif
-            // for(int hh = -R; hh <= R; hh++)
-            //     for(int ww= -R; ww <= R; ww++){
-            //         bii = std::min(std::max(point.y + hh, 0), m_height-1);
-            //         bjj = std::min(std::max(point.x + ww, 0), m_width-1);
-            //         offset = bii * step + bjj * 3;
-            //         alpha = iter->nAlpha();//(1 - PA) * iter->nAlpha();
-            //         r = pref[offset+2]*(1-alpha) + iter->ColorR()*alpha;
-            //         g = pref[offset+1]*(1-alpha) + iter->ColorG()*alpha;
-            //         b = pref[offset]*(1-alpha) + iter->ColorB()*alpha;
-
-            //         p_xx = newPoint.x + ww;
-            //         p_yy = newPoint.y + hh;
-            //         if(!(p_xx >= 0 && p_yy >=0 && p_xx < m_width && p_yy < m_height)) continue;
-
-            //         int ii = hh + R, jj = ww + R;
-            //         int I = brush_tex.at<uchar>(ii, jj);
-            //         int Index = p_yy * step + p_xx * 3;
-
-            //         // 附加纹理
-            //         pdst[Index+2] = r*(I/255.0) + pdst[Index+2]*(1- I/255.0);
-            //         pdst[Index+1] = g*(I/255.0) + pdst[Index+1]*(1- I/255.0);
-            //         pdst[Index+0] = b*(I/255.0) + pdst[Index+0]*(1- I/255.0);
-            //         // pdst[Index+2] = r;
-            //         // pdst[Index+1] = g;
-            //         // pdst[Index] = b;
-                    
-            //         // 计算高度图
-            //         int height_map_index = p_yy * m_width + p_xx;
-            //         m_count_pass[height_map_index]++;
-            //         m_sum_pass[height_map_index] += I;
-            //         m_height_maps.at<uchar>(p_yy, p_xx) = (int)((m_sum_pass[height_map_index])/(m_count_pass[height_map_index]));
-            // }
         }
     }
 
@@ -485,10 +451,11 @@ void PainterlyService::render(Mat &canvas)
     render(canvas, strokes_queue, nlayer);
 
 #ifdef DEBUG
-    imwrite("edge_map.jpg", m_edge_map);
     imwrite("reference.jpg", m_reference);
-    Mat show;
-    RBF::plot(show, m_orient, m_src, 8);
+    Mat show, orient, src;
+    resize(m_orient, orient, Size(0, 0), 0.125, 0.125);
+    resize(m_src, src, Size(0, 0), 0.125, 0.125);
+    RBF::plot(show, orient, src, 8);
     imwrite("orient.jpg", show);
 #endif
 }
@@ -527,4 +494,40 @@ void PainterlyService::render(Mat &canvas, list<SplineStroke> &strokes_queue, in
 {
     generate_strokes(strokes_queue, m_brush_radius[layerId], canvas);
     paint_layer(canvas, strokes_queue, layerId);
+
+#ifdef DEBUG
+    char buf[256];
+    Mat tmp = Mat::zeros(m_height, m_width, m_src.type());
+    paint_layer(tmp, strokes_queue, layerId);
+    sprintf(buf, "render-layer-%d.jpg", layerId);
+    imwrite(buf, tmp);
+#endif
+}
+
+void PainterlyService::fixEdges(Mat &canvas)
+{
+    assert(m_init);
+
+    // gradient
+    Mat smooth, gray, gx, gy, abs_gx, abs_gy, gm;
+    int R = m_brush_radius[0];
+    int ksize = 2 * R + 1;
+    GaussianBlur(m_src, smooth, Size(ksize, ksize), R);
+    cvtColor(smooth, gray, CV_BGR2GRAY);
+    Sobel(gray, gx, CV_PERCISION, 1, 0);
+    Sobel(gray, gy, CV_PERCISION, 0, 1);
+    magnitude(gx, gy, gm);
+
+    double minVal, maxVal;
+    minMaxLoc(gm, &minVal, &maxVal);
+    const double threshold = maxVal * 0.6;
+    Mat mask = (gm >= threshold);
+    m_src.copyTo(canvas, mask);
+    
+#ifdef DEBUG
+    Mat edge_map = Mat::zeros(m_height, m_width, CV_8UC3);
+    m_src.copyTo(edge_map, mask);
+    imwrite("edge_map.jpg", edge_map);
+    imwrite("importance.jpg", gm);
+#endif
 }

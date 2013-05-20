@@ -20,7 +20,6 @@ public:
 
     void setSourceImage(const Mat &src);
     void setTexture(const char *path = NULL);
-    void getEdgeMap();
     void getStrokeOrientation();
     void make_spline_stroke(SplineStroke &spline_stroke, int x0, int y0, int R,
                             const Mat &canvas, const Mat &coverage);
@@ -32,11 +31,12 @@ public:
     void render(Mat &canvas);
     void render(Mat &canvas, list<SplineStroke> *strokes_queue, int nlayer);
     void render(Mat &canvas, list<SplineStroke> &strokes_queue, int layerId);
-    
+    void fixEdges(Mat &canvas);
+
     inline int nLayers() const{return m_brush_radius.size();}
     
 private:
-	Mat m_src, m_edge_map, m_texture, m_orient, m_reference;
+	Mat m_src, m_texture, m_orient, m_reference;
     int m_width, m_height;
     bool m_init;
     
