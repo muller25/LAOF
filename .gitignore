@@ -32,6 +32,8 @@ src/run
 src/layers
 PainterlyRendering/pr
 PainterlyRendering/vr
+PainterlyRendering/rbf
+PainterlyRendering/stupid
 gc/*
 ui/bin/*
 tools/image2video
