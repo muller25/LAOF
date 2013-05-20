@@ -20,23 +20,20 @@ public:
 
     void setSourceImage(const Mat &src);
     void setTexture(const char *path = NULL);
-    void getStrokeOrientation();
     void getEdgeMap();
-
+    void getStrokeOrientation();
     void make_spline_stroke(SplineStroke &spline_stroke, int x0, int y0, int R,
-                            const Mat &dst, const Mat &ref);
+                            const Mat &canvas, const Mat &coverage);
 
-    void generate_strokes(list<SplineStroke> &strokes_queue, int R, Mat canvas, const Mat &ref);
-    void paint_layer(Mat &canvas, const list<SplineStroke> &strokes_queue, int R, const Mat &ref);
+    void generate_strokes(list<SplineStroke> &strokes_queue, int R, const Mat &canvas);
     void paint_layer(Mat &canvas, const list<SplineStroke> &strokes_queue, int layerId);
     void paint_layer(Mat &canvas, const list<SplineStroke> *strokes_queue, int nlayer);
     
     void render(Mat &canvas);
     void render(Mat &canvas, list<SplineStroke> *strokes_queue, int nlayer);
     void render(Mat &canvas, list<SplineStroke> &strokes_queue, int layerId);
-    void render(Mat &canvas, list<SplineStroke> &strokes_queue, int layerId, Mat &ref);
     
-    inline int nlayer() const{return m_nlayer;}
+    inline int nLayers() const{return m_brush_radius.size();}
     
 private:
 	Mat m_src, m_edge_map, m_texture, m_orient, m_reference;

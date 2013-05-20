@@ -4,6 +4,7 @@
 #include <cv.h>
 using cv::Vec3b;
 using cv::Point;
+using cv::Point2d;
 
 #include <vector>
 using std::vector;
@@ -28,13 +29,12 @@ public:
     }
 
     inline void add(int x, int y){m_points.push_back(Point(x, y));}
-    
     inline int nPoints() const{return m_points.size();}
     inline Point getStartPoint() const{return m_points[0];}
     inline int getRadius() const{return m_radius;}
     inline double getAngle() const{return m_angle;}
-    inline double setAngle(double angle){m_angle = angle;}
-    inline Vec3b getColor() const{return color;}
+    inline void setAngle(double angle){m_angle = angle;}
+    inline Vec3b getColor() const{return m_color;}
     inline double getAlpha() const{return m_alpha;}
     inline void setAlpha(double alpha){m_alpha = alpha;}
     inline bool isTransparent() const{return fabs(m_alpha) < 1e-6;}

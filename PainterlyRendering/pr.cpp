@@ -20,7 +20,8 @@ int main(int argc, char *argv[])
     PainterlyService ps;
 
     ps.setSourceImage(src);
-    ps.render(src);
+    Mat canvas = Mat::zeros(src.rows, src.cols, src.type());
+    ps.render(canvas);
     
     imwrite(argv[2], src);
 /*

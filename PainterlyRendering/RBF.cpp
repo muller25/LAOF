@@ -257,3 +257,29 @@ void RBF::plot(Mat &show, const vector<Point> &centers,
         circle(show, Point(x, y), 5, Scalar(255, 0, 0), -1);
     }
 }
+
+void RBF::plot(Mat &show, const Mat &orient, const Mat &im, double factor)
+{
+    assert(im.channels() == 3);
+    
+    int width = im.cols, height = im.rows;
+    PERCISION resolution = factor;
+    PERCISION len = resolution / 2;
+    int nwidth = width * resolution + len, nheight = height * resolution + len;
+    show = Mat::zeros(nheight, nwidth, CV_8UC3);
+    
+    for (int h = 0; h < height; ++h)
+        for (int w = 0; w < width; ++w)
+        {
+            PERCISION theta = orient.at<PERCISION>(h, w);
+            int hh = h * resolution + len;
+            int ww = w * resolution + len;
+            int dw = cos(theta) * len * 2;
+            int dh = sin(theta) * len * 2;
+            Vec3b pixel = im.at<Vec3b>(h, w);
+            Scalar color(pixel[0], pixel[1], pixel[2]);
+            
+            line(show, Point(ww, hh), Point(ww+dw, hh+dh), color);
+            line(show, Point(ww, hh), Point(ww-dw, hh-dh), color);
+        }
+}

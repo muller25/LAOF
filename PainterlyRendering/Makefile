@@ -21,7 +21,7 @@ rbf: RBF.o test_rbf.o
 	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS)
 
 stupid: StupidPaint.o Brush.h test_StupidPaint.o RBF.o
-	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS)
+	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS) $(INCDIR)
 
 vr: $(OBJS) vr.o
 	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS)

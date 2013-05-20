@@ -89,7 +89,7 @@ Vec3b StupidPaint::extract_color(const Mat &src, const Mat &mask, int x, int y)
         }
 
     if (count <= 0) count = 1;
-    color = sum / count;
+    color[0] = sum[0] / count, color[1] = sum[1] / count, color[2] = sum[2] / count;
 
     return color;
 }
@@ -113,7 +113,8 @@ Vec3b StupidPaint::extract_color(const Mat &src, int x, int y, int radius)
     }
 
     if (count <= 0) count = 1;
-    color = sum / count;
+    color[0] = sum[0] / count, color[1] = sum[1] / count, color[2] = sum[2] / count;
+
     return color;
 }
 

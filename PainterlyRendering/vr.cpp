@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
 
     Mat canvas, src, render, u, v;
     PainterlyService ps;
-    const int nlayer = ps.nlayer();
+    const int nlayer = ps.nLayers();
     const int preRenderInterval = 6;
     int preload, frame;
     list<SplineStroke> strokes_queue[nlayer], pre_strokes_queue[nlayer];
@@ -179,49 +179,47 @@ void propagate(list<SplineStroke> *strokes_queue, int nlayer,
 
 void removeStrokes(list<SplineStroke> *strokes_queue, int nlayer, const Mat &src)
 {
-    assert(src.channels() == 3);
+    assert(src.type() == CV_8UC3);
     cout << "removing strokes...";
     
-    const int threshold = 120;
-    const double fadeStep = 0.17;
-    int offset, diff, color, R, count;
-    int step = src.step1(), width = src.cols, height = src.rows;
-    uchar *ptr = src.data;
+    const int threshold = 60;
+    const double fadeStep = 0.1;
+    int width = src.cols, height = src.rows;
 
     for (int i = 0; i < nlayer; ++i)
     {
         if (strokes_queue[i].empty()) continue;
 
-        for (list<SplineStroke>::iterator iter = strokes_queue[i].begin(); iter != strokes_queue[i].end();)
+        list<SplineStroke>::iterator iter = strokes_queue[i].begin();
+        int R = iter->getRadius();
+        while (iter != strokes_queue[i].end())
         {
-            color = iter->ColorR() + iter->ColorG() + iter->ColorB();
-            R = iter->nRadius();
-            diff = 0;
-            count = 0;
+            int pointDiff = 0;
+            Vec3b bcolor = iter->getColor();
             for (int k = 0; k < iter->nPoints(); ++k)
             {
+                // color diff of brush covered areas
                 Point p = iter->get(k);
+                int count = 0, diff = 0;
                 for (int hh = -R; hh <= R; ++hh)
-                {
                     for (int ww = -R; ww <= R; ++ww)
                     {
                         int hhh = p.y + hh;
                         int www = p.x + ww;
                         if (hhh >= height || www >= width || hhh < 0 || www < 0) continue;
 
+                        Vec3f diffcolor = src.at<Vec3b>(hhh, www) - bcolor;
+                        diff += norm(diffcolor, NORM_L1);
                         count++;
-                        offset = hhh * step + www * 3;
-                        int tmp = 0;
-                        for (int k = 0; k < 3; ++k)
-                            tmp += ptr[offset+k];
-                        diff += abs(tmp - color);
                     }
-                }
-                
+
+                if (count <= 0) count = 1;
+                diff /= count;
+                if (diff >= threshold) ++pointDiff;
             }
-            if (count <= 0) count = 1;
-            diff /= count;
-            if (diff > threshold) iter->fadeOut(fadeStep);
+
+            // more than half of control points are diff to underneath color
+            if (pointDiff >= 0.5 * iter->nPoints()) iter->changeOpacity(fadeStep);
             if (iter->isTransparent()) iter = strokes_queue[i].erase(iter);
             else iter++;
         }

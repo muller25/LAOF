@@ -26,6 +26,7 @@ public:
                      const Mat &gx, const Mat &gy, const Mat &im, double scale=8);
     static void plot(Mat &show, const vector<Point> &centers,
                      const Mat &orient, const Mat &im, double factor);
+    static void plot(Mat &show, const Mat &orient, const Mat &im, double factor);
 };
 
 #endif
