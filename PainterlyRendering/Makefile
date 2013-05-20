@@ -26,6 +26,9 @@ pr: $(OBJS) pr.o
 %.o: %.cpp %.h
 	$(CXX) $(CXXFLAGS) $(INCDIR) -c $< -o $@
 
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) $(INCDIR) -c $< -o $@
+
 .PHONY: clean
 clean:
 	-$(DEL) *.o $(TARGET) *.jpg *.out
