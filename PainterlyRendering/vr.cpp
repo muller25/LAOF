@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
     Mat canvas, src, u, v;
     PainterlyService ps;
     const size_t nlayer = ps.nLayers();
-    const int interval = 1;
+    const int interval = 2;
     list<SplineStroke> strokes_queue[interval][nlayer], new_strokes_queue[nlayer];
 
     sprintf(buf, im, frameStart);
@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
     ps.generate_strokes(strokes_queue[0], nlayer);
     src.copyTo(canvas);
     ps.paint_layer(canvas, strokes_queue[0], nlayer);
-    ps.fixEdges(canvas);
+//    ps.fixEdges(canvas);
     sprintf(buf, out, "out", frameStart);
     imwrite(buf, canvas);
 
@@ -76,7 +76,6 @@ int main(int argc, char *argv[])
         pid = (cid-1+interval) % interval;
         propagate(strokes_queue[cid], strokes_queue[pid], nlayer, u, v);
         removeStrokes(strokes_queue[cid], nlayer, src);
-//        removeStrokes2(strokes_queue[cid], nlayer, src);
         
 #ifdef DEBUG
         canvas.setTo(0);
@@ -110,7 +109,7 @@ int main(int argc, char *argv[])
                 for (size_t l = 0; l < nlayer; ++l)
                     for (list<SplineStroke>::iterator iter = new_strokes_queue[l].begin(); iter != new_strokes_queue[l].end(); ++iter)
                     {
-//                        iter->setAlpha((double)i/(double)interval);
+                        iter->setAlpha((double)i/(double)interval);
                         strokes_queue[rid][l].push_front(*iter);
                     }
 
@@ -118,7 +117,7 @@ int main(int argc, char *argv[])
                 src = imread(buf);
                 ps.setSourceImage(src);
                 ps.paint_layer(canvas, strokes_queue[rid], nlayer);
-                ps.fixEdges(canvas);
+//                ps.fixEdges(canvas);
                 sprintf(buf, out, "out", frame--);
                 imwrite(buf, canvas);
             }
@@ -133,7 +132,7 @@ int main(int argc, char *argv[])
         src = imread(buf);
         ps.setSourceImage(src);
         ps.paint_layer(canvas, strokes_queue[rid], nlayer);
-        ps.fixEdges(canvas);
+//        ps.fixEdges(canvas);
         sprintf(buf, out, "out", count);
         imwrite(buf, canvas);
     }
@@ -202,7 +201,7 @@ void removeStrokes(list<SplineStroke> *strokes_queue, int nlayer, const Mat &src
     assert(src.type() == CV_8UC3);
     cout << "removing strokes...";
     
-    const int threshold = 90 * 3;
+    const int threshold = 120 * 3;
     const double fadeStep = 0.1;
     int width = src.cols, height = src.rows;
 
@@ -241,7 +240,7 @@ void removeStrokes(list<SplineStroke> *strokes_queue, int nlayer, const Mat &src
 
             // more than half of control points are diff to underneath color
             if (pointDiff >= 0.5 * iter->nPoints()) iter->changeOpacity(-fadeStep);
-            else iter->changeOpacity(fadeStep);
+//            else iter->changeOpacity(fadeStep);
             
             if (iter->isTransparent() || iter->nPoints() == 0) iter = strokes_queue[i].erase(iter);
             else iter++;

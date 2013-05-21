@@ -110,47 +110,9 @@ void PainterlyService::make_spline_stroke(SplineStroke &spline_stroke, int x0, i
                                           const Mat &canvas, const Mat &coverage)
 {
     assert(m_init && coverage.type() == CV_8U);
-    
-    Vec3i bcolor = m_reference.at<Vec3b>(y0, x0);
-    unsigned int r = bcolor[2];
-    unsigned int g = bcolor[1];
-    unsigned int b = bcolor[0];
-
-    double jr = 0.0;        // jittered red
-    double jg = 0.0;        // jittered green       
-    double jb = 0.0;        // jittered blue
-    double jh = 0.0;        // jittered hue
-    double js = 0.0;        // jittered saturation
-    double jv = 0.0;        // jittered value
-
-    // convert rgb to hsv
-    ColorModels:: rgb_to_hsv((double) r / 256.0, (double) g / 256.0, (double) b / 256.0, &jh, &js, &jv);
-
-    // jitter hsv
-    srand(time(NULL));
-    jh += currentStyle.jitter_hue * (rand() % 1000 - 500) / 1000.0 * 360.0 ;
-    js += currentStyle.jitter_sat * (rand() % 1000 - 500) / 1000.0;
-    jv += currentStyle.jitter_val * (rand() % 1000 - 500) / 1000.0;
-
-    // convert hsv back to rgb
-    ColorModels::hsv_to_rgb(&jr, &jg, &jb, jh, js, jv);
-
-    // update jittered color
-    r = (int) (jr * 256);
-    g = (int) (jg * 256);
-    b = (int) (jb * 256);
-
-    // jitter rgb
-    jr = currentStyle.jitter_r * (rand() % 1000 - 500) / 1000.0;
-    jg = currentStyle.jitter_g * (rand() % 1000 - 500) / 1000.0;
-    jb = currentStyle.jitter_b * (rand() % 1000 - 500) / 1000.0;
-
-    // update jittered color
-    r += (int) (jr * 256);
-    g += (int) (jg * 256);
-    b += (int) (jb * 256);
 
     // init spline stroke
+    Vec3i bcolor = extract_color(x0, y0, R);
     const double angle_threshold = CV_PI / 3.;
     double btheta = m_orient.at<PERCISION>(y0, x0);
     spline_stroke.set(R, btheta, bcolor);
@@ -176,6 +138,31 @@ void PainterlyService::make_spline_stroke(SplineStroke &spline_stroke, int x0, i
         y += R * sin(theta);
         spline_stroke.add(x, y);
     }
+}
+
+Vec3b PainterlyService::extract_color(int x0, int y0, int R)
+{
+    return extract_color(x0, y0, R, m_reference);
+}
+
+Vec3b PainterlyService::extract_color(int x0, int y0, int R, const Mat &ref)
+{
+    Vec3i color(0, 0, 0);
+    int count = 0;
+    for (int h = -R; h <= R; ++h)
+        for (int w = -R; w <= R; ++w)
+        {
+            int hh = h+y0, ww = w+x0;
+            if (hh < 0 || hh >= m_height || ww >= m_width || ww < 0) continue;
+
+            color += ref.at<Vec3b>(hh, ww);
+            count++;
+        }
+
+    if (count <= 0) count = 1;
+    color /= count;
+
+    return color;
 }
 
 /*
@@ -290,9 +277,11 @@ void PainterlyService::generate_strokes(list<SplineStroke> &strokes_queue, int R
     int grid_step = currentStyle.grid_size * R;
     int area = grid_step * grid_step;
     Mat coverage = Mat::zeros(m_height, m_width, CV_8U);
+
 #ifdef DEBUG
     clock_t start = clock();
 #endif
+
     for (int j = m_height - R; j >= 0; j -= grid_step)
     {
         for (int i = R; i < m_width; i += grid_step)
@@ -404,7 +393,7 @@ void PainterlyService::paint_layer(Mat &canvas, const list<SplineStroke> &stroke
         double alpha = iter->getAlpha();
         Vec3b bcolor = iter->getColor();
         Point point = iter->get(0);
-        Vec3b bgcolor = bg.at<Vec3b>(point.y, point.x);
+        Vec3b bgcolor = extract_color(point.x, point.y, R, bg);
         Vec3b color = bcolor * alpha + bgcolor * (1-alpha);
         for (int i = 0; i < iter->nPoints(); ++i)
         {
@@ -421,7 +410,7 @@ void PainterlyService::paint_layer(Mat &canvas, const list<SplineStroke> &stroke
 
 //                    double bristle = ((double)brush_tex.at<uchar>(hh+R, ww+R)) / 255.;
 //                    Vec3b ccolor = canvas.at<Vec3b>(bhh, bww);
-                    bgcolor = bg.at<Vec3b>(bhh, bww);
+//                    bgcolor = bg.at<Vec3b>(bhh, bww);
 //                    Vec3b ncolor = bcolor * bristle + ccolor * (1 - bristle);
                     canvas.at<Vec3b>(bhh, bww) = color;
                 }
