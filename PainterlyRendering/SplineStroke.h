@@ -29,6 +29,7 @@ public:
     }
 
     inline void add(int x, int y){m_points.push_back(Point(x, y));}
+    inline void add(Point p){m_points.push_back(p);}
     inline int nPoints() const{return m_points.size();}
     inline Point getStartPoint() const{return m_points[0];}
     inline int getRadius() const{return m_radius;}

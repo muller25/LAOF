@@ -12,12 +12,15 @@ using namespace std;
 #define DEBUG
 
 bool imreadf(Mat &m, const char *filename);
-void propagate(list<SplineStroke> *strokes_queue, int nlayer,
-               const Mat &u, const Mat &v);
+void propagate(list<SplineStroke> *next_queue, const list<SplineStroke> *cur_queue,
+               int nlayer, const Mat &u, const Mat &v);
 void removeStrokes(list<SplineStroke> *strokes_queue, int nlayer, const Mat &src);
+void removeStrokes2(list<SplineStroke> *strokes_queue, int nlayer, const Mat &src);
 void addStrokes(list<SplineStroke> *strokes_queue, const list<SplineStroke> *pre_strokes_queue,
-                int nlayer, Mat &src);
-void getCoverage(Mat &coverage, const list<SplineStroke> &strokes_queue);
+                const size_t nlayer, Mat &src);
+
+char im[256], flow[256], out[256];
+int frameStart, frameEnd, frame;
 
 int main(int argc, char *argv[])
 {
@@ -25,9 +28,6 @@ int main(int argc, char *argv[])
         cout << "usage: ./vr image flowDir outDir start end" << endl;
         return 1;
     }
-
-    char im[256], flow[256], out[256], buf[256];
-    int frameStart, frameEnd;
 
     memset(im, 0, sizeof(im));
     memset(flow, 0, sizeof(flow));
@@ -40,113 +40,101 @@ int main(int argc, char *argv[])
     frameStart = atoi(argv[4]);
     frameEnd = atoi(argv[5]);
 
-    Mat canvas, src, preRender, u, v;
+    char buf[256];
+    Mat canvas, src, u, v;
     PainterlyService ps;
     const size_t nlayer = ps.nLayers();
-    const int preRenderInterval = 10;
-    int preload, frame;
-    list<SplineStroke> strokes_queue[nlayer], pre_strokes_queue[nlayer];
-    
-    preload = std::min(frameStart + preRenderInterval, frameEnd);
-    sprintf(buf, im, preload);
-    cout << "pre-rendering image " << buf << endl;
-
-    src = imread(buf);
-    ps.setSourceImage(src);
-    ps.generate_strokes(pre_strokes_queue, nlayer);
-    src.copyTo(preRender);
-    ps.paint_layer(preRender, pre_strokes_queue, nlayer);
-    ps.fixEdges(preRender);
-    sprintf(buf, out, "pre", preload);
-    imwrite(buf, preRender);
+    const int interval = 1;
+    list<SplineStroke> strokes_queue[interval][nlayer], new_strokes_queue[nlayer];
 
     sprintf(buf, im, frameStart);
     cout << "loading image " << buf << endl;
 
     src = imread(buf);
     ps.setSourceImage(src);
-    ps.generate_strokes(strokes_queue, nlayer);
-    preRender.copyTo(canvas);
-    ps.paint_layer(canvas, strokes_queue, nlayer);
+    ps.generate_strokes(strokes_queue[0], nlayer);
+    src.copyTo(canvas);
+    ps.paint_layer(canvas, strokes_queue[0], nlayer);
     ps.fixEdges(canvas);
     sprintf(buf, out, "out", frameStart);
     imwrite(buf, canvas);
 
+    int cid, pid, preDump = 0;
     for (int count = 1; count <= (frameEnd - frameStart); ++count)
     {
         frame = count + frameStart;
         sprintf(buf, im, frame);
         cout << "loading image " << buf << endl;
+
         src = imread(buf);
-        ps.setSourceImage(src);
         sprintf(buf, flow, "u", frame-1);
         imreadf(u, buf);
         sprintf(buf, flow, "v", frame-1);
         imreadf(v, buf);
 
+        cid = count % interval;
+        pid = (cid-1+interval) % interval;
+        propagate(strokes_queue[cid], strokes_queue[pid], nlayer, u, v);
+        removeStrokes(strokes_queue[cid], nlayer, src);
+//        removeStrokes2(strokes_queue[cid], nlayer, src);
+        
 #ifdef DEBUG
-            for (size_t l = 0; l < nlayer; ++l)
-            {
-                preRender.copyTo(canvas);
-                ps.paint_layer(canvas, strokes_queue[l], l);
-                sprintf(buf, out, "propagate", frame*100+l);
-                imwrite(buf, canvas);
-            }
-#endif
-        propagate(strokes_queue, nlayer, u, v);
-
-#ifdef DEBUG
-            for (size_t l = 0; l < nlayer; ++l)
-            {
-                preRender.copyTo(canvas);
-                ps.paint_layer(canvas, strokes_queue[l], l);
-                sprintf(buf, out, "remove", frame*100+l);
-                imwrite(buf, canvas);
-            }
-#endif
-        removeStrokes(strokes_queue, nlayer, src);
-
-        if (count % preRenderInterval == 0)
+        canvas.setTo(0);
+        ps.paint_layer(canvas, strokes_queue[cid], nlayer);
+        sprintf(buf, out, "propagate", frame);
+        imwrite(buf, canvas);
+        
+        for (size_t l = 0; l < nlayer; ++l)
         {
-#ifdef DEBUG
-            for (size_t l = 0; l < nlayer; ++l)
-            {
-                preRender.copyTo(canvas);
-                ps.paint_layer(canvas, strokes_queue[l], l);
-                sprintf(buf, out, "before-add", frame*100+l);
-                imwrite(buf, canvas);
-            }
-#endif
-//            addStrokes(strokes_queue, pre_strokes_queue, nlayer, src);
-#ifdef DEBUG
-            for (size_t l = 0; l < nlayer; ++l)
-            {
-                preRender.copyTo(canvas);
-                ps.paint_layer(canvas, strokes_queue[l], l);
-                sprintf(buf, out, "after-add", frame*100+l);
-                imwrite(buf, canvas);
-            }
-#endif
-            
-            preload = std::min(frameStart + count + preRenderInterval, frameEnd);
-            sprintf(buf, im, preload);
-            cout << "pre-rendering image " << buf << endl;
-
-            src = imread(buf);
-            ps.setSourceImage(src);
-            ps.generate_strokes(pre_strokes_queue, nlayer);
-            src.copyTo(preRender);
-            ps.paint_layer(preRender, pre_strokes_queue, nlayer);
-            ps.fixEdges(preRender);
-            sprintf(buf, out, "pre", preload);
-            imwrite(buf, preRender);
+            canvas.setTo(0);
+            ps.paint_layer(canvas, strokes_queue[cid], l);
+            sprintf(buf, out, "remove", frame*100+l);
+            imwrite(buf, canvas);
         }
+#endif
+        if (count % interval == 0)
+        {
+            addStrokes(new_strokes_queue, strokes_queue[0], nlayer, src);
+#ifdef DEBUG
+            canvas.setTo(0);
+            ps.paint_layer(canvas, new_strokes_queue, nlayer);
+            sprintf(buf, out, "add", frame);
+            imwrite(buf, canvas);
+#endif
 
+            preDump = frame;
+            src.copyTo(canvas);
+            for (int i = interval; i >= 1; i--)
+            {
+                int rid = i % interval;
+                for (size_t l = 0; l < nlayer; ++l)
+                    for (list<SplineStroke>::iterator iter = new_strokes_queue[l].begin(); iter != new_strokes_queue[l].end(); ++iter)
+                    {
+//                        iter->setAlpha((double)i/(double)interval);
+                        strokes_queue[rid][l].push_front(*iter);
+                    }
+
+                sprintf(buf, im, frame);
+                src = imread(buf);
+                ps.setSourceImage(src);
+                ps.paint_layer(canvas, strokes_queue[rid], nlayer);
+                ps.fixEdges(canvas);
+                sprintf(buf, out, "out", frame--);
+                imwrite(buf, canvas);
+            }
+        }
+    }
+
+    src.copyTo(canvas);
+    for (int count = frameEnd; count > preDump; count--)
+    {
+        int rid = (count - frameStart) % interval;
+        sprintf(buf, im, count);
+        src = imread(buf);
         ps.setSourceImage(src);
-        preRender.copyTo(canvas);
-        ps.paint_layer(canvas, strokes_queue, nlayer);
+        ps.paint_layer(canvas, strokes_queue[rid], nlayer);
         ps.fixEdges(canvas);
-        sprintf(buf, out, "out", frame);
+        sprintf(buf, out, "out", count);
         imwrite(buf, canvas);
     }
     
@@ -172,8 +160,8 @@ bool imreadf(Mat &m, const char *filename)
     return true;
 }
 
-void propagate(list<SplineStroke> *strokes_queue, int nlayer,
-               const Mat &u, const Mat &v)
+void propagate(list<SplineStroke> *next_queue, const list<SplineStroke> *cur_queue,
+               int nlayer, const Mat &u, const Mat &v)
 {
     assert(u.type() == CV_64F);
 
@@ -184,10 +172,13 @@ void propagate(list<SplineStroke> *strokes_queue, int nlayer,
     
     for (int i = 0; i < nlayer; ++i)
     {
-        if (strokes_queue[i].empty()) continue;
-
-        for (list<SplineStroke>::iterator iter = strokes_queue[i].begin(); iter != strokes_queue[i].end(); ++iter)
+        next_queue[i].clear();
+        for (list<SplineStroke>::const_iterator iter = cur_queue[i].begin(); iter != cur_queue[i].end(); ++iter)
         {
+            SplineStroke ss;
+            ss.set(iter->getRadius(), iter->getAngle(), iter->getColor());
+            ss.setAlpha(iter->getAlpha());
+            
             for (int k = 0; k < iter->nPoints(); ++k)
             {
                 Point p = iter->get(k);
@@ -196,8 +187,10 @@ void propagate(list<SplineStroke> *strokes_queue, int nlayer,
                 offset = p.y * step + p.x;
                 p.x += cvRound(pu[offset]);
                 p.y += cvRound(pv[offset]);
-                iter->setControlPoint(k, p);
+                ss.add(p);
             }
+
+            next_queue[i].push_back(ss);
         }
     }
 
@@ -209,8 +202,8 @@ void removeStrokes(list<SplineStroke> *strokes_queue, int nlayer, const Mat &src
     assert(src.type() == CV_8UC3);
     cout << "removing strokes...";
     
-    const int threshold = 20 * 3;
-    const double fadeStep = -0.1;
+    const int threshold = 90 * 3;
+    const double fadeStep = 0.1;
     int width = src.cols, height = src.rows;
 
     for (int i = 0; i < nlayer; ++i)
@@ -247,8 +240,10 @@ void removeStrokes(list<SplineStroke> *strokes_queue, int nlayer, const Mat &src
             }
 
             // more than half of control points are diff to underneath color
-            if (pointDiff >= 0.5 * iter->nPoints()) iter->changeOpacity(fadeStep);
-            if (iter->isTransparent()) iter = strokes_queue[i].erase(iter);
+            if (pointDiff >= 0.5 * iter->nPoints()) iter->changeOpacity(-fadeStep);
+            else iter->changeOpacity(fadeStep);
+            
+            if (iter->isTransparent() || iter->nPoints() == 0) iter = strokes_queue[i].erase(iter);
             else iter++;
         }
     }
@@ -256,80 +251,97 @@ void removeStrokes(list<SplineStroke> *strokes_queue, int nlayer, const Mat &src
     cout << "done" << endl;
 }
 
-void addStrokes(list<SplineStroke> *strokes_queue, const list<SplineStroke> *pre_strokes_queue,
-                int nlayer, Mat &src)
+// remove strokes by distance
+void removeStrokes2(list<SplineStroke> *strokes_queue, int nlayer, const Mat &src)
 {
-    cout << "adding strokes..." << endl;
+    assert(src.type() == CV_8UC3);
+    cout << "removing strokes...";
 
-    int width = src.cols, height = src.rows;
-    Mat coverage(height, width, CV_32S);
-    for (int i = 0; i < nlayer; ++i)
+    const double fadeStep = 0.1;
+    int i, j, hit;
+    vector<bool> taken;
+    list<SplineStroke>::iterator iter, iter2;
+    for (int l = 0; l < nlayer; ++l)
     {
-        if (pre_strokes_queue[i].empty()) continue;
-
-        coverage.setTo(0);
-        getCoverage(coverage, strokes_queue[i]);
-        for (list<SplineStroke>::const_iterator iter = pre_strokes_queue[i].begin(); iter != pre_strokes_queue[i].end(); ++iter)
+        // find out cllopase strokes
+        taken.resize(strokes_queue[l].size(), false);
+        for (iter = strokes_queue[l].begin(), i = 0; iter != strokes_queue[l].end(); iter++, i++)
         {
-            // 获取笔刷区域
-            int R = iter->getRadius();
-            Point center = iter->get(0);
-            int brushLen = R * iter->nPoints();
-            int maxBrushLen = 2 * brushLen + 1;
-            Mat brush = Mat::zeros(maxBrushLen, maxBrushLen, CV_8U);
-            for (int k = 0; k < iter->nPoints(); ++k)
+            if (iter->nPoints() == 0) continue;
+            
+            int threshold = iter->getRadius() * iter->getRadius() / 2;
+            Point p1 = iter->get(0);
+            iter2 = iter;
+            for (iter2++, j = i+1, hit = 0; iter2 != strokes_queue[l].end(); iter2++, j++)
             {
-                Point point = iter->get(k);
-                for (int h = -R; h <= R; ++h)
-                    for (int w = -R; w <= R; ++w)
-                    {
-                        int hh = std::min(std::max(point.y-center.y+brushLen+h, 0), maxBrushLen-1);
-                        int ww = std::min(std::max(point.x-center.x+brushLen+w, 0), maxBrushLen-1);
-                        brush.at<uchar>(hh, ww) = 1;
-                    }
+                if (iter2->nPoints() == 0) continue;
+
+                Point p2 = iter2->get(0);
+                int dist = (p1.x - p2.x) * (p1.x - p2.x) + (p1.y - p2.y) * (p1.y - p2.y);
+                if (dist < threshold && !taken[j]){
+                    taken[j] = true;
+                    iter2->changeOpacity(fadeStep);
+                    hit++;
+                }
             }
 
-            // 获取笔刷覆盖区域
-            int area = 0, covered = 0;
-            for (int h = -brushLen; h <= brushLen; ++h)
-                for (int w = -brushLen; w <= brushLen; ++w)
-                {
-                    if (brush.at<uchar>(h+brushLen, w+brushLen) == 0) continue;
-                    ++area;
+            if (hit > 0) iter->changeOpacity(fadeStep);
+        }
 
-                    int hh = std::min(std::max(center.y+h, 0), height-1);
-                    int ww = std::min(std::max(center.x+w, 0), width-1);
-                    if (coverage.at<int>(hh, ww) > 0) ++covered;
-                }
-
-            // 如果笔刷覆盖区域有超过一半没有渲染，则添加笔刷
-            if (covered < 0.5 * area)
-                strokes_queue[i].push_front(*iter);
+        // remove
+        iter = strokes_queue[l].begin();
+        while (iter != strokes_queue[l].end()){
+            if (iter->isTransparent() || iter->nPoints() == 0) iter = strokes_queue[l].erase(iter);
+            else iter++;
         }
     }
 
     cout << "done" << endl;
 }
 
-void getCoverage(Mat &coverage, const list<SplineStroke> &strokes_queue)
+void addStrokes(list<SplineStroke> *new_queue, const list<SplineStroke> *strokes_queue,
+                const size_t nlayer, Mat &src)
 {
-    assert(coverage.data != NULL && coverage.type() == CV_32S);
+    cout << "adding strokes..." << endl;
 
-    coverage.setTo(0);
-    int width = coverage.cols, height = coverage.rows;
-    for (list<SplineStroke>::const_iterator iter = strokes_queue.begin(); iter != strokes_queue.end(); iter++)
+    int width = src.cols, height = src.rows;
+    Mat canvas = Mat::zeros(height, width, CV_8UC3);
+    PainterlyService ps;
+    ps.setSourceImage(src);
+    ps.paint_layer(canvas, strokes_queue, nlayer);
+
+    Mat gray, smooth, mask;
+    cvtColor(canvas, gray, CV_BGR2GRAY);
+    morphologyEx(gray, smooth, MORPH_CLOSE, Mat(5, 5, CV_8U), Point(-1, -1), 2);
+
+#ifdef DEBUG
+    char buf[256];
+    sprintf(buf, out, "add-mask", frame);
+    imwrite(buf, smooth);
+#endif
+
+    list<SplineStroke> tmp_queue[nlayer];
+    list<SplineStroke>::iterator iter;
+    canvas.setTo(0);
+    mask = (smooth > 0);
+    src.copyTo(canvas, mask);
+    ps.render(canvas, tmp_queue, nlayer);
+    for (size_t l = 0; l < nlayer; ++l)
     {
-        int R = iter->getRadius();
-        for (int i = 0; i < iter->nPoints(); ++i)
+        new_queue[l].clear();
+        for (iter = tmp_queue[l].begin(); iter != tmp_queue[l].end(); iter++)
         {
-            Point point = iter->get(i);
-            for(int hh = -R; hh <= R; hh++)
-                for(int ww = -R; ww <= R; ww++){
-                    int bhh = point.y + hh, bww = point.x + ww;
-                    if (bhh < 0 || bhh >= height || bww >= width || bww < 0) continue;
+            int covered = 0;
+            for (int i = 0; i < iter->nPoints(); ++i)
+            {
+                Point p = iter->get(i);
+                if (p.x >= width || p.x < 0 || p.y < 0 || p.y >= height) continue;
+                if (mask.at<uchar>(p.y, p.x) > 0) covered++;
+            }
 
-                    coverage.at<int>(bhh, bww) += 1;
-                }
+            if (covered >= iter->nPoints() * 0.5) new_queue[l].push_back(*iter);
         }
     }
+    
+    cout << "done!" << endl;
 }

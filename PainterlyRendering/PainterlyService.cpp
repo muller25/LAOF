@@ -388,7 +388,6 @@ void PainterlyService::generate_strokes(list<SplineStroke> *strokes_queue, size_
 void PainterlyService::paint_layer(Mat &canvas, const list<SplineStroke> &strokes_queue, int layerId)
 {
     assert(m_init && canvas.type() == CV_8UC3);
-    if (canvas.empty()) canvas = Mat::zeros(m_height, m_width, m_src.type());
 
     int R = m_brush_radius[layerId];
     Mat brush_tex, bg;
@@ -404,9 +403,12 @@ void PainterlyService::paint_layer(Mat &canvas, const list<SplineStroke> &stroke
     {
         double alpha = iter->getAlpha();
         Vec3b bcolor = iter->getColor();
+        Point point = iter->get(0);
+        Vec3b bgcolor = bg.at<Vec3b>(point.y, point.x);
+        Vec3b color = bcolor * alpha + bgcolor * (1-alpha);
         for (int i = 0; i < iter->nPoints(); ++i)
         {
-            Point point = iter->get(i);
+            point = iter->get(i);
             // Vec3b bgcolor = bg.at<Vec3b>(point.y, point.x);
             // Vec3b ccolor = canvas.at<Vec3b>(point.y, point.x);
             // Vec3b color = bgcolor * (1-alpha) + (bcolor * (1-PA) + ccolor * PA) * alpha;
@@ -419,10 +421,8 @@ void PainterlyService::paint_layer(Mat &canvas, const list<SplineStroke> &stroke
 
 //                    double bristle = ((double)brush_tex.at<uchar>(hh+R, ww+R)) / 255.;
 //                    Vec3b ccolor = canvas.at<Vec3b>(bhh, bww);
-                    Vec3b bgcolor = bg.at<Vec3b>(bhh, bww);
+                    bgcolor = bg.at<Vec3b>(bhh, bww);
 //                    Vec3b ncolor = bcolor * bristle + ccolor * (1 - bristle);
-                    Vec3b ncolor = bcolor;
-                    Vec3b color = ncolor * alpha + bgcolor * (1-alpha);
                     canvas.at<Vec3b>(bhh, bww) = color;
                 }
 #ifdef SHOW
