@@ -393,8 +393,6 @@ void PainterlyService::paint_layer(Mat &canvas, const list<SplineStroke> &stroke
     clock_t start = clock();
     for (list<SplineStroke>::const_iterator iter = strokes_queue.begin(); iter != strokes_queue.end(); iter++)
     {
-        if(iter->nPoints() <= 0) continue;
-
         double alpha = iter->getAlpha();
         Vec3b bcolor = iter->getColor();
         for (int i = 0; i < iter->nPoints(); ++i)

@@ -39,7 +39,7 @@ public:
     inline void setAlpha(double alpha){m_alpha = alpha;}
     inline bool isTransparent() const{return fabs(m_alpha) < 1e-6;}
     inline void changeOpacity(double step){
-        m_alpha -= step;
+        m_alpha += step;
         if (m_alpha < 0) m_alpha = 0;
         if (m_alpha > 1) m_alpha = 1;
     }
