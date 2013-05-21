@@ -7,6 +7,8 @@
 char *inPattern, *outDir;
 int frameStart, frameEnd, numOfSegs;
 
+#define SAVETIME
+
 int main(int argc, char *argv[])
 {
     if (argc != 6)
@@ -47,12 +49,14 @@ int main(int argc, char *argv[])
     sprintf(buf, inPattern, frameStart);
     imread(im[0], buf);
 
+#ifdef SAVETIME
     // to save time
     DImage tmp;
     imresize(tmp, im[0], 0.5);
     tmp.copyTo(im[0]);
     sprintf(buf, outImg, "im", frameStart);
     imwrite(buf, tmp);
+#endif
     
     width = im[0].nWidth(), height = im[0].nHeight();
     mask1.create(width, height, 1, 1);
@@ -64,12 +68,14 @@ int main(int argc, char *argv[])
         sprintf(buf, inPattern, i);
         imread(im[next], buf);
 
+#ifdef SAVETIME
         // to save time
         imresize(tmp, im[next], 0.5);
         tmp.copyTo(im[next]);
         sprintf(buf, outImg, "im", i);
         imwrite(buf, tmp);
-
+#endif
+        
         printf("running optical flow from im%d to im%d...\n", i-1, i);
         of.adC2FFlow(u, v, im[cur], im[next], mask1, mask2,
                      as, ratio, minWidth, nOutIter, nIRLSIter, nSORIter);

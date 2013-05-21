@@ -25,11 +25,13 @@ public:
                             const Mat &canvas, const Mat &coverage);
 
     void generate_strokes(list<SplineStroke> &strokes_queue, int R, const Mat &canvas);
+    void generate_strokes(list<SplineStroke> *strokes_queue, size_t nlayer);
+    
     void paint_layer(Mat &canvas, const list<SplineStroke> &strokes_queue, int layerId);
-    void paint_layer(Mat &canvas, const list<SplineStroke> *strokes_queue, int nlayer);
+    void paint_layer(Mat &canvas, const list<SplineStroke> *strokes_queue, size_t nlayer);
     
     void render(Mat &canvas);
-    void render(Mat &canvas, list<SplineStroke> *strokes_queue, int nlayer);
+    void render(Mat &canvas, list<SplineStroke> *strokes_queue, size_t nlayer);
     void render(Mat &canvas, list<SplineStroke> &strokes_queue, int layerId);
     void fixEdges(Mat &canvas);
 

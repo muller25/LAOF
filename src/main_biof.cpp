@@ -7,6 +7,8 @@
 char *inImg, *outDir;
 int frameStart, frameEnd;
 
+#define SAVETIME
+
 int main(int argc, char *argv[])
 {
     if (argc != 5)
@@ -29,13 +31,13 @@ int main(int argc, char *argv[])
     strcat(outImg, "%s%03d.jpg");
 
     // init optical flow parameters
-    const double as = 0.05;
+    const double as = 0.015;
     const double ap = 0.015;
     const double ratio = 0.75;
     const int minWidth = 20;
-    const int nBiIter = 14;
+    const int nBiIter = 7;//14;
     const int nIRLSIter = 1;
-    const int nSORIter = 30;
+    const int nSORIter = 10;//30;
   
     char buf[256];
     std::vector<DImage> im(2);
@@ -47,13 +49,15 @@ int main(int argc, char *argv[])
     sprintf(buf, inImg, frameStart);
     imread(im[0], buf);
 
+#ifdef SAVETIME
     // to save time
-    // DImage tmp;
-    // imresize(tmp, im[0], 0.5);
-    // tmp.copyTo(im[0]);
-    // sprintf(buf, outImg, "im", frameStart);
-    // imwrite(buf, tmp);
-
+    DImage tmp;
+    imresize(tmp, im[0], 0.5);
+    tmp.copyTo(im[0]);
+    sprintf(buf, outImg, "im", frameStart);
+    imwrite(buf, tmp);
+#endif
+    
     width = im[0].nWidth(), height = im[0].nHeight();
     mask1.create(width, height, 1, 1);
     mask2.create(width, height, 1, 1);
@@ -64,12 +68,13 @@ int main(int argc, char *argv[])
         sprintf(buf, inImg, i);
         imread(im[next], buf);
 
+#ifdef SAVETIME
         // to save time
-        // imresize(tmp, im[next], 0.5);
-        // tmp.copyTo(im[next]);
-        // sprintf(buf, outImg, "im", i);
-        // imwrite(buf, tmp);
-
+        imresize(tmp, im[next], 0.5);
+        tmp.copyTo(im[next]);
+        sprintf(buf, outImg, "im", i);
+        imwrite(buf, tmp);
+#endif
         printf("running optical flow from im%d to im%d...\n", i-1, i);
         of.biC2FFlow(u1, v1, u2, v2, im[cur], im[next], mask1, mask2,
                      as, ap, ratio, minWidth, nBiIter, nIRLSIter, nSORIter);
@@ -92,9 +97,9 @@ int main(int argc, char *argv[])
         // sprintf(buf, outImg, "rflow", i);
         // imwrite(buf, flowImg);
 
-        // warpImage(warp, im[cur], im[next], u1, v1);
-        // sprintf(buf, outImg, "warp", i-1);
-        // imwrite(buf, warp);
+        warpImage(warp, im[cur], im[next], u1, v1);
+        sprintf(buf, outImg, "warp", i-1);
+        imwrite(buf, warp);
 
         // warpImage(warp, im[next], im[cur], u2, v2);
         // sprintf(buf, outImg, "rwarp", i);

@@ -12,20 +12,21 @@ using namespace cv;
 #define PA 0.4
 
 #define DEBUG
+// #define SHOW
 
 PainterlyService::PainterlyService()
 {
     m_init = false;
     m_width = m_height = 0;
 
-    m_brush_radius.push_back(16);
+//    m_brush_radius.push_back(16);
     m_brush_radius.push_back(8);
     m_brush_radius.push_back(4);
     m_brush_radius.push_back(2);
     
     // 设置渲染参数, Impressionism style
     const int max_stroke_length = 8;
-    const int min_stroke_length = 2;
+    const int min_stroke_length = 4;
     const int threshold = 20 * 3;
     const float grid_size = 2.0;
 
@@ -33,7 +34,6 @@ PainterlyService::PainterlyService()
 	currentStyle.min_stroke_length = min_stroke_length;
 	currentStyle.curvature_filter = 1.0;
 	currentStyle.threshold = threshold;
-	currentStyle.alpha = 1.0;
     currentStyle.grid_size = grid_size;
 	currentStyle.jitter_r = 0.0;
 	currentStyle.jitter_g = 0.0;
@@ -290,7 +290,9 @@ void PainterlyService::generate_strokes(list<SplineStroke> &strokes_queue, int R
     int grid_step = currentStyle.grid_size * R;
     int area = grid_step * grid_step;
     Mat coverage = Mat::zeros(m_height, m_width, CV_8U);
+#ifdef DEBUG
     clock_t start = clock();
+#endif
     for (int j = m_height - R; j >= 0; j -= grid_step)
     {
         for (int i = R; i < m_width; i += grid_step)
@@ -366,13 +368,19 @@ void PainterlyService::generate_strokes(list<SplineStroke> &strokes_queue, int R
     double minVal, maxVal;
     minMaxLoc(coverage, &minVal, &maxVal);
     printf("coverage: %.2f .. %.2f\n", minVal, maxVal);
-#endif
-    
+
     clock_t finish = clock();
     double duration = (double)(finish - start) / CLOCKS_PER_SEC;
     printf("time of running stroke construction steps: %.2f\n", duration);
+#endif
 }
-    
+
+void PainterlyService::generate_strokes(list<SplineStroke> *strokes_queue, size_t nlayer)
+{
+    Mat canvas;
+    render(canvas, strokes_queue, nlayer);
+}
+
 // Find areas that we need to paint and draw strokes in them
 // ref - smoothed src image
 // R - brush stroke radius
@@ -387,10 +395,11 @@ void PainterlyService::paint_layer(Mat &canvas, const list<SplineStroke> &stroke
     resize(m_texture, brush_tex, Size(R*2+1, R*2+1), 0, 0, INTER_CUBIC);
     canvas.copyTo(bg);
 
+#ifdef DEBUG
+//    printf("strokes nums: %d, with radius = %d\n", strokes_queue.size(), R);
+#endif
+    
     // CubicBSpline版本, 得到笔刷的control points
-    printf("strokes size: %d\n", strokes_queue.size());
-
-    clock_t start = clock();
     for (list<SplineStroke>::const_iterator iter = strokes_queue.begin(); iter != strokes_queue.end(); iter++)
     {
         double alpha = iter->getAlpha();
@@ -409,30 +418,26 @@ void PainterlyService::paint_layer(Mat &canvas, const list<SplineStroke> &stroke
                     if (bhh < 0 || bhh >= m_height || bww >= m_width || bww < 0) continue;
 
 //                    double bristle = ((double)brush_tex.at<uchar>(hh+R, ww+R)) / 255.;
-                    Vec3b ccolor = canvas.at<Vec3b>(bhh, bww);
+//                    Vec3b ccolor = canvas.at<Vec3b>(bhh, bww);
                     Vec3b bgcolor = bg.at<Vec3b>(bhh, bww);
 //                    Vec3b ncolor = bcolor * bristle + ccolor * (1 - bristle);
                     Vec3b ncolor = bcolor;
                     Vec3b color = ncolor * alpha + bgcolor * (1-alpha);
                     canvas.at<Vec3b>(bhh, bww) = color;
                 }
-#ifdef DEBUG
-//            imshow("painter", canvas);
-//            waitKey(10);
+#ifdef SHOW
+            imshow("painter", canvas);
+            waitKey(10);
 #endif
         }
     }
-
-    clock_t finish = clock();
-    double duration = (double)(finish - start) / CLOCKS_PER_SEC;
-    printf("time of running CubicBSpline drawing steps: %.2f\n", duration);
 }
 
-void PainterlyService::paint_layer(Mat &canvas, const list<SplineStroke> *strokes_queue, int nlayer)
+void PainterlyService::paint_layer(Mat &canvas, const list<SplineStroke> *strokes_queue, size_t nlayer)
 {
     assert(m_init && (nlayer <= m_brush_radius.size()));
 
-    for(int i = 0; i < nlayer; ++i)
+    for(size_t i = 0; i < nlayer; ++i)
     {
         if(m_brush_radius[i] == 0) continue;
         paint_layer(canvas, strokes_queue[i], i);
@@ -459,33 +464,37 @@ void PainterlyService::render(Mat &canvas)
 }
 
 // image rendering
-void PainterlyService::render(Mat &canvas, list<SplineStroke> *strokes_queue, int nlayer)
+void PainterlyService::render(Mat &canvas, list<SplineStroke> *strokes_queue, size_t nlayer)
 {
     assert(m_init && (nlayer <= m_brush_radius.size()));
     if (canvas.empty()) canvas = Mat::zeros(m_height, m_width, m_src.type());
-    
-    clock_t begin, finish, start, end;
-    double duration;
+
     Mat bg = Mat::zeros(m_height, m_width, m_src.type());
     int R;
-    
-    begin = clock();
-    for(int i = 0; i < nlayer; ++i)
+
+#ifdef DEBUG
+    clock_t begin = clock();
+#endif
+    for(size_t i = 0; i < nlayer; ++i)
     {
         R = m_brush_radius[i];
         if(R == 0) continue;
-        
+#ifdef DEBUG  
         printf("====== Painting layer with stroke size: %d ======\n", R);
-        start = clock();
+        clock_t start = clock();
+#endif
         render(canvas, strokes_queue[i], i);
-        finish = clock();
-        duration = (double)(finish - start) / CLOCKS_PER_SEC;
+#ifdef DEBUG
+        clock_t finish = clock();
+        double duration = (double)(finish - start) / CLOCKS_PER_SEC;
         printf("time of running paint_layer(): %.2f\n", duration);
+#endif
     }
-    
-    end = clock();
-    duration = (double)(end - begin) / CLOCKS_PER_SEC;
+#ifdef DEBUG
+    clock_t end = clock();
+    double duration = (double)(end - begin) / CLOCKS_PER_SEC;
     printf("Total time %.2f !!!!!\n", duration);
+#endif
 }
 
 void PainterlyService::render(Mat &canvas, list<SplineStroke> &strokes_queue, int layerId)

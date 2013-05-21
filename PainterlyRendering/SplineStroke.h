@@ -34,6 +34,10 @@ public:
     inline int getRadius() const{return m_radius;}
     inline double getAngle() const{return m_angle;}
     inline void setAngle(double angle){m_angle = angle;}
+    inline void setColor(Vec3b color) {
+        m_color = color;
+    }
+
     inline Vec3b getColor() const{return m_color;}
     inline double getAlpha() const{return m_alpha;}
     inline void setAlpha(double alpha){m_alpha = alpha;}
