@@ -7,7 +7,7 @@
 char *inPattern, *outDir;
 int frameStart, frameEnd, numOfSegs;
 
-#define SAVETIME
+// #define SAVETIME
 
 int main(int argc, char *argv[])
 {

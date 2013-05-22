@@ -12,7 +12,7 @@ OPENCVLIBS		= `pkg-config --libs opencv`
 OBJS			= NormalMap.o Lighting.o MakeBrushMap.o LightingEffect.o \
 EdgeOptimization.o ImportantMap.o PainterlyService.o PainterlyStyle.o \
 ColorModels.o SplineStroke.o RBF.o StupidPaint.o
-TARGET			= pr vr rbf stupid
+TARGET			= pr vr rbf stupid pr2video
 
 all: $(TARGET)
 	@echo "DONE"
@@ -27,6 +27,9 @@ vr: $(OBJS) vr.o
 	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS)
 
 pr: $(OBJS) pr.o
+	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS)
+
+pr2video: $(OBJS) pr2video.o
 	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS)
 
 %.o: %.cpp %.h

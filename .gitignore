@@ -34,6 +34,7 @@ PainterlyRendering/pr
 PainterlyRendering/vr
 PainterlyRendering/rbf
 PainterlyRendering/stupid
+PainterlyRendering/pr2video
 gc/*
 ui/bin/*
 tools/image2video

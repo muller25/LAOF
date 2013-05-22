@@ -31,7 +31,9 @@ public:
     
     void paint_layer(Mat &canvas, const list<SplineStroke> &strokes_queue, int layerId);
     void paint_layer(Mat &canvas, const list<SplineStroke> *strokes_queue, size_t nlayer);
-    
+    void paintOverRef(Mat &canvas, const list<SplineStroke> *strokes_queue, size_t nlayer);
+
+    void renderOverRef(Mat &canvas);
     void render(Mat &canvas);
     void render(Mat &canvas, list<SplineStroke> *strokes_queue, size_t nlayer);
     void render(Mat &canvas, list<SplineStroke> &strokes_queue, int layerId);

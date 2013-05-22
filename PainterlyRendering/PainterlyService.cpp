@@ -11,7 +11,7 @@ using namespace cv;
 
 #define PA 0.4
 
-#define DEBUG
+// #define DEBUG
 // #define SHOW
 
 PainterlyService::PainterlyService()
@@ -28,7 +28,7 @@ PainterlyService::PainterlyService()
     const int max_stroke_length = 8;
     const int min_stroke_length = 4;
     const int threshold = 20 * 3;
-    const float grid_size = 2.0;
+    const float grid_size = 2;
 
     currentStyle.max_stroke_length = max_stroke_length;
 	currentStyle.min_stroke_length = min_stroke_length;
@@ -390,6 +390,8 @@ void PainterlyService::paint_layer(Mat &canvas, const list<SplineStroke> &stroke
     // CubicBSpline版本, 得到笔刷的control points
     for (list<SplineStroke>::const_iterator iter = strokes_queue.begin(); iter != strokes_queue.end(); iter++)
     {
+        if (iter->nPoints() == 0) continue;
+        
         double alpha = iter->getAlpha();
         Vec3b bcolor = iter->getColor();
         Point point = iter->get(0);
@@ -431,6 +433,23 @@ void PainterlyService::paint_layer(Mat &canvas, const list<SplineStroke> *stroke
         if(m_brush_radius[i] == 0) continue;
         paint_layer(canvas, strokes_queue[i], i);
     }
+}
+
+void PainterlyService::paintOverRef(Mat &canvas, const list<SplineStroke> *strokes_queue, size_t nlayer)
+{
+    m_reference.copyTo(canvas);
+    paint_layer(canvas, strokes_queue, nlayer);
+}
+
+void PainterlyService::renderOverRef(Mat &canvas)
+{
+    assert(m_init);
+    
+    size_t nlayer = m_brush_radius.size();
+    list<SplineStroke> strokes_queue[nlayer];
+
+    generate_strokes(strokes_queue, nlayer);
+    paintOverRef(canvas, strokes_queue, nlayer);
 }
 
 // image rendering
