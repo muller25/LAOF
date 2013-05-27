@@ -40,6 +40,7 @@ ui/bin/*
 tools/image2video
 tools/video2images
 tools/subVideo2Video
+SuperPixels/superpixels
 
 *cscope.out
 *.jpg
