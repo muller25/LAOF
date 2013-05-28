@@ -437,7 +437,6 @@ void computeWeights(vector<Value> &weights, const Mat &I, Value lambda, float va
 	//savePGM(e,name);  
 }
 
-///////////////////////////////////////////////////////////////////////////////////
 void loadEdges(vector<Value> &weights, const Mat &I, Value lambda, const char *name)
 {
     int height = I.rows, width = I.cols;
@@ -451,7 +450,6 @@ void loadEdges(vector<Value> &weights, const Mat &I, Value lambda, const char *n
 		}
 }
 
-///////////////////////////////////////////////////////////////////////////////////
 int saveSegmentationColor(const Mat &I, const vector<int> &labeling, int numSeeds, const char *name)
 {
     int width = I.cols, height = I.rows;
@@ -493,4 +491,40 @@ int saveSegmentationColor(const Mat &I, const vector<int> &labeling, int numSeed
 		if (counts[i] > 0 ) num_superpixels++;
 
 	return (num_superpixels);
+}
+
+int saveSegmentationEdges(const Mat &I, const vector<int> &labeling, int numSeeds, const char *name)
+{
+    assert(I.type() == CV_8UC3);
+
+ 	vector<int> counts(numSeeds,0);
+    int height = I.rows, width = I.cols;
+    Mat dst;
+    I.copyTo(dst);
+
+    Vec3b green(0, 255, 0);
+    for (int h = 1; h < height; ++h)
+        for (int w = 1; w < width; ++w)
+        {
+            int off = w + h * width;
+            int offx_1 = (w-1) + h * width;
+            int offy_1 = w + (h-1) * width;
+            if (labeling[off] != labeling[offx_1]) {
+                dst.at<Vec3b>(h, w) = green;
+                dst.at<Vec3b>(h, w-1) = green;
+            }
+            if (labeling[off] != labeling[offy_1]) {
+                dst.at<Vec3b>(h, w) = green;
+                dst.at<Vec3b>(h-1, w) = green;
+            }
+ 			counts[labeling[off]]++;
+        }
+
+    imwrite(name, dst);
+
+	int num_superpixels = 0;
+    for (int i = 0; i < numSeeds; ++i)
+        if (counts[i] > 0) num_superpixels++;
+
+    return num_superpixels;
 }

@@ -43,4 +43,6 @@ void loadEdges(vector<Value> &weights, const Mat &I, Value lambda, const char *n
 int saveSegmentationColor(const Mat &I, const vector<int> &labeling, int numSeeds,
                           const char *name);
 
+int saveSegmentationEdges(const Mat &I, const vector<int> &labeling, int numSeeds, const char *name);
+
 #endif

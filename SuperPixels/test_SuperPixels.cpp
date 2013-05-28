@@ -12,7 +12,7 @@ void check_error(int boolE, const char *error_message)
 { 
     if (boolE) 
     {
-        printf("\n %s \n", error_message);
+        printf("%s\n", error_message);
         exit(1);
     }
 }
@@ -112,8 +112,10 @@ int main(int argc, char **argv)
 	
 	printf("\nFinal Energy:   %d,",newEnergy);
 
-	int numSegm = saveSegmentationColor(I,labeling,numSeeds,argv[2]);
+//	int numSegm = saveSegmentationColor(I,labeling,numSeeds,argv[2]);
 
-	printf("  %f sec\nNumber of superpixels is %d ",((float)clock())/CLOCKS_PER_SEC,numSegm );
+    Mat im = imread(argv[1]);
+	int numSegm = saveSegmentationEdges(im,labeling,numSeeds,argv[2]);
+	printf("%f sec\nNumber of superpixels is %d\n",((float)clock())/CLOCKS_PER_SEC,numSegm);
     return 0;
 }
