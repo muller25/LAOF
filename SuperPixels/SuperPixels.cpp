@@ -7,21 +7,13 @@
 #include <string.h>
 #include <time.h>
 #include <float.h>
-#include <image.h>
-#include <misc.h>
-#include <matrix.h>
-#include <misc.h>
-#include <draw.h>
-#include <errno.h>
 
 #include "SuperPixels.h"
 #include "graph.h"
 #include "energy.h"
 
 #include <iostream>
-#include <fstream>
 using namespace std;
-using namespace vlib;
 
 #include <cv.h>
 #include <highgui.h>
@@ -30,28 +22,43 @@ using namespace cv;
 #define NUM_COLORS 255
 #define MULTIPLIER_VAR 1.5
 #define sq(x) ((x)*(x))
+#define DEBUG
 
-void PlaceSeeds(vector<int> &Seeds, int &numSeeds, const Mat &I, int PATCH_SIZE)
+void SuperPixels::setSourceImage(Mat &im)
 {
-    assert(I.type() == CV_8U && numSeeds >= 0);
-
-    int width = I.cols, height = I.rows;
-	int bSize = PATCH_SIZE / 2, delta = PATCH_SIZE / 4 - 1;
+    assert(im.depth() == CV_8U);
     
-    for (int h = bSize; h < height; h += bSize)
-        for (int w = bSize; w < width; w += bSize){
-            
+    im.copyTo(m_im);
+    m_width = m_im.cols, m_height = m_im.rows;
+    if (m_im.channels() == 1) m_im.copyTo(m_gray);
+    else cvtColor(m_im, m_gray, CV_BGR2GRAY);
+
+    m_label.create(m_height, m_width, CV_32S);
+    computeWeights();
+ 	m_variance = computeImageVariance();
+   
+    m_seeds.clear();
+    m_init = true;
+}
+
+void SuperPixels::PlaceSeeds()
+{
+    assert(m_init && m_gray.type() == CV_8U);
+    m_seeds.clear();
+    
+	int bSize = m_patch_size / 2, delta = m_patch_size / 4 - 1;
+    for (int h = bSize; h < m_height; h += bSize)
+        for (int w = bSize; w < m_width; w += bSize)
+        {
             int bestX = w, bestY = h;
             int startX = w - delta, endX = w + delta;
             int startY = h - delta, endY = h + delta;
-
-            if (startX < 1) startX = 1;
-            if (endX > width-2) endX = width-2;
-            if (startY < 1) startY = 1;
-            if (endY > height-2) endY = height-2;
-
             int bestScore = 255 * sq(2*delta+1);
-            //int bestScore = 0;
+            
+            if (startX < 1) startX = 1;
+            if (endX > m_width-2) endX = m_width-2;
+            if (startY < 1) startY = 1;
+            if (endY > m_height-2) endY = m_height-2;
 
             for (int y = startY; y <= endY; y++)
                 for (int x = startX; x <= endX; x++){
@@ -60,116 +67,103 @@ void PlaceSeeds(vector<int> &Seeds, int &numSeeds, const Mat &I, int PATCH_SIZE)
                     for (int yy = -1; yy <= 1; ++yy)
                         for (int xx = -1; xx <= 1; ++xx)
                         {
-                            int c1 = I.at<uchar>(y, x);
-                            int c2 = I.at<uchar>(y+yy, x+xx);
+                            int c1 = m_gray.at<uchar>(y, x);
+                            int c2 = m_gray.at<uchar>(y+yy, x+xx);
                             currScore += abs(c1 - c2);
                         }
 
                     if (currScore < bestScore){
                         bestScore = currScore;
-                        bestX = x;
-                        bestY = y;
+                        bestX = x, bestY = y;
                     }
                 }
-            Seeds[numSeeds++] = bestX + bestY * width;
+            m_seeds.push_back(Point(bestX, bestY));
         }
 }
 
-Value computeEnergy(const Mat &I, const vector<int> &labeling,
-					const vector<Value> &horizWeights, const vector<Value> &vertWeights,
-					const vector<Value> &diag1Weights, const vector<Value> &diag2Weights,
-					const vector<int> &Seeds, int TYPE)
+Value SuperPixels::computeEnergy()
 {
-    assert(I.type() == CV_8U);
+    assert(m_init && m_gray.type() == CV_8U && m_label.type() == CV_32S);
 
-    int height = I.rows, width = I.cols;
 	TotalValue engSmooth = 0, engData = 0;
-	float SQRT_2= 1/sqrt(2.0);
+	float SQRT_2 = 1./sqrt(2.0);
 
-	if (TYPE == 1)
+	if (m_TYPE == 1)
 	{
-		for (int y = 0; y < height; y++)
-			for (int x = 0; x < width; x++){
-				int label = labeling[x+y*width];
-				int seedY = Seeds[label]/width;
-				int seedX = Seeds[label] - seedY*width;
-				int scolor = I.at<uchar>(seedY, seedX);
-                int color = I.at<uchar>(y, x);
+		for (int y = 0; y < m_height; y++)
+			for (int x = 0; x < m_width; x++){
+				int label = m_label.at<int>(y, x);
+				int seedY = m_seeds[label].y;
+				int seedX = m_seeds[label].x;
+				int scolor = m_gray.at<uchar>(seedY, seedX);
+                int color = m_gray.at<uchar>(y, x);
 				int diff = abs(color - scolor);
 				int maxD = 15;
 				if (diff > maxD) diff = maxD;
-				engData = engData + diff;
+				engData += diff;
 			}
 	}
 
-	for (int y = 1; y < height; y++){
-		for (int x = 0; x < width; x++)
-			if (labeling[x+y*width] != labeling[x+(y-1)*width])
-				engSmooth = engSmooth + vertWeights[x+(y-1)*width];
-    }
+	for (int y = 1; y < m_height; y++)
+		for (int x = 0; x < m_width; x++)
+			if (m_label.at<int>(y, x) != m_label.at<int>((y-1), x))
+				engSmooth += m_vertWeights.at<Value>(y-1, x);
 
-	for (int y = 0; y < height; y++){
-		for (int x = 1; x < width; x++)
-			if (labeling[x+y*width] != labeling[(x-1)+y*width]){
-				engSmooth = engSmooth + horizWeights[(x-1)+y*width];
-			}
-    }
+	for (int y = 0; y < m_height; y++)
+		for (int x = 1; x < m_width; x++)
+            if (m_label.at<int>(y, x) != m_label.at<int>(y, (x-1)))
+				engSmooth += m_horizWeights.at<Value>(y, x-1);
 
-	for (int y = 1; y < height; y++){
-		for (int x = 1; x < width; x++)
-			if (labeling[x+y*width] != labeling[x-1+(y-1)*width])
-				engSmooth = engSmooth + SQRT_2*diag1Weights[x-1+(y-1)*width];
-    }
+	for (int y = 1; y < m_height; y++)
+		for (int x = 1; x < m_width; x++)
+            if (m_label.at<int>(y, x) != m_label.at<int>(y-1, x-1))
+				engSmooth += SQRT_2 * m_diag1Weights.at<Value>(y-1, x-1);
 
-	for (int y = 1; y < height; y++){
-		for (int x = 0; x < width-1; x++)
-			if (labeling[x+y*width] != labeling[x+1+(y-1)*width])
-				engSmooth = engSmooth + SQRT_2*diag2Weights[x+1+(y-1)*width];
-	}
+	for (int y = 1; y < m_height; y++)
+		for (int x = 0; x < m_width-1; x++)
+            if (m_label.at<int>(y, x) != m_label.at<int>(y-1, x+1))
+				engSmooth += SQRT_2 * m_diag2Weights.at<Value>(y-1, x+1);
 
-	//printf("\nDeng %d ",engSmooth);
 	return (engSmooth+engData);
 }
 
-void getBounds(int &seedX, int &seedY, int &startX, int &startY, int &endX, int &endY,
-               const Mat &I, const vector<int> &Seeds, int label, int PATCH_SIZE)
+void SuperPixels::getBounds(int &seedX, int &seedY, int &startX, int &startY,
+                            int &endX, int &endY, int label)
 {
-    int width = I.cols, height = I.rows;
+    assert(m_init);
     
-	seedY = Seeds[label]/width;
-	seedX = Seeds[label]-seedY*width;
+	seedY = m_seeds[label].y;
+	seedX = m_seeds[label].x;
 
-	startX = seedX-PATCH_SIZE;
-	endX   = seedX+PATCH_SIZE;
+	startX = seedX - m_patch_size;
+	endX   = seedX + m_patch_size;
 
-	startY = seedY-PATCH_SIZE;
-	endY   = seedY+PATCH_SIZE;
+	startY = seedY - m_patch_size;
+	endY   = seedY + m_patch_size;
 
 	if (startX < 0) startX = 0;
 	if (startY < 0) startY = 0;
-	if (endX >= width) endX = width-1;
-	if (endY >= height) endY = height-1;
+	if (endX >= m_width) endX = m_width-1;
+	if (endY >= m_height) endY = m_height-1;
 }
 
 // variable 0 corresponds to the old label, variable 1 to the new label, which
 // is the first input parameter into the procedure
 // does alpha-expansion in a block of size BLOCK_SIZE by BLOCK_SIZE
 // the border stays fixed to the old label values
-void expandOnLabel(int label, vector<int> &labeling,
-                   vector<int> &changeMask, vector<int> &changeMaskNew,
-                   const Mat &I, const vector<int> &Seeds, int numSeeds, 
-				   const vector<Value> &horizWeights, const vector<Value> &vertWeights, 
-				   const vector<Value> &diag1Weights, const vector<Value> &diag2Weights,
-                   Value lambda, int PATCH_SIZE, int TYPE, float variance)
+void SuperPixels::expandOnLabel(int label,
+                                vector<int> &changeMask, vector<int> &changeMaskNew)
 {
+    assert(m_init);
+    
 	int seedX,seedY,startX,startY,endX,endY,numVars,blockWidth;
-	int width = I.cols, height = I.rows, somethingChanged = 0;
+	int somethingChanged = 0;
 
-	getBounds(seedX,seedY,startX,startY,endX,endY,I,Seeds,label,PATCH_SIZE);
+	getBounds(seedX,seedY,startX,startY,endX,endY,label);
 
 	for (int y = startY; y <= endY; y++)
 		for (int x = startX; x <= endX; x++)
-			if (changeMask[x+y*width] == 1)
+			if (changeMask[x+y*m_width] == 1)
 			{
 				somethingChanged = 1;
 				break;
@@ -186,7 +180,7 @@ void expandOnLabel(int label, vector<int> &labeling,
 	for (int i = 0; i < numVars; i++)
         variables[i] = e->add_variable();
 
-	Value LARGE_WEIGHT = lambda*NUM_COLORS*8;
+	Value LARGE_WEIGHT = m_lambda*NUM_COLORS*8;
 
 	// First fix the border to old labels, except the edges of the image
 	for (int y = startY; y <= endY; y++){
@@ -195,7 +189,7 @@ void expandOnLabel(int label, vector<int> &labeling,
 		else if (y == startY || y == endY)
 			e->add_term1(variables[(y-startY)*blockWidth],0,LARGE_WEIGHT);
 
-		if(endX != width - 1)
+		if(endX != m_width - 1)
 			e->add_term1(variables[(endX-startX)+(y-startY)*blockWidth],0,LARGE_WEIGHT);
 		else if (y == startY || y == endY)
 			e->add_term1(variables[(endX-startX)+(y-startY)*blockWidth],0,LARGE_WEIGHT);
@@ -204,14 +198,14 @@ void expandOnLabel(int label, vector<int> &labeling,
 	for (int x = startX+1; x < endX; x++){
 		if (startY != 0)
 			e->add_term1(variables[(x-startX)],0,LARGE_WEIGHT);
-		if (endY != height - 1)
+		if (endY != m_height - 1)
 			e->add_term1(variables[(x-startX)+(endY-startY)*blockWidth],0,LARGE_WEIGHT);
 	}
 
 	// add links to center of the patch for color constant superpixels
-	if (TYPE == 1)
+	if (m_TYPE == 1)
 	{
-		int scolor = I.at<uchar>(seedY, seedX);
+		int scolor = m_gray.at<uchar>(seedY, seedX);
 		for (int y = startY+1; y < endY; y++)
 			for (int x = startX+1; x < endX; x++){
 				Value E00=0,E01=0,E10=LARGE_WEIGHT,E11=0;
@@ -220,15 +214,15 @@ void expandOnLabel(int label, vector<int> &labeling,
 					e->add_term2(variables[(x-startX)+(y-startY)*blockWidth],
                                  variables[(seedX-startX)+(seedY-startY)*blockWidth],E00,E01,E10,E11);
 
-                int color = I.at<uchar>(y, x);
+                int color = m_gray.at<uchar>(y, x);
                 int diff = abs(color - scolor);
-				int maxD = (int) variance * MULTIPLIER_VAR;
+				int maxD = (int) m_variance * MULTIPLIER_VAR;
 				if (diff > maxD) diff = maxD;
 
-				int oldLabel = labeling[x+y*width];
-				int oldY = Seeds[oldLabel]/width;
-				int oldX = Seeds[oldLabel]-oldY*width;
-				int oldColor = I.at<uchar>(oldY, oldX);
+				int oldLabel = m_label.at<int>(y, x);
+                int oldY = m_seeds[oldLabel].y;
+				int oldX = m_seeds[oldLabel].x;
+				int oldColor = m_gray.at<uchar>(oldY, oldX);
 				int oldDiff = abs(color - oldColor);
 				if (oldDiff > maxD) oldDiff = maxD;
 
@@ -242,20 +236,20 @@ void expandOnLabel(int label, vector<int> &labeling,
 	// First set up horizontal links 
 	for (int y = startY; y <= endY; y++)
 		for (int x = startX+1; x <= endX; x++){
-			int oldLabelPix       = labeling[x+y*width];
-			int oldLabelNeighbPix = labeling[x-1+y*width];
+			int oldLabelPix       = m_label.at<int>(y, x);
+			int oldLabelNeighbPix = m_label.at<int>(y, x-1);
 			Value E00,E01,E10,E11 = 0;
 
 			if (oldLabelPix != oldLabelNeighbPix)
-                E00 = horizWeights[x-1+y*width];
+                E00 = m_horizWeights.at<Value>(y, x-1);
 			else
                 E00 = 0;
 			if (oldLabelNeighbPix != label)
-                E01 = horizWeights[x-1+y*width];
+                E01 = m_horizWeights.at<Value>(y, x-1);
 			else
                 E01 = 0;
 			if (label != oldLabelPix)
-                E10 = horizWeights[x-1+y*width];
+                E10 = m_horizWeights.at<Value>(y, x-1);
 			else
                 E10 = 0;
 			
@@ -265,20 +259,20 @@ void expandOnLabel(int label, vector<int> &labeling,
 	// Next set up vertical links
 	for (int y = startY+1; y <= endY; y++)
 		for (int x = startX; x <=endX; x++){
-			int oldLabelPix       = labeling[x+y*width];
-			int oldLabelNeighbPix = labeling[x+(y-1)*width];
+			int oldLabelPix       = m_label.at<int>(y, x);
+			int oldLabelNeighbPix = m_label.at<int>(y-1, x);
 			Value E00,E01,E10,E11=0;
 
 			if (oldLabelPix != oldLabelNeighbPix)
-                E00 = vertWeights[x+(y-1)*width];
+                E00 = m_vertWeights.at<Value>(y-1, x);
 			else
                 E00 = 0;
 			if (oldLabelNeighbPix != label)
-                E01 = vertWeights[x+(y-1)*width];
+                E01 = m_vertWeights.at<Value>(y-1, x);
 			else
                 E01 = 0;
 			if (label != oldLabelPix)
-                E10 = vertWeights[x+(y-1)*width];
+                E10 = m_vertWeights.at<Value>(y-1, x);
 			else
                 E10 = 0;
 			
@@ -289,19 +283,19 @@ void expandOnLabel(int label, vector<int> &labeling,
 	float SQRT_2= 1/sqrt(2.0);
 	for (int y = startY+1; y <= endY; y++)
 		for (int x = startX+1; x <= endX; x++){
-			int oldLabelPix       = labeling[x+y*width];
-			int oldLabelNeighbPix = labeling[x-1+(y-1)*width];
+			int oldLabelPix       = m_label.at<int>(y, x);
+			int oldLabelNeighbPix = m_label.at<int>(y-1, x-1);
 			Value E00,E01,E10,E11=0;
 			
 			if (oldLabelPix != oldLabelNeighbPix) 
-				E00 = SQRT_2*diag1Weights[x-1+(y-1)*width];
+				E00 = SQRT_2*m_diag1Weights.at<Value>(y-1, x-1);
 			else E00 = 0;
 			if (oldLabelNeighbPix != label) 
-				E01 = SQRT_2*diag1Weights[x-1+(y-1)*width];
+				E01 = SQRT_2*m_diag1Weights.at<Value>(y-1, x-1);
 			else E01 = 0;
 			if (label != oldLabelPix)
-				E10 = SQRT_2*diag1Weights[x-1+(y-1)*width];
-			else E10 = 0;
+				E10 = SQRT_2*m_diag1Weights.at<Value>(y-1, x-1);
+            else E10 = 0;
 			
 			e->add_term2(variables[(x-startX)-1+(y-startY-1)*blockWidth],variables[(x-startX)+(y-startY)*blockWidth],E00,E01,E10,E11);
 		}
@@ -309,20 +303,20 @@ void expandOnLabel(int label, vector<int> &labeling,
 	// More diagonal links
 	for (int y = startY+1; y <= endY; y++)
 		for (int x = startX; x <=endX-1; x++){
-			int oldLabelPix       = labeling[x+y*width];
-			int oldLabelNeighbPix = labeling[(x+1)+(y-1)*width];
+			int oldLabelPix       = m_label.at<int>(y, x);
+			int oldLabelNeighbPix = m_label.at<int>(y-1, x+1);
 			Value E00,E01,E10,E11=0;
 
 			if (oldLabelPix != oldLabelNeighbPix) 
-				E00 = SQRT_2*diag2Weights[(x+1)+(y-1)*width];
+				E00 = SQRT_2*m_diag2Weights.at<Value>(y-1, x+1);
 			else
                 E00 = 0;
 			if (oldLabelNeighbPix != label) 
-				E01 = SQRT_2*diag2Weights[(x+1)+(y-1)*width];
+				E01 = SQRT_2*m_diag2Weights.at<Value>(y-1, x+1);
 			else
                 E01 = 0;
 			if (label != oldLabelPix)
-				E10 = SQRT_2*diag2Weights[(x+1)+(y-1)*width];
+				E10 = SQRT_2*m_diag2Weights.at<Value>(y-1, x+1);
 			else
                 E10 = 0;
 
@@ -335,10 +329,10 @@ void expandOnLabel(int label, vector<int> &labeling,
 		for (int x = startX; x <= endX; x++){
 			if (e->get_var(variables[(x-startX)+(y-startY)*blockWidth]) != 0)
 			{
-				if (labeling[x+y*width] != label){
-					labeling[x+y*width] = label; 
-					changeMaskNew[x+y*width] = 1;
-					changeMask[x+y*width] = 1;
+				if (m_label.at<int>(y, x) != label){
+                    m_label.at<int>(y, x) = label; 
+					changeMaskNew[x+y*m_width] = 1;
+					changeMask[x+y*m_width] = 1;
 				}
 			}
 		}
@@ -346,45 +340,45 @@ void expandOnLabel(int label, vector<int> &labeling,
 	delete e;
 }
 
-void initializeLabeling(vector<int> &labeling, const vector<int> &Seeds, const Mat &I,
-                        int numSeeds, int PATCH_SIZE)
+void SuperPixels::initializeLabeling()
 {
-    int width = I.cols, height = I.rows;
+    assert(m_init && m_label.type() == CV_32S);
+    
     int seedX, seedY, startX, startY, endX, endY;
-	for (int i = 0; i < numSeeds; i++)
+	for (size_t i = 0; i < m_seeds.size(); i++)
     {
-		seedY = Seeds[i]/width;
-		seedX = Seeds[i]-seedY*width;
+		seedY = m_seeds[i].y;
+		seedX = m_seeds[i].x;
 
-		startX = seedX-PATCH_SIZE/2-1;
-		endX   = seedX+PATCH_SIZE/2+1;
+		startX = seedX-m_patch_size/2-1;
+		endX   = seedX+m_patch_size/2+1;
 
-		startY = seedY-PATCH_SIZE/2-1;
-		endY   = seedY+PATCH_SIZE/2+1;
+		startY = seedY-m_patch_size/2-1;
+		endY   = seedY+m_patch_size/2+1;
 
-		if (startX < 0)     startX  = 0;
-		if (startY < 0)     startY  = 0;
-		if (endX >= width)  endX    = width-1;
-		if (endY >= height) endY    = height-1;
+		if (startX < 0)       startX  = 0;
+		if (startY < 0)       startY  = 0;
+		if (endX >= m_width)  endX    = m_width-1;
+		if (endY >= m_height) endY    = m_height-1;
 
 		for (int y = startY; y <= endY; y++)
 			for (int x = startX; x <= endX; x++)
-				labeling[x+y*width] = i;
+				m_label.at<int>(y, x) = i;
 	}
 }
 
-float computeImageVariance(const Mat &I)
+float SuperPixels::computeImageVariance()
 {
-    assert(I.type() == CV_8U);
+    assert(m_init);
     
-    int width = I.cols, height = I.rows, total = 0;
+    int total = 0;
 	float v = (float) 0.0;
 
-	for (int y = 1; y < height; y++)
-		for (int x = 1; x < width; x++){
-            int off = I.at<uchar>(y, x);
-            int offx_1 = I.at<uchar>(y, x-1);
-            int offy_1 = I.at<uchar>(y-1, x);
+	for (int y = 1; y < m_height; y++)
+		for (int x = 1; x < m_width; x++){
+            int off = m_gray.at<uchar>(y, x);
+            int offx_1 = m_gray.at<uchar>(y, x-1);
+            int offy_1 = m_gray.at<uchar>(y-1, x);
 
             v += abs(off - offx_1) + abs(off - offy_1);
 			total += 2;
@@ -393,99 +387,169 @@ float computeImageVariance(const Mat &I)
 	return (v/total);
 }
 
-void purturbSeeds(vector<int> &order,int numSeeds)
+void SuperPixels::generate()
 {
-	for (int i = 0; i < 3*numSeeds; i++ )
+    assert(m_init);
+    
+	// Initialize and place seeds
+	PlaceSeeds();
+	initializeLabeling();
+		
+	Value oldEnergy, newEnergy;
+    int num_pixels = m_width * m_height;
+    int numSeeds = m_seeds.size();
+	vector<int> changeMask(num_pixels, 1), changeMaskNew(num_pixels, 0);
+    vector<int> order(numSeeds);
+	for (int i = 0; i < numSeeds; i++)
+		order[i] = i;
+
+	//purturbSeeds(order,numSeeds);
+
+    for (int j = 0; j < m_numIter; ++j){
+		newEnergy = computeEnergy();
+
+		if (j == 0){
+			oldEnergy = newEnergy+1;
+#ifdef DEBUG
+			printf("Initial Energy: %d\n", newEnergy);
+#endif
+		}
+#ifdef DEBUG
+		else {
+			printf("After iteration %d: ", j-1);
+			printf("Energy: %d,  %f sec\n", newEnergy, ((float)clock())/CLOCKS_PER_SEC);
+		}
+#endif
+		if (newEnergy == oldEnergy) break;
+
+		oldEnergy = newEnergy;
+		
+		for (int i = 0; i < numSeeds; i++){
+			expandOnLabel(order[i], changeMask, changeMaskNew);
+		}
+		for (int i = 0; i < num_pixels; i++){
+			changeMask[i] = changeMaskNew[i];
+			changeMaskNew[i] = 0;
+		}
+
+		//purturbSeeds(order,numSeeds);
+	}
+
+#ifdef DEBUG	
+	printf("Final Energy:   %d\n",newEnergy);
+#endif
+}
+
+void SuperPixels::purturbSeeds()
+{
+    assert(m_init);
+    
+    int numSeeds = m_seeds.size();
+    srand(time(NULL));
+	for (int i = 0; i < 3*numSeeds; i++)
 	{
 		int first  = (rand()*rand())%numSeeds;
 		int second = (rand()*rand())%numSeeds;
-		int temp = order[first];
-		order[first] = order[second];
-		order[second] = temp;
+		Point temp = m_seeds[first];
+		m_seeds[first] = m_seeds[second];
+		m_seeds[second] = temp;
 	}
 }
 
-void computeWeights(vector<Value> &weights, const Mat &I, Value lambda, float variance,
-					int incrX, int incrY, int TYPE)
+void SuperPixels::computeWeights()
 {
-    assert(I.type() == CV_8U);
+    computeWeights(m_horizWeights, -1, 0);
+    computeWeights(m_vertWeights, 0, -1);
+    computeWeights(m_diag1Weights, -1, -1);
+    computeWeights(m_diag2Weights, 1, -1);
+}
 
-    int height = I.rows, width = I.cols, startX = 0, startY = 0;
+void SuperPixels::computeWeights(Mat &weights, int incrX, int incrY)
+{
+    assert(m_init && m_gray.type() == CV_8U);
+
+    weights.create(m_height, m_width, CV_VALUE);
+
+    int startX = 0, startY = 0;
 	float sigma = 2.0f;
 
 	if (incrX != 0) startX  = abs(incrX);
 	if (incrY != 0) startY = abs(incrY);
 
 	Value smallPenalty;
-	if (TYPE == 1) smallPenalty = (MULTIPLIER_VAR*variance)/8+1;
+	if (m_TYPE == 1) smallPenalty = (MULTIPLIER_VAR*m_variance)/8+1;
 	else smallPenalty = 1;
 
-	for (int y = startY; y < height; y++)
-		for (int x = startX; x < width; x++){
-            int c1 = I.at<uchar>(y, x), c2 = I.at<uchar>(y+incrY, x+incrX);
+	for (int y = startY; y < m_height; y++)
+		for (int x = startX; x < m_width; x++){
+            int c1 = m_gray.at<uchar>(y, x);
+            int c2 = m_gray.at<uchar>(y+incrY, x+incrX);
 			int difference = sq((c1 - c2));
-            weights[(x+incrX)+(y+incrY)*width] = (Value) (lambda*exp((-difference/(sigma*sq(variance))))+smallPenalty);
+            weights.at<Value>(y+incrY, x+incrX) = (Value) (m_lambda*exp((-difference/(sigma*sq(m_variance))))+smallPenalty);
 		}
-	
-	//image<uchar> *e = new image<uchar>(width,height);
-		
-	//for ( int y = 0; y < height; y++ )
-	//	for (int  x = 0; x < width; x++ ){
-	//		imRef(e,x,y) = weights[x+y*width];
-	//	}
-
-	//savePGM(e,name);  
 }
 
-void loadEdges(vector<Value> &weights, const Mat &I, Value lambda, const char *name)
+void SuperPixels::loadHEdge(const char *name)
 {
-    int height = I.rows, width = I.cols;
-	Mat edges = imread(name, CV_LOAD_IMAGE_GRAYSCALE);
-    assert(height == edges.rows && width == edges.cols);
+    loadEdge(m_horizWeights, name);
+}
+
+void SuperPixels::loadVEdge(const char *name)
+{
+    loadEdge(m_vertWeights, name);
+}
+
+void SuperPixels::loadD1Edge(const char *name)
+{
+    loadEdge(m_diag1Weights, name);
+}
+
+void SuperPixels::loadD2Edge(const char *name)
+{
+    loadEdge(m_diag2Weights, name);
+}
+
+void SuperPixels::loadEdge(Mat &weights, const char *name)
+{
+    assert(m_init && weights.type() == CV_VALUE);
     
-	for (int y = 0; y < height; y++)
-		for (int x = 0; x < width; x++){
+	Mat edges = imread(name, CV_LOAD_IMAGE_GRAYSCALE);
+    assert(m_height == edges.rows && m_width == edges.cols);
+    
+	for (int y = 0; y < m_height; y++)
+		for (int x = 0; x < m_width; x++){
             int c = edges.at<uchar>(y, x);
-			weights[x+y*width] = (Value) lambda * c;
+			weights.at<Value>(y, x) = (Value) m_lambda * c;
 		}
 }
 
-int saveSegmentationColor(const Mat &I, const vector<int> &labeling, int numSeeds, const char *name)
+int SuperPixels::saveSegmentationColor(const char *name)
 {
-    int width = I.cols, height = I.rows;
-    Mat out(height, width, CV_8UC3);
+    assert(m_init);
+    
+    Mat out(m_height, m_width, CV_8UC3);
 
+    int numSeeds = m_seeds.size();
 	vector<Vec3b> colorLookup(numSeeds);
 	vector<int> counts(numSeeds,0);
 
     // Vec3b: BGR
+    srand(time(NULL));
 	for (int i = 0; i < numSeeds; i++){
 		colorLookup[i][2] = rand()%NUM_COLORS;
 		colorLookup[i][1] = rand()%NUM_COLORS;
 		colorLookup[i][0] = rand()%NUM_COLORS;
 	}
 
-	for (int y = 0; y < height; y++)
-		for (int  x = 0; x < width; x++ ){
-			out.at<Vec3b>(y, x) = colorLookup[labeling[x+y*width]];
-			counts[labeling[x+y*width]]++;
+	for (int y = 0; y < m_height; y++)
+		for (int  x = 0; x < m_width; x++ ){
+            int label = m_label.at<int>(y, x);
+			out.at<Vec3b>(y, x) = colorLookup[label];
+			counts[label]++;
 		}
 
     imwrite(name, out);
 
-/*    
-      image<uchar> *e = new image<uchar>(width,height);
-      e->init(0);
-      for ( int y = 1; y < height; y++ )
-      for (int  x = 1; x < width; x++ ){
-      if ( labeling[x+y*width] != labeling[x-1+y*width])
-      imRef(e,x-1,y) = 255;
-      if ( labeling[x+y*width] != labeling[x+(y-1)*width])
-      imRef(e,x,y-1) = 255;
-      }
-
-      savePGM(e,"edges.pgm");  
-*/
 	int num_superpixels = 0;
 	for (int i = 0; i < numSeeds; i++)
 		if (counts[i] > 0 ) num_superpixels++;
@@ -493,31 +557,29 @@ int saveSegmentationColor(const Mat &I, const vector<int> &labeling, int numSeed
 	return (num_superpixels);
 }
 
-int saveSegmentationEdges(const Mat &I, const vector<int> &labeling, int numSeeds, const char *name)
+int SuperPixels::saveSegmentationEdges(const char *name)
 {
-    assert(I.type() == CV_8UC3);
-
+    assert(m_init && m_im.type() == CV_8UC3);
+    
+    int numSeeds = m_seeds.size();
  	vector<int> counts(numSeeds,0);
-    int height = I.rows, width = I.cols;
     Mat dst;
-    I.copyTo(dst);
+    m_im.copyTo(dst);
 
     Vec3b green(0, 255, 0);
-    for (int h = 1; h < height; ++h)
-        for (int w = 1; w < width; ++w)
+    for (int h = 1; h < m_height; ++h)
+        for (int w = 1; w < m_width; ++w)
         {
-            int off = w + h * width;
-            int offx_1 = (w-1) + h * width;
-            int offy_1 = w + (h-1) * width;
-            if (labeling[off] != labeling[offx_1]) {
+            int label = m_label.at<int>(h, w);
+            if (label != m_label.at<int>(h, w-1)) {
                 dst.at<Vec3b>(h, w) = green;
                 dst.at<Vec3b>(h, w-1) = green;
             }
-            if (labeling[off] != labeling[offy_1]) {
+            if (label != m_label.at<int>(h-1, w)) {
                 dst.at<Vec3b>(h, w) = green;
                 dst.at<Vec3b>(h-1, w) = green;
             }
- 			counts[labeling[off]]++;
+ 			counts[label]++;
         }
 
     imwrite(name, dst);

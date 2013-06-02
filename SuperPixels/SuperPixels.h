@@ -6,43 +6,57 @@ using std::vector;
 
 #include <cv.h>
 using cv::Mat;
+using cv::Point;
 
 typedef int Value;
 typedef int TotalValue;
 typedef int Var;
 
-void PlaceSeeds(vector<int> &Seeds, int &numSeeds, const Mat &I, int PATCH_SIZE);
+#define CV_VALUE CV_32S
 
-Value computeEnergy(const Mat &I, const vector<int> &labeling,
-					const vector<Value> &horizWeights, const vector<Value> &vertWeights,
-					const vector<Value> &diag1Weights, const vector<Value> &diag2Weights,
-					const vector<int> &Seeds, int TYPE);
-
-void getBounds(int &seedX, int &seedY, int &startX, int &startY, int &endX, int &endY,
-               const Mat &I, const vector<int> &Seeds, int label, int PATCH_SIZE);
-
-void expandOnLabel(int label, vector<int> &labeling,
-                   vector<int> &changeMask, vector<int> &changeMaskNew,
-                   const Mat &I, const vector<int> &Seeds, int numSeeds, 
-				   const vector<Value> &horizWeights, const vector<Value> &vertWeights, 
-				   const vector<Value> &diag1Weights, const vector<Value> &diag2Weights,
-                   Value lambda, int PATCH_SIZE, int TYPE, float variance);
-
-void initializeLabeling(vector<int> &labeling, const vector<int> &Seeds, const Mat &I,
-                        int numSeeds, int PATCH_SIZE);
-
-float computeImageVariance(const Mat &I);
-
-void purturbSeeds(vector<int> &order,int numSeeds);
-
-void computeWeights(vector<Value> &weights, const Mat &I, Value lambda, float variance,
-					int incrX, int incrY, int TYPE);
-
-void loadEdges(vector<Value> &weights, const Mat &I, Value lambda, const char *name);
-
-int saveSegmentationColor(const Mat &I, const vector<int> &labeling, int numSeeds,
-                          const char *name);
-
-int saveSegmentationEdges(const Mat &I, const vector<int> &labeling, int numSeeds, const char *name);
+class SuperPixels
+{
+public:
+    SuperPixels(int patch_size = 30, int numIter = 2, int TYPE = 0, Value lambda = 10)
+    {
+        m_patch_size = patch_size;
+        m_numIter = numIter;
+        m_lambda = lambda;
+        m_TYPE = TYPE;
+        m_init = false;
+    }
+    
+    virtual ~SuperPixels(){clear();}
+    void setSourceImage(Mat &im);
+    void clear(){m_init = false;}
+    void PlaceSeeds();
+    Value computeEnergy();
+    void generate();
+    void getBounds(int &seedX, int &seedY, int &startX, int &startY,
+                   int &endX, int &endY, int label);
+    void expandOnLabel(int label,
+                       vector<int> &changeMask, vector<int> &changeMaskNew);
+    void initializeLabeling();
+    float computeImageVariance();
+    void purturbSeeds();
+    void computeWeights();
+    void computeWeights(Mat &weights, int incrX, int incrY);
+    void loadHEdge(const char *name);
+    void loadVEdge(const char *name);
+    void loadD1Edge(const char *name);
+    void loadD2Edge(const char *name);
+    void loadEdge(Mat &weights, const char *name);
+    int saveSegmentationColor(const char *name);
+    int saveSegmentationEdges(const char *name);
+    
+private:
+    bool m_init;
+    int m_patch_size, m_width, m_height, m_numIter, m_TYPE;
+    float m_variance;
+    Value m_lambda;
+    Mat m_im, m_gray, m_label;
+    Mat m_horizWeights, m_vertWeights, m_diag1Weights, m_diag2Weights;
+    vector<Point> m_seeds;
+};
 
 #endif
