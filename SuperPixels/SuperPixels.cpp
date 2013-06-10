@@ -34,11 +34,10 @@ void SuperPixels::setSourceImage(Mat &im)
     else cvtColor(m_im, m_gray, CV_BGR2GRAY);
 
     m_label.create(m_height, m_width, CV_32S);
-    computeWeights();
- 	m_variance = computeImageVariance();
-   
     m_seeds.clear();
     m_init = true;
+ 	m_variance = computeImageVariance();
+    computeWeights();
 }
 
 void SuperPixels::PlaceSeeds()
@@ -258,10 +257,10 @@ void SuperPixels::expandOnLabel(int label,
 
 	// Next set up vertical links
 	for (int y = startY+1; y <= endY; y++)
-		for (int x = startX; x <=endX; x++){
+		for (int x = startX; x <= endX; x++){
 			int oldLabelPix       = m_label.at<int>(y, x);
 			int oldLabelNeighbPix = m_label.at<int>(y-1, x);
-			Value E00,E01,E10,E11=0;
+			Value E00,E01,E10,E11 = 0;
 
 			if (oldLabelPix != oldLabelNeighbPix)
                 E00 = m_vertWeights.at<Value>(y-1, x);
@@ -466,13 +465,14 @@ void SuperPixels::computeWeights()
 
 void SuperPixels::computeWeights(Mat &weights, int incrX, int incrY)
 {
-    assert(m_init && m_gray.type() == CV_8U);
+    assert(m_init);
 
     weights.create(m_height, m_width, CV_VALUE);
 
     int startX = 0, startY = 0;
 	float sigma = 2.0f;
-
+    float var2 = sq(m_variance);
+    
 	if (incrX != 0) startX  = abs(incrX);
 	if (incrY != 0) startY = abs(incrY);
 
@@ -485,7 +485,7 @@ void SuperPixels::computeWeights(Mat &weights, int incrX, int incrY)
             int c1 = m_gray.at<uchar>(y, x);
             int c2 = m_gray.at<uchar>(y+incrY, x+incrX);
 			int difference = sq((c1 - c2));
-            weights.at<Value>(y+incrY, x+incrX) = (Value) (m_lambda*exp((-difference/(sigma*sq(m_variance))))+smallPenalty);
+            weights.at<Value>(y+incrY, x+incrX) = (Value) (m_lambda*exp(-difference/(sigma*var2))+smallPenalty);
 		}
 }
 
@@ -521,6 +521,44 @@ void SuperPixels::loadEdge(Mat &weights, const char *name)
             int c = edges.at<uchar>(y, x);
 			weights.at<Value>(y, x) = (Value) m_lambda * c;
 		}
+}
+
+int SuperPixels::countLabels()
+{
+    assert(m_init);
+
+    int numSeeds = m_seeds.size();
+    vector<int> counts(numSeeds, 0);
+    for (int h = 0; h < m_height; ++h)
+        for (int w = 0; w < m_width; ++w)
+        {
+            int label = m_label.at<int>(h, w);
+ 			counts[label]++;
+        }
+
+    // re-arrange labels, to make label id continous
+    for (size_t i = 0; i < counts.size(); ++i)
+    {
+        if (counts[i] > 0) continue;
+
+        for (int size = counts.size() - 1; size > 0; --size)
+        {
+            if (counts[size] == 0) counts.pop_back();
+            else
+            {
+                for (int h = 0; h < m_height; ++h)
+                    for (int w = 0; w < m_width; ++w)
+                    {
+                        if (size == m_label.at<int>(h, w))
+                            m_label.at<int>(h, w) = i;
+                    }
+                counts.pop_back();
+                break;
+            }
+        }
+    }
+
+    return counts.size();
 }
 
 int SuperPixels::saveSegmentationColor(const char *name)
@@ -559,12 +597,17 @@ int SuperPixels::saveSegmentationColor(const char *name)
 
 int SuperPixels::saveSegmentationEdges(const char *name)
 {
-    assert(m_init && m_im.type() == CV_8UC3);
-    
-    int numSeeds = m_seeds.size();
- 	vector<int> counts(numSeeds,0);
+    assert(m_init);
+
     Mat dst;
-    m_im.copyTo(dst);
+    if (m_im.channels() == 3)
+        m_im.copyTo(dst);
+    else{
+        Mat arr[3] = {m_im, m_im, m_im};
+        merge(arr, 3, dst);
+    }
+
+    int num_superpixels = countLabels();
 
     Vec3b green(0, 255, 0);
     for (int h = 1; h < m_height; ++h)
@@ -579,14 +622,9 @@ int SuperPixels::saveSegmentationEdges(const char *name)
                 dst.at<Vec3b>(h, w) = green;
                 dst.at<Vec3b>(h-1, w) = green;
             }
- 			counts[label]++;
         }
 
     imwrite(name, dst);
-
-	int num_superpixels = 0;
-    for (int i = 0; i < numSeeds; ++i)
-        if (counts[i] > 0) num_superpixels++;
 
     return num_superpixels;
 }

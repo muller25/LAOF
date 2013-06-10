@@ -46,6 +46,7 @@ public:
     void loadD1Edge(const char *name);
     void loadD2Edge(const char *name);
     void loadEdge(Mat &weights, const char *name);
+    int countLabels();
     int saveSegmentationColor(const char *name);
     int saveSegmentationEdges(const char *name);
     

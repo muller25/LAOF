@@ -27,7 +27,7 @@ int main(int argc, char **argv)
 {
 	check_input_arguments(argc);
 
-    Mat im = imread(argv[1], CV_LOAD_IMAGE_GRAYSCALE);
+    Mat im = imread(argv[1]);
     check_error(im.data == NULL, "Cannot load input image");
 
 	int patch_size = atoi(argv[3]);
