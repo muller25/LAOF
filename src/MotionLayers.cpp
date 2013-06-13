@@ -1,488 +1,338 @@
 #include "GCoptimization.h"
+#include "SuperPixels.h"
 #include "MotionLayers.h"
 #include "ML.h"
-#include "Maths.h"
-#include "Utils.h"
 
-// extract spatial info from image
-void MotionLayers::spatialInfo(DImage &info, const DImage &im)
+using cv::Point2d;
+
+double smoothFn(int p1, int p2, int l1, int l2, void *data)
 {
-    int width = im.nWidth(), height = im.nHeight(), offset;
-    info.create(sWidth, width*height);
+    if (l1 == l2) return 0;
 
-    for (int h = 0; h < height; ++h)
+    double *pdata = (double *)data;
+    const double sigma2 = 4;
+    double pDist = dist2(pdata+p1, pdata+p2, 0, 2);
+    double cDist = dist2(pdata+p1, pdata+p2, 2, 5);
+
+    return exp(-(cDist*cDist) / (pDist*2*sigma2));
+}
+
+void MotionLayers::init(const Mat &im, const Mat &flow)
+{
+    assert(im.channels() == 3 && flow.channels() == 2);
+
+    if (im.type() != CV_PERCSION)
+        im.convertTo(m_im, CV_PERCSION);
+    else
+        im.copyTo(m_im);
+
+    if (flow.type() != CV_PERCSION)
+        flow.convertTo(m_flow, CV_PERCSION);
+    else
+        flow.copyTo(m_flow);
+    
+    m_width = im.cols, m_height = im.rows;
+}
+
+void MotionLayers::covariance(vector<PERCISION> &cov, vector< vector<Point> > &pos)
+{
+    // cov(X, Y) = E(XY) - E(X)E(Y)
+    cov.resize(m_nSPLbl);
+    memset(cov.data(), 0, sizeof(PERCISION) * m_nSPLbl);
+
+    PERCISION EX = 0, EY = 0, EXY = 0;
+    for (int l = 0; l < m_nSPLbl; ++l)
     {
-        for (int w = 0; w < width; ++w)
+        int size = pos[l].size();
+        for (int i = 0; i < size; ++i)
         {
-            offset = (h * width + w) * sWidth;
-            info[offset] = h;
-            info[offset+1] = w;
+            Point p = pos[l][i];
+            MOTION motion = m_flow.at<MOTION>(p.y, p.x);
+
+            EX += motion[0];
+            EY += motion[1];
+            EXY += motion[0] * motion[1];
         }
+
+        EX /= size, EY /= size, EXY /= size;
+        cov[l] = EXY - EX * EY;
     }
 }
 
-// extract intensity info from image
-void MotionLayers::imInfo(DImage &info, const DImage &im)
+void MotionLayers::extract(vector< vector<Point> > &pos, int nlabel, const Mat &label)
 {
-    int size = im.nSize(), channels = im.nChannels();
-    assert(iWidth == channels);
+    pos.resize(nlabel);
+    for (int l = 0; l < nlabel; ++l)
+        pos[l].clear();
     
-    info.create(channels, size);
-    for (int i = 0; i < im.nElements(); ++i)
-        info[i] = im[i];
-}
-
-// extract motion strength from flow
-void MotionLayers::flowInfo(DImage &info, const DImage &flow)
-{
-    assert(flow.nChannels() == fWidth);
-    int size = flow.nSize(), channels = flow.nChannels(), offset;
-    DImage nf;
-    
-    normalizeChannels(nf, flow); // normalize is better
-    // flow.copyTo(nf);
-    
-    info.create(channels, size);
-    for (int i = 0; i < size; ++i)
-    {
-        offset = i * channels;
-        for (int k = 0; k < channels; k++)
-            info[offset+k] = nf[offset+k];
-    }
-}
-
-int MotionLayers::cluster(DImage &centers, DImage &layers, const DImage &im,
-                          const DImage &flow, const DImage &rflow,
-                          int start, int end, double na, bool reArrange)
-{
-    DImage features;
-    UCImage labels;
-    int clusters;
-    DImage fInfo, rfInfo;
-    std::vector<DImage> vec;
-
-    // DImage sInfo;
-    // spatialInfo(sInfo, im);
-    // vec.push_back(sInfo);
-
-    // DImage iInfo;
-    // imInfo(iInfo, im);
-    // vec.push_back(iInfo);
-
-    flowInfo(fInfo, flow);
-    vec.push_back(fInfo);
-
-    flowInfo(rfInfo, rflow);
-    vec.push_back(rfInfo);
-    
-    mergew(features, vec);
-    clusters = kmeans2(centers, labels, features, start, end, na,
-                       MotionLayers::kmdist);
-
-    // rearrange labels
-    if (reArrange)
-    {
-        printf("re-arrange labels...\n");
-        reArrangeLabels(labels, clusters);
-        createCenterByLabels(centers, clusters, labels, features);
-    }
-
-    // change label map to layer image
-    layers.create(flow.nWidth(), flow.nHeight());
-    for (int i = 0; i < labels.nSize(); i++)
-        layers[i] = (double)labels[i];
-    
-    return clusters;
-}
-
-int MotionLayers::cluster(DImage &centers, DImage &layers, const DImage &features,
-                          int width, int height, int start, int end, double na, bool reArrange)
-{
-    printf("running kmeans...\n");
-    int clusters;
-    UCImage labels;
-    
-    clusters = kmeans2(centers, labels, features, start, end, na,
-                       MotionLayers::kmdist);
-
-    // rearrange labels
-    if (reArrange)
-    {
-        printf("re-arrange labels...\n");
-        reArrangeLabels(labels, clusters);
-        createCenterByLabels(centers, clusters, labels, features);
-    }
-    
-    // change label map to layer image
-    layers.create(width, height);
-    for (int i = 0; i < labels.nSize(); i++)
-        layers[i] = (double)labels[i];
-
-    return clusters;
-}
-
-void MotionLayers::refine(DImage &centers, DImage &layers, int labels,
-                          const DImage &im1, const DImage &im2,
-                          const DImage &features)
-{
-    assert(centers.ptr() != NULL);
-    
-    int size = im1.nSize(), cwidth = centers.nWidth();
-    int width = im1.nWidth(), height = im1.nHeight(), channels = im1.nChannels();
-    double *data = new double[labels*size];
-    DImage extra;
-    std::vector<DImage> vec;
-
-    vec.push_back(im1);
-    vec.push_back(im2);
-    mergec(extra, vec);
-
-    // set data term
-    for (int i = 0; i < size; ++i)
-    {
-        for (int l = 0; l < labels; ++l)
+    for (int h = 0; h < m_height; ++h)
+        for (int w = 0; w < m_width; ++w)
         {
-            data[i*labels+l] = 2 * kmdist(features.ptr()+i*cwidth, centers.ptr()+l*cwidth, 0, cwidth);
-            data[i*labels+l] += dist2(im1.ptr()+i*channels, im2.ptr()+i*channels, 0, channels);
+            int l = label.at<LABEL>(h, w);
+            pos[l].push_back(Point(w, h));
         }
-    }
+}
+
+// patch = spatial info + color histogram + motion histogram
+void MotionLayers::extractAsHist(vector<SPPATCH> &patch, const vector< vector<Point> > &pos)
+{
+    int nlabel = pos.size();
+    patch.resize(nlabel);
     
-    try{
-		GCoptimizationGridGraph *gc = new GCoptimizationGridGraph(width, height, labels);
-        gc->setDataCost(data);
-        gc->setSmoothCost(MotionLayers::smoothFn, extra.ptr());
+    Mat imPatch, oriPatch, magPatch, lab, hist;
+    Point2d point;
+    const int channels = 3, channel = 1;
+    float lRange[] = {0, 101}, aRange[] = {-127, 128}, bRange[] = {-127, 128};
+    const float *lRanges[] = {lRange}, *aRanges[] = {aRange}, *bRanges[] = {bRange};
+
+    float oriRange[] = {0, 361};
+    const float *oriRanges[] = {oriRange};
+    
+    // 假设 u, v的常规范围为 [-10, 10]
+    float magRange[magHistSize + 1] = {0, 20, 40, 60, 80, 100, 120, 140, 160, 180, 200, DBL_MAX};
+    const float *magRanges[] = {magRange};
+    
+    cvtColor(m_im, lab, CV_BGR2Lab);
+    for (int l = 0; l < nlabel; ++l)
+    {
+        patch[l].resize(2 + imHistSize * channels + oriHistSize + magHistSize);
         
-        printf("Before optimization energy is %.6f\n",gc->compute_energy());
-        // gc->expansion(2);
-        gc->swap(2);
-        printf("After optimization energy is %.6f\n",gc->compute_energy());
+        int size = pos[l].size();
+        imPatch.create(1, size, m_im.depth());
+        oriPatch.create(1, size, CV_PERCSION);
+        magPatch.create(1, size, CV_PERCSION);
+        point.x = 0, point.y = 0;
+        for (int i = 0; i < size; ++i)
+        {
+            Point p = pos[l][i];
+            imPatch.at<PIXEL>(i) = lab.at<PIXEL>(p.y, p.x);
+            MOTION m = m_flow.at<MOTION>(p.y, p.x);
+            oriPatch.at<PERCISION>(i) = atan2(m[1], m[0]) + CV_PI; // [0, 2*pi]
+            magPatch.at<PERCISION>(i) = m[1] * m[1] + m[0] * m[0];
+            point.x += p.x;
+            point.y += p.y;
+        }
 
-        for (int  i = 0; i < size; i++)
-            layers[i] = gc->whatLabel(i);
-
-        // rearrange labels
-        // reArrangeLabels(layers, labels);
-
-        createCenterByLabels(centers, labels, layers, features);
+        // 位置信息
+        int idx = 0;
+        patch[l][idx++] = point.x / size;
+        patch[l][idx++] = point.y / size;
         
+        // Lab直方图
+        int c = 0;
+        calcHist(&lab, 1, &c, Mat(), hist, 1, &imHistSize, lRanges);
+        for (int i = 0; i < imHistSize; ++i)
+            patch[l][idx++] = hist.at<float>(i) / size;
+
+        c = 1;
+        calcHist(&lab, 1, &c, Mat(), hist, 1, &imHistSize, aRanges);
+        for (int i = 0; i < imHistSize; ++i)
+            patch[l][idx++] = hist.at<float>(i) / size;
+
+        c = 2;
+        calcHist(&lab, 1, &c, Mat(), hist, 1, &imHistSize, bRanges);
+        for (int i = 0; i < imHistSize; ++i)
+            patch[l][idx++] = hist.at<float>(i) / size;
+        
+        // 运动方向直方图
+        calcHist(&oriPatch, 1, &channel, Mat(), hist, 1, &oriHistSize, oriRanges);
+        for (int i = 0; i < oriHistSize; ++i)
+            patch[l][idx++] = hist.at<float>(i) / size;
+
+        // 运动幅度直方图
+        calcHist(&magPatch, 1, &channel, Mat(), hist, 1, &magHistSize, magRanges, false);
+        for (int i = 0; i < magHistSize; ++i)
+            patch[l][idx++] = hist.at<float>(i) / size;
+    }
+}
+
+void MotionLayers::extractAsPixel(vector<SPPATCH> &patch, const vector< vector<Point> > &pos)
+{
+    int ndata = 2 + 3 + 2;
+    int nlabel = pos.size();
+    patch.resize(nlabel);
+    for (int i = 0; i < nlabel; ++i)
+    {
+        patch[i].resize(ndata);
+        memset(patch[i].data(), 0, sizeof(PERCISION) * ndata);
+    }
+
+    for (int l = 0; l < nlabel; ++l)
+    {
+        int size = pos[l].size();
+        for (int i = 0; i < size; ++i)
+        {
+            Point p = pos[l][i];
+            PIXEL pixel = m_im.at<PIXEL>(p.y, p.x);
+            MOTION motion = m_flow.at<MOTION>(p.y, p.x);
+
+            patch[l][0] += p.x;
+            patch[l][1] += p.y;
+            patch[l][2] += pixel[0];
+            patch[l][3] += pixel[1];
+            patch[l][4] += pixel[2];
+            patch[l][5] += motion[0];
+            patch[l][6] += motion[1];
+        }
+
+        for (int i = 0; i < ndata; ++i)
+            patch[l][i] /= size;
+    }
+}
+
+void MotionLayers::initSegment(int ncluster)
+{
+    // 计算 super pixel
+    SuperPixels sp;
+    sp.setSourceImage(m_im);
+    sp.generate();
+    m_nSPLbl = sp.getLabels(m_spLbl);
+
+    // 用直方图表示 super pixel
+    extract(m_sp2pos, m_nSPLbl, m_spLbl);
+    extractAsHist(m_spHist, m_sp2pos);
+
+    // 计算可信的 patch
+    covariance(m_cov, m_sp2pos);
+
+    vector<SPPATCH> samples, centers;
+    vector<LABEL> label;
+    vector<int> spid2tid(m_nSPLbl, -1);
+    int trust = 0;
+    for (int l = 0; l < m_nSPLbl; ++l)
+        if (abs(m_cov[l]) < ESP)
+        {
+            samples.push_back(m_spHist[l]);
+            spid2tid[l] = trust++;
+        }
+
+    // kmeans
+    kmeans(centers, label, samples, ncluster, kmdist);
+    m_label = Mat::zeros(m_height, m_width, CV_LABEL);
+    for (int h = 0; h < m_height; ++h)
+        for (int w = 0; w < m_width; ++w)
+        {
+            int spLbl = m_spLbl.at<LABEL>(h, w);
+            int nLbl = spid2tid[spLbl];
+            if (nLbl >= 0)
+                m_label.at<LABEL>(h, w) = label[nLbl] + 1;
+        }
+}
+
+void MotionLayers::refineSegment(int ncluster)
+{
+    vector<SPPATCH> sp, layer;
+    vector< vector<Point> > npos;
+    
+    extractAsPixel(sp, m_sp2pos);
+    int nPixelLen = sp[0].size();
+    double *spPixel = new double[m_nSPLbl*nPixelLen];
+    for (int i = 0; i < m_nSPLbl; ++i)
+        for (int l = 0; l < nPixelLen; ++l)
+            spPixel[i*nPixelLen+l] = sp[i][l];
+    
+    extract(npos, ncluster+1, m_label);
+    extractAsHist(layer, npos);
+    
+    int nHistLen = m_spHist[0].size();
+    double *data = new double[ncluster * m_nSPLbl];
+    PERCISION weight, kl;
+    for (int i = 0; i < m_nSPLbl; ++i)
+        for (int l = 1; l <= ncluster; ++l)
+        {
+            weight = 1. / sqrt(1 + m_cov[i] * m_cov[i]);
+            kl = skldist(m_spHist[i].data(), layer[l].data(), 0, nHistLen);
+            data[i*m_nSPLbl+l-1] = weight * kl;
+        }
+
+    try {
+        GCoptimizationGeneralGraph *gc = new GCoptimizationGeneralGraph(m_nSPLbl, ncluster);
+		gc->setDataCost(data);
+        gc->setSmoothCost(smoothFn, spPixel);
+
+        // horizontal
+        for (int h = 0; h < m_height; ++h)
+            for (int w = 1; w < m_width; ++w)
+            {
+                int lbl = m_spLbl.at<LABEL>(h, w);
+                int lblx_1 = m_spLbl.at<LABEL>(h, w-1);
+                if (lbl != lblx_1)
+                    gc->setNeighbors(lbl, lblx_1);
+            }
+
+        // vertical
+        for (int h = 1; h < m_height; ++h)
+            for (int w = 0; w < m_width; ++w)
+            {
+                int lbl = m_spLbl.at<LABEL>(h, w);
+                int lbly_1 = m_spLbl.at<LABEL>(h-1, w);
+                if (lbl != lbly_1)
+                    gc->setNeighbors(lbl, lbly_1);
+            }
+        
+		printf("Before optimization energy is %.6f\n",gc->compute_energy());
+		gc->expansion(2);
+		printf("After optimization energy is %.6f\n",gc->compute_energy());
+
+        for (int h = 0; h < m_height; ++h)
+            for (int w = 0; w < m_width; ++w)
+            {
+                int spLbl = m_spLbl.at<LABEL>(h, w);
+                m_label.at<LABEL>(h, w) = gc->whatLabel(spLbl);
+            }
+
 		delete gc;
 	}
 	catch (GCException e){
 		e.Report();
 	}
-
+    
     delete []data;
-}
-
-// kmeans cluster, -1 for untrusted areas
-void MotionLayers::kcluster(DImage &centers, DImage &layers, int nlabels,
-                            const DImage &im1, const DImage &im2,
-                            const DImage &u, const DImage &v)
-{
-    assert(u.match3D(v) && u.nChannels() == 1);
-
-    const int wsize = 2;
-    const double threshold = ESP;
-    int height = u.nHeight(), width = u.nWidth();
-    
-    DImage covUV;
-    int trust = 0, totalPoints = u.nSize();
-    int *t2id = new int[totalPoints];
-    
-    // count trusted points    
-    covariance(covUV, u, v, wsize);
-    for (int i = 0; i < totalPoints; ++i)
-        if (covUV[i] <= threshold)
-            t2id[trust++] = i;
-    
-    printf("trusted points: %d\n", trust);
-
-    // generate trusted samples
-    int swidth = 4, offset;
-    DImage samples(swidth, trust);
-    for (int i = 0; i < trust; ++i)
-    {
-        offset = t2id[i];
-        samples[i*swidth] = offset % width;
-        samples[i*swidth+1] = offset / width;
-        samples[i*swidth+2] = u[offset];
-        samples[i*swidth+3] = v[offset];
-    }
-
-    // run kmeans, data contains spatial info and motion info
-    UCImage ucimg;
-    kmeans(centers, ucimg, samples, nlabels, MotionLayers::kmdist);
-
-    // -1 for untrusted point
-    layers.create(width, height, 1, -1);
-    for (int i = 0; i < trust; ++i)
-        layers[t2id[i]] = ucimg[i];
-    
-    delete []t2id;
-}
-
-// spectral cluster, very slow
-void MotionLayers::scluster(DImage &centers, DImage &layers, int nlabels,
-                            const DImage &u, const DImage &v)
-{
-    assert(u.match3D(v) && u.nChannels() == 1);
-
-    const int wsize = 2;
-    const double threshold = ESP;
-    const int neighbour = 5 * wsize;
-
-    int width = u.nWidth(), height = u.nHeight(), offset, h, w;
-    
-    DImage covUV;
-    int trust = 0, totalPoints = u.nSize();
-    int *t2id = new int[totalPoints];
-    int *id2t = new int[totalPoints];
-    
-    for (int i = 0; i < totalPoints; ++i)
-        id2t[i] = -1;
-    
-    // count trusted points    
-    covariance(covUV, u, v, wsize);
-    for (h = wsize; h < height; h += wsize)
-    {
-        for (w = wsize; w < width; w += wsize)
-        {
-            offset = h * width + w;
-            if (fabs(covUV[offset]) <= threshold)
-            {
-                t2id[trust] = offset;
-                id2t[offset] = trust++;
-            }
-        }
-    }
-
-    printf("trusted points: %d\n", trust);
-
-    // construct similarity matrix
-    printf("construct similarity matrix... ");
-
-    int nh, nw, noffset, j;
-    double cost, tmpu, tmpv;
-    DImage graph(trust, trust);
-    for (int i = 0; i < trust; ++i)
-    {
-        h = t2id[i] / width;
-        w = t2id[i] % width;
-
-        // search for trusted neighbours
-        for (int hh = -neighbour; hh <= neighbour; hh += wsize)
-        {
-            nh = h + hh;
-            if (nh < 0 || nh >= height) continue;
-
-            for (int ww = -neighbour; ww <= neighbour; ww += wsize)
-            {
-                nw = w + ww;
-                if (nw < 0 || nw >= width) continue;
-
-                noffset = nh * width + nw;
-                if (id2t[noffset] == -1) continue;
-
-                j = id2t[noffset];
-                offset = t2id[i];
-                tmpu = u[offset] - u[noffset];
-                tmpv = v[offset] - v[noffset];
-                cost = sqrt(tmpu*tmpu + tmpv*tmpv);
-                graph[i*trust+j] = cost;
-            }
-        }
-    }
-
-    printf("done\n");
-    delete []id2t;
-
-    // spectral cluster
-    printf("running spectral cluster...");
-
-    UCImage ucimg;
-    SpectralCluster(ucimg, graph, nlabels);
-
-    printf("done\n");
-    
-    int *count = new int[nlabels];
-    int label;
-    
-    memset(count, 0, sizeof(int)*nlabels);
-    centers.create(2, nlabels);
-    layers.create(width, height, 1, -1);
-    for (int i = 0; i < trust; ++i)
-    {
-        label = ucimg[i];
-        offset = t2id[i];
-        layers[offset] = label;
-        count[label]++;
-        centers[label*2] += u[offset];
-        centers[label*2+1] += v[offset];
-    }
-
-    for (int i = 0; i < nlabels; ++i)
-    {
-        centers[i*2] /= count[i];
-        centers[i*2+1] /= count[i];
-    }
-    
-    delete []count;
-    delete []t2id;
+    delete []spPixel;
 }
 
 // distance for kmeans
-double MotionLayers::kmdist(double *p1, double *p2, int start, int end)
+double MotionLayers::kmdist(const PERCISION *p1, const PERCISION *p2, int start, int end)
 {
-    double cost = 0, dist = 0;
-    int idx = 0;
+    double spatial = 1.;
+    double color = 0;
+    double motion = 1.;
+    double pDist, cDist, oDist, mDist;
+    int idx = start;
     
     // spatial info
-    dist = dist2(p1, p2, idx, idx+sWidth) + 9;
-    idx += sWidth;
+    pDist = dist2(p1, p2, idx, idx+2);
+    pDist = log10(pDist + 9);
+    idx += 2;
+
+    // color info
+    cDist = kldist(p1, p2, idx, idx+imHistSize*3) + kldist(p2, p1, idx, idx+imHistSize*3);
+    idx += imHistSize*3;
     
     // flow info
-    cost += log10(dist) * dist2(p1, p2, idx, idx+fWidth);
-    idx += fWidth;
+    oDist = kldist(p1, p2, idx, idx+oriHistSize) + kldist(p2, p1, idx, idx+oriHistSize);
+    idx += oriHistSize;
+
+    mDist = kldist(p1, p2, idx, idx+magHistSize) + kldist(p2, p1, idx, idx+magHistSize);
+    idx += magHistSize;
     
+    return (spatial * pDist + color * cDist + motion * (oDist + mDist));
+}
+
+// kullback-leiber divergence
+double MotionLayers::kldist(const PERCISION *p1, const PERCISION *p2, int start, int end)
+{
+    PERCISION cost = 0;
+
+    for (int i = start; i < end; ++i)
+        if (p1[i] > ESP && p2[i] > ESP)
+            cost += log(p1[i] / p2[i]) * p1[i];
+
     return cost;
 }
 
-// graph cut refine
-void MotionLayers::refine(DImage &centers, DImage &layers, int nlabels,
-                          const DImage &im1, const DImage &im2,
-                          const DImage &u, const DImage &v)
+// symmetric kullback-leiber
+double MotionLayers::skldist(const PERCISION *p1, const PERCISION *p2, int start, int end)
 {
-    assert(centers.ptr() != NULL);
-
-    int size = im1.nSize(), width = im1.nWidth(), height = im1.nHeight();
-    DImage im1lab, im2lab, motionOM;
-    double *data = NULL;    
-    GCoptimization *gc = NULL;
-
-    // color space convertion
-    BGR2Lab(im1lab, im1);
-    BGR2Lab(im2lab, im2);
-    OM(motionOM, u, v);
-    
-    try{
-		gc = new GCoptimizationGridGraph(width, height, nlabels);
-        data = new double[nlabels*size];
-        gc->setSmoothCost(MotionLayers::smoothFn, im1lab.ptr());
-
-        for (int iter = 0; iter < 3; ++iter)
-        {
-            dataFn(data, nlabels, layers, motionOM, im1lab, im2lab);
-            gc->setDataCost(data);
-            printf("Before optimization energy is %.6f\n",gc->compute_energy());
-            gc->expansion(3);
-            // gc->swap(3);
-            printf("After  optimization energy is %.6f\n",gc->compute_energy());
-            printf("smooth: %.6f .. %.6f\n", mins, maxs);
-        
-            for (int i = 0; i < size; ++i)
-                layers[i] = gc->whatLabel(i);
-        }
-        reArrangeLabels(layers, nlabels);
-
-	}
-	catch (GCException e){
-		e.Report();
-	}
-
-    if (gc != NULL) delete gc;
-    if (data != NULL) delete []data;
-}
-
-// D(lp) = -w1 * ln(Cp | lp) - w2 * ln(fp | lp)
-void MotionLayers::dataFn(double *data, int nlabels, const DImage &layers,
-                          const DImage &om, const DImage &im1,  const DImage &im2)
-{
-    printf("calculating data term...\n");
-
-    const double omegap = 0;
-    const double omegac = 0;
-    const double omegaf = 100;
-    double mind = DBL_MAX;
-    double maxd = 0;
-    
-    int size = im1.nSize(), width = im1.nWidth();
-    DImage labProb, omProb;
-    UCImage mask;
-    
-    // 计算data term
-    double lp, omp, cx, cy, x, y, pCost;
-    for (int l = 0; l < nlabels; ++l)
-    {
-        genLayerMask(mask, layers, l);
-        LabComfirmity(labProb, im1, mask);
-        OMComfirmity(omProb, om, mask);
-        maskCenter(cx, cy, mask);
-        for (int i = 0; i < size; ++i)
-        {
-            // truncate probability smaller ESP 
-            if (fabs(labProb[i]) < ESP) lp = -log(ESP);
-            else lp = -log(labProb[i]);
-
-            // truncate probability smaller ESP
-            if (fabs(omProb[i]) < ESP) omp = -log(ESP);
-            else omp = -log(omProb[i]);
-
-            // position
-            x = i % width - cx;
-            y = i / width - cy;
-            pCost = log10(sqrt(x * x + y * y) + 10);
-            
-            data[i*nlabels+l] = omegap * pCost + omegac * lp + omegaf * omp;
-            
-            mind = std::min(mind, data[i*nlabels+l]);
-            maxd = std::max(maxd, data[i*nlabels+l]);
-        }
-    }
-
-    printf("data: %.6f .. %.6f\n", mind, maxd);
-    printf("done\n");
-}
-
-// 根据u，v计算方向-强度(om)图，并归一化强度
-void MotionLayers::OM(DImage &om, const DImage &u, const DImage &v)
-{
-    int offset, size = u.nSize();
-    double maxrad = -1;
-    om.create(u.nWidth(), u.nHeight(), 2);
-    for (int i = 0; i < size; ++i)
-    {
-        offset = i * 2;
-
-        // 方向, [-PI, PI]
-        om[offset] = atan2(v[i], u[i]);
-
-        // 强度， [0, 1]
-        om[offset+1] = sqrt(u[i] * u[i] + v[i] * v[i]);
-        maxrad = std::max(om[offset+1], maxrad);
-    }
-    if (fabs(maxrad) > ESP)
-        for (int i = 0; i < size; ++i)
-            om[i*2+1] /= maxrad;
-}
-
-double MotionLayers::mins = DBL_MAX;
-double MotionLayers::maxs = 0;
-
-double MotionLayers::smoothFn(int p1, int p2, int l1, int l2, void *pData)
-{
-    const double weight = 3;
-    const double tao = 10;
-    double *ptr = (double *)pData;
-    double cost;
-    
-    if (l1 == l2) return 0;
-
-    cost = dist2(ptr+p1*3, ptr+p2*3, 0, 3);
-    cost = PI / 2 - atan(cost - tao);
-    cost = weight * cost;
-
-    mins = std::min(mins, cost);
-    maxs = std::max(maxs, cost);
-    
-    return cost;
+    return kldist(p1, p2, start, end) + kldist(p2, p1, start, end);
 }

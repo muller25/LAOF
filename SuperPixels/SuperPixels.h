@@ -49,6 +49,12 @@ public:
     int countLabels();
     int saveSegmentationColor(const char *name);
     int saveSegmentationEdges(const char *name);
+    int getLabels(Mat &label) {
+        int nlabel = countLabels();
+        m_label.copyTo(label);
+        
+        return nlabel;
+    }
     
 private:
     bool m_init;

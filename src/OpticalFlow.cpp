@@ -67,20 +67,20 @@ void OpticalFlow::phi_d(DImage &res, const DImage &u, const DImage &v)
 void OpticalFlow::getGrads(DImage &Ix, DImage &Iy, DImage &It,
                            const DImage &im1, const DImage &im2)
 {
-    // double filter[5] = {0.02, 0.11, 0.74, 0.11, 0.02};
-    // DImage sIm1, sIm2, im;
+    double filter[5] = {0.02, 0.11, 0.74, 0.11, 0.02};
+    DImage sIm1, sIm2, im;
 
-    // filtering(sIm1, im1, filter, 2, filter, 2);
-    // filtering(sIm2, im2, filter, 2, filter, 2);
-    // addWeighted(im, sIm1, 0.4, sIm2, 0.6);
-    // grad1st(Ix, Iy, im);
-    // substract(It, sIm2, sIm1);
+    filtering(sIm1, im1, filter, 2, filter, 2);
+    filtering(sIm2, im2, filter, 2, filter, 2);
+    addWeighted(im, sIm1, 0.4, sIm2, 0.6);
+    grad1st(Ix, Iy, im);
+    substract(It, sIm2, sIm1);
 
     // suppose we use Guided Filter before, hence we don't use any filter here
-    DImage im;
-    addWeighted(im, im1, 0.4, im2, 0.6);
-    grad1st(Ix, Iy, im);
-    substract(It, im2, im1);
+    // DImage im;
+    // addWeighted(im, im1, 0.4, im2, 0.6);
+    // grad1st(Ix, Iy, im);
+    // substract(It, im2, im1);
 }
 
 void OpticalFlow::im2feature(DImage &feature, const DImage &im)
