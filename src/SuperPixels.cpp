@@ -28,7 +28,11 @@ using namespace cv;
 
 void SuperPixels::setSourceImage(Mat &im)
 {
-    im.copyTo(m_im);
+    if (im.type() != CV_IMAGE)
+        im.convertTo(m_im, CV_IMAGE);
+    else
+        im.copyTo(m_im);
+    
     m_width = m_im.cols, m_height = m_im.rows;
     if (m_im.channels() == 1) m_im.copyTo(m_gray);
     else cvtColor(m_im, m_gray, CV_BGR2GRAY);
@@ -52,7 +56,7 @@ void SuperPixels::PlaceSeeds()
             int bestX = w, bestY = h;
             int startX = w - delta, endX = w + delta;
             int startY = h - delta, endY = h + delta;
-            int bestScore = 255 * sq(2*delta+1);
+            PERCISION bestScore = 255 * sq(2*delta+1);
             
             if (startX < 1) startX = 1;
             if (endX > m_width-2) endX = m_width-2;
@@ -61,13 +65,13 @@ void SuperPixels::PlaceSeeds()
 
             for (int y = startY; y <= endY; y++)
                 for (int x = startX; x <= endX; x++){
-                    int currScore = 0;
+                    PERCISION currScore = 0;
 
                     for (int yy = -1; yy <= 1; ++yy)
                         for (int xx = -1; xx <= 1; ++xx)
                         {
-                            int c1 = m_gray.at<PERCISION>(y, x);
-                            int c2 = m_gray.at<PERCISION>(y+yy, x+xx);
+                            PERCISION c1 = m_gray.at<IMAGE>(y, x);
+                            PERCISION c2 = m_gray.at<IMAGE>(y+yy, x+xx);
                             currScore += abs(c1 - c2);
                         }
 
@@ -94,10 +98,10 @@ Value SuperPixels::computeEnergy()
 				int label = m_label.at<LABEL>(y, x);
 				int seedY = m_seeds[label].y;
 				int seedX = m_seeds[label].x;
-				int scolor = m_gray.at<PERCISION>(seedY, seedX);
-                int color = m_gray.at<PERCISION>(y, x);
-				int diff = abs(color - scolor);
-				int maxD = 15;
+				PERCISION scolor = m_gray.at<IMAGE>(seedY, seedX);
+                PERCISION color = m_gray.at<IMAGE>(y, x);
+				PERCISION diff = abs(color - scolor);
+				PERCISION maxD = 15;
 				if (diff > maxD) diff = maxD;
 				engData += diff;
 			}
@@ -204,7 +208,7 @@ void SuperPixels::expandOnLabel(int label,
 	// add links to center of the patch for color constant superpixels
 	if (m_TYPE == 1)
 	{
-		int scolor = m_gray.at<uchar>(seedY, seedX);
+		int scolor = m_gray.at<IMAGE>(seedY, seedX);
 		for (int y = startY+1; y < endY; y++)
 			for (int x = startX+1; x < endX; x++){
 				Value E00=0,E01=0,E10=LARGE_WEIGHT,E11=0;
@@ -213,16 +217,16 @@ void SuperPixels::expandOnLabel(int label,
 					e->add_term2(variables[(x-startX)+(y-startY)*blockWidth],
                                  variables[(seedX-startX)+(seedY-startY)*blockWidth],E00,E01,E10,E11);
 
-                int color = m_gray.at<uchar>(y, x);
-                int diff = abs(color - scolor);
-				int maxD = (int) m_variance * MULTIPLIER_VAR;
+                PERCISION color = m_gray.at<IMAGE>(y, x);
+                PERCISION diff = abs(color - scolor);
+				PERCISION maxD = (PERCISION) m_variance * MULTIPLIER_VAR;
 				if (diff > maxD) diff = maxD;
 
-				int oldLabel = m_label.at<int>(y, x);
+				int oldLabel = m_label.at<LABEL>(y, x);
                 int oldY = m_seeds[oldLabel].y;
 				int oldX = m_seeds[oldLabel].x;
-				int oldColor = m_gray.at<uchar>(oldY, oldX);
-				int oldDiff = abs(color - oldColor);
+				PERCISION oldColor = m_gray.at<IMAGE>(oldY, oldX);
+				PERCISION oldDiff = abs(color - oldColor);
 				if (oldDiff > maxD) oldDiff = maxD;
 
 				if (oldDiff > diff)
@@ -235,8 +239,8 @@ void SuperPixels::expandOnLabel(int label,
 	// First set up horizontal links 
 	for (int y = startY; y <= endY; y++)
 		for (int x = startX+1; x <= endX; x++){
-			int oldLabelPix       = m_label.at<int>(y, x);
-			int oldLabelNeighbPix = m_label.at<int>(y, x-1);
+			int oldLabelPix       = m_label.at<LABEL>(y, x);
+			int oldLabelNeighbPix = m_label.at<LABEL>(y, x-1);
 			Value E00,E01,E10,E11 = 0;
 
 			if (oldLabelPix != oldLabelNeighbPix)
@@ -258,8 +262,8 @@ void SuperPixels::expandOnLabel(int label,
 	// Next set up vertical links
 	for (int y = startY+1; y <= endY; y++)
 		for (int x = startX; x <= endX; x++){
-			int oldLabelPix       = m_label.at<int>(y, x);
-			int oldLabelNeighbPix = m_label.at<int>(y-1, x);
+			int oldLabelPix       = m_label.at<LABEL>(y, x);
+			int oldLabelNeighbPix = m_label.at<LABEL>(y-1, x);
 			Value E00,E01,E10,E11 = 0;
 
 			if (oldLabelPix != oldLabelNeighbPix)
@@ -282,8 +286,8 @@ void SuperPixels::expandOnLabel(int label,
 	float SQRT_2= 1/sqrt(2.0);
 	for (int y = startY+1; y <= endY; y++)
 		for (int x = startX+1; x <= endX; x++){
-			int oldLabelPix       = m_label.at<int>(y, x);
-			int oldLabelNeighbPix = m_label.at<int>(y-1, x-1);
+			int oldLabelPix       = m_label.at<LABEL>(y, x);
+			int oldLabelNeighbPix = m_label.at<LABEL>(y-1, x-1);
 			Value E00,E01,E10,E11=0;
 			
 			if (oldLabelPix != oldLabelNeighbPix) 
@@ -302,8 +306,8 @@ void SuperPixels::expandOnLabel(int label,
 	// More diagonal links
 	for (int y = startY+1; y <= endY; y++)
 		for (int x = startX; x <=endX-1; x++){
-			int oldLabelPix       = m_label.at<int>(y, x);
-			int oldLabelNeighbPix = m_label.at<int>(y-1, x+1);
+			int oldLabelPix       = m_label.at<LABEL>(y, x);
+			int oldLabelNeighbPix = m_label.at<LABEL>(y-1, x+1);
 			Value E00,E01,E10,E11=0;
 
 			if (oldLabelPix != oldLabelNeighbPix) 
@@ -328,8 +332,8 @@ void SuperPixels::expandOnLabel(int label,
 		for (int x = startX; x <= endX; x++){
 			if (e->get_var(variables[(x-startX)+(y-startY)*blockWidth]) != 0)
 			{
-				if (m_label.at<int>(y, x) != label){
-                    m_label.at<int>(y, x) = label; 
+				if (m_label.at<LABEL>(y, x) != label){
+                    m_label.at<LABEL>(y, x) = label; 
 					changeMaskNew[x+y*m_width] = 1;
 					changeMask[x+y*m_width] = 1;
 				}
@@ -341,7 +345,7 @@ void SuperPixels::expandOnLabel(int label,
 
 void SuperPixels::initializeLabeling()
 {
-    assert(m_init && m_label.type() == CV_32S);
+    assert(m_init);
     
     int seedX, seedY, startX, startY, endX, endY;
 	for (size_t i = 0; i < m_seeds.size(); i++)
@@ -362,7 +366,7 @@ void SuperPixels::initializeLabeling()
 
 		for (int y = startY; y <= endY; y++)
 			for (int x = startX; x <= endX; x++)
-				m_label.at<int>(y, x) = i;
+				m_label.at<LABEL>(y, x) = i;
 	}
 }
 
@@ -375,9 +379,9 @@ float SuperPixels::computeImageVariance()
 
 	for (int y = 1; y < m_height; y++)
 		for (int x = 1; x < m_width; x++){
-            int off = m_gray.at<uchar>(y, x);
-            int offx_1 = m_gray.at<uchar>(y, x-1);
-            int offy_1 = m_gray.at<uchar>(y-1, x);
+            int off = m_gray.at<IMAGE>(y, x);
+            PERCISION offx_1 = m_gray.at<IMAGE>(y, x-1);
+            PERCISION offy_1 = m_gray.at<IMAGE>(y-1, x);
 
             v += abs(off - offx_1) + abs(off - offy_1);
 			total += 2;
@@ -482,9 +486,9 @@ void SuperPixels::computeWeights(Mat &weights, int incrX, int incrY)
 
 	for (int y = startY; y < m_height; y++)
 		for (int x = startX; x < m_width; x++){
-            int c1 = m_gray.at<uchar>(y, x);
-            int c2 = m_gray.at<uchar>(y+incrY, x+incrX);
-			int difference = sq((c1 - c2));
+            PERCISION c1 = m_gray.at<IMAGE>(y, x);
+            PERCISION c2 = m_gray.at<IMAGE>(y+incrY, x+incrX);
+			PERCISION difference = sq((c1 - c2));
             weights.at<Value>(y+incrY, x+incrX) = (Value) (m_lambda*exp(-difference/(sigma*var2))+smallPenalty);
 		}
 }
@@ -518,7 +522,7 @@ void SuperPixels::loadEdge(Mat &weights, const char *name)
     
 	for (int y = 0; y < m_height; y++)
 		for (int x = 0; x < m_width; x++){
-            int c = edges.at<uchar>(y, x);
+            PERCISION c = edges.at<uchar>(y, x);
 			weights.at<Value>(y, x) = (Value) m_lambda * c;
 		}
 }
@@ -528,37 +532,31 @@ int SuperPixels::countLabels()
     assert(m_init);
 
     int numSeeds = m_seeds.size();
-    vector<int> counts(numSeeds, 0);
+    vector<int> counts(numSeeds, 0), mapping(numSeeds, -1);
     for (int h = 0; h < m_height; ++h)
         for (int w = 0; w < m_width; ++w)
         {
-            int label = m_label.at<int>(h, w);
+            int label = m_label.at<LABEL>(h, w);
  			counts[label]++;
         }
 
     // re-arrange labels, to make label id continous
-    for (size_t i = 0; i < counts.size(); ++i)
+    int curLbl = 0;
+    for (size_t l = 0; l < counts.size(); ++l)
     {
-        if (counts[i] > 0) continue;
-
-        for (int size = counts.size() - 1; size > 0; --size)
-        {
-            if (counts[size] == 0) counts.pop_back();
-            else
-            {
-                for (int h = 0; h < m_height; ++h)
-                    for (int w = 0; w < m_width; ++w)
-                    {
-                        if (size == m_label.at<int>(h, w))
-                            m_label.at<int>(h, w) = i;
-                    }
-                counts.pop_back();
-                break;
-            }
-        }
+        if (counts[l] == 0) continue;
+        mapping[l] = curLbl++;
     }
 
-    return counts.size();
+    for (int h = 0; h < m_height; ++h)
+        for (int w = 0; w < m_width; ++w)
+        {
+            int lbl = m_label.at<LABEL>(h, w);
+            if (mapping[lbl] < 0) continue;
+            m_label.at<LABEL>(h, w) = mapping[lbl];
+        }
+    
+    return curLbl;
 }
 
 int SuperPixels::saveSegmentationColor(const char *name)
@@ -581,7 +579,7 @@ int SuperPixels::saveSegmentationColor(const char *name)
 
 	for (int y = 0; y < m_height; y++)
 		for (int  x = 0; x < m_width; x++ ){
-            int label = m_label.at<int>(y, x);
+            int label = m_label.at<LABEL>(y, x);
 			out.at<Vec3b>(y, x) = colorLookup[label];
 			counts[label]++;
 		}
@@ -613,8 +611,8 @@ int SuperPixels::saveSegmentationEdges(const char *name)
     for (int h = 1; h < m_height; ++h)
         for (int w = 1; w < m_width; ++w)
         {
-            int label = m_label.at<int>(h, w);
-            if (label != m_label.at<int>(h, w-1)) {
+            int label = m_label.at<LABEL>(h, w);
+            if (label != m_label.at<LABEL>(h, w-1)) {
                 dst.at<Vec3b>(h, w) = green;
                 dst.at<Vec3b>(h, w-1) = green;
             }

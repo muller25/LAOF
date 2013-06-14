@@ -9,13 +9,36 @@ LIBDIR 			= .
 DEL				= rm -rf
 
 GC				= ../gc
-SP				= ../SuperPixels
 OPENCVLIBS		= `pkg-config --libs opencv`
 OBJS			= OpticalFlow.o GaussianPyramid.o Flow2Color.o MotionLayers.o LAOF.o OFPara.o
-TARGET			= biof adof stof layers #em
+TARGET			= biof adof stof superpixels layers #em
 
-all: $(TARGET) MotionLayers.o
+all: $(TARGET)
 	@echo "DONE"
+
+OpticalFlow.o: OpticalFlow.cpp OpticalFlow.h Maths.h Image.h GaussianPyramid.h ImageProcess.h
+	$(CXX) $(CXXFLAGS) $(INCDIR) -c $< -o $@
+
+Flow2Color.o: Flow2Color.cpp Flow2Color.h Image.h
+	$(CXX) $(CXXFLAGS) $(INCDIR) -c $< -o $@
+
+MotionLayers.o: MotionLayers.cpp MotionLayers.h ML.h types.h
+	$(CXX) $(CXXFLAGS) $(INCDIR) -I$(GC) -c $< -o $@
+
+#LAOF.o: LAOF.cpp LAOF.h Image.h OpticalFlow.h MotionLayers.h
+#	$(CXX) $(CXXFLAGS) $(INCDIR) -c $< -o $@
+
+OFPara.o: OFPara.cpp OFPara.h Maths.h ImageProcess.h Image.h
+	$(CXX) $(CXXFLAGS) $(INCDIR) -c $< -o $@
+
+graph.o: graph.cpp graph.h
+	$(CXX) $(CFLAGS) -c graph.cpp -o graph.o
+
+maxflow.o: maxflow.cpp 
+	$(CXX) $(CFLAGS) -c maxflow.cpp -o maxflow.o
+
+SuperPixels.o: SuperPixels.cpp SuperPixels.h
+	$(CXX) $(CFLAGS) $(OPENCVFLAGS) -I$(GC) -c $< -o $@
 
 biof: main_biof.o OpticalFlow.o GaussianPyramid.o Flow2Color.o
 	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS)
@@ -29,26 +52,11 @@ stof: main_stof.o OpticalFlow.o GaussianPyramid.o Flow2Color.o
 #em: main_em.o $(OBJS) $(GC)/GCoptimization.o $(GC)/LinkedBlockList.o
 #	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS)
 
-layers: main_motionlayers.o MotionLayers.o $(GC)/GCoptimization.o $(GC)/LinkedBlockList.o $(SP)/SuperPixels.o $(SP)/graph.o $(SP)/maxflow.o
+layers: main_motionlayers.o MotionLayers.o SuperPixels.o graph.o maxflow.o $(GC)/GCoptimization.o $(GC)/LinkedBlockList.o
 	$(LINK) $(LFLAGS) -o $@ $^ $(OPENCVLIBS)
 
-main_motionlayers.o: main_motionlayers.cpp
-	$(CXX) $(CXXFLAGS) $(INCDIR) -c $< -o $@
-
-OpticalFlow.o: OpticalFlow.cpp OpticalFlow.h Maths.h Image.h GaussianPyramid.h ImageProcess.h
-	$(CXX) $(CXXFLAGS) $(INCDIR) -c $< -o $@
-
-Flow2Color.o: Flow2Color.cpp Flow2Color.h Image.h
-	$(CXX) $(CXXFLAGS) $(INCDIR) -c $< -o $@
-
-MotionLayers.o: MotionLayers.cpp MotionLayers.h ML.h types.h
-	$(CXX) $(CXXFLAGS) $(INCDIR) -I$(GC) -I$(SP) -c $< -o $@
-
-#LAOF.o: LAOF.cpp LAOF.h Image.h OpticalFlow.h MotionLayers.h
-#	$(CXX) $(CXXFLAGS) $(INCDIR) -c $< -o $@
-
-OFPara.o: OFPara.cpp OFPara.h Maths.h ImageProcess.h Image.h
-	$(CXX) $(CXXFLAGS) $(INCDIR) -c $< -o $@
+superpixels: graph.o maxflow.o SuperPixels.o main_superpixels.o
+	$(CXX) -o superpixels $^ $(OPENCVLIBS)
 
 %.o: %.cpp %.h
 	$(CXX) $(CXXFLAGS) $(INCDIR) -c $< -o $@

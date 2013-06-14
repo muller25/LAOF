@@ -8,6 +8,8 @@ using namespace std;
 #include <highgui.h>
 using namespace cv;
 
+#include "types.h"
+
 void check_error(int boolE, const char *error_message)
 { 
     if (boolE) 
@@ -19,7 +21,8 @@ void check_error(int boolE, const char *error_message)
 
 void check_input_arguments(int argc)
 {
-	check_error((argc < 4), "superpixels input.pgm output.ppm patch_size [NUM_ITERATIONS] [TYPE] [lambda] [h_edges.pgm v_edges.pgm d_b_edges.pgm d_f_edges.pgm]");
+	check_error((argc < 4),
+                "superpixels input output patch_size [NUM_ITERATIONS] [TYPE] [lambda] [h_edges v_edges d_b_edges d_f_edges]");
 	check_error((argc > 7 && argc < 11), "If providing edge images, provide all 4 of them");
 }
 
@@ -31,7 +34,6 @@ int main(int argc, char **argv)
     check_error(im.data == NULL, "Cannot load input image");
 
 	int patch_size = atoi(argv[3]);
-	
 	int numIter = 2;
 	if (argc >= 5) numIter = (Value) atoi(argv[4]);
 

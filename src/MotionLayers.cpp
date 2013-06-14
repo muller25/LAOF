@@ -34,13 +34,13 @@ void MotionLayers::init(const Mat &im, const Mat &flow)
 {
     assert(im.channels() == 3 && flow.channels() == 2);
 
-    if (im.type() != CV_PERCSION)
-        im.convertTo(m_im, CV_PERCSION, 1./255);
+    if (im.type() != CV_IMAGE)
+        im.convertTo(m_im, CV_IMAGE);
     else
         im.copyTo(m_im);
 
-    if (flow.type() != CV_PERCSION)
-        flow.convertTo(m_flow, CV_PERCSION, 1./255);
+    if (flow.type() != CV_PERCISION)
+        flow.convertTo(m_flow, CV_PERCISION);
     else
         flow.copyTo(m_flow);
     
@@ -75,10 +75,13 @@ void MotionLayers::covariance(vector<PERCISION> &cov, vector< vector<Point> > &p
 // use array of points to represent labels
 void MotionLayers::extract(vector< vector<Point> > &pos, int nlabel, const Mat &label)
 {
+    assert(label.cols == m_width && label.rows == m_height &&
+           label.type() == CV_LABEL);
+
     pos.resize(nlabel);
     for (int l = 0; l < nlabel; ++l)
         pos[l].clear();
-    
+
     for (int h = 0; h < m_height; ++h)
         for (int w = 0; w < m_width; ++w)
         {
@@ -90,8 +93,7 @@ void MotionLayers::extract(vector< vector<Point> > &pos, int nlabel, const Mat &
 // patch = spatial info + color histogram + motion histogram
 void MotionLayers::extractAsHist(vector<SPPATCH> &patch, const vector< vector<Point> > &pos)
 {
-    int nlabel = pos.size();
-    patch.resize(nlabel);
+    patch.resize(m_nSPLbl);
     
     Mat imPatch, oriPatch, magPatch, lab, hist;
     Point2d point;
@@ -106,16 +108,17 @@ void MotionLayers::extractAsHist(vector<SPPATCH> &patch, const vector< vector<Po
     // 假设 u, v的常规范围为 [-10, 10]
     float magRange[magHistSize + 1] = {0, 20, 40, 60, 80, 100, 120, 140, 160, 180, 200, DBL_MAX};
     const float *magRanges[] = {magRange};
-    
+
+    int ndata = 2 + imHistSize * channels + oriHistSize + magHistSize;
     cvtColor(m_im, lab, CV_BGR2Lab);
-    for (int l = 0; l < nlabel; ++l)
+    for (int l = 0; l < m_nSPLbl; ++l)
     {
-        patch[l].resize(2 + imHistSize * channels + oriHistSize + magHistSize);
+        patch[l].resize(ndata);
         
         int size = pos[l].size();
-        imPatch.create(1, size, m_im.depth());
-        oriPatch.create(1, size, CV_PERCSION);
-        magPatch.create(1, size, CV_PERCSION);
+        imPatch.create(1, size, lab.type());
+        oriPatch.create(1, size, CV_PERCISION);
+        magPatch.create(1, size, CV_PERCISION);
         point.x = 0, point.y = 0;
         for (int i = 0; i < size; ++i)
         {
@@ -124,10 +127,9 @@ void MotionLayers::extractAsHist(vector<SPPATCH> &patch, const vector< vector<Po
             MOTION m = m_flow.at<MOTION>(p.y, p.x);
             oriPatch.at<PERCISION>(i) = atan2(m[1], m[0]) + CV_PI; // [0, 2*pi]
             magPatch.at<PERCISION>(i) = m[1] * m[1] + m[0] * m[0];
-            point.x += p.x;
-            point.y += p.y;
+            point.x += p.x, point.y += p.y;
         }
-
+        
         // 位置信息
         int idx = 0;
         patch[l][idx++] = point.x / size;
@@ -195,10 +197,12 @@ void MotionLayers::extractAsPixel(vector<SPPATCH> &patch, const vector< vector<P
 void MotionLayers::initSegment(int ncluster)
 {
     // 计算 super pixel
+    printf("generate superpixels...\n");
     SuperPixels sp;
     sp.setSourceImage(m_im);
     sp.generate();
     m_nSPLbl = sp.getLabels(m_spLbl);
+    printf("done, get %d super pixels\n", m_nSPLbl);
 
 #ifdef DEBUG
     sprintf(buf, pattern, "superpixels", frame);
@@ -206,23 +210,29 @@ void MotionLayers::initSegment(int ncluster)
 #endif
 
     // 用直方图表示 super pixel
+    printf("represent super pixels...\n");
     extract(m_sp2pos, m_nSPLbl, m_spLbl);
     extractAsHist(m_spHist, m_sp2pos);
-
+    printf("represent super pixels done\n");
+    
     // 计算可信的 patch
     covariance(m_cov, m_sp2pos);
+    printf("covariance done\n");
 
-    vector<SPPATCH> samples, centers;
-    vector<LABEL> label;
+    const PERCISION threshold = 1e-2;
+    vector<SPPATCH> samples;
     vector<int> spid2tid(m_nSPLbl, -1);
     int trust = 0;
     for (int l = 0; l < m_nSPLbl; ++l)
-        if (abs(m_cov[l]) < ESP)
+    {
+        if (fabs(m_cov[l]) < threshold)
         {
             samples.push_back(m_spHist[l]);
             spid2tid[l] = trust++;
         }
-
+    }
+    printf("trusted points: %d / %d\n", trust, m_nSPLbl);
+    
 #ifdef DEBUG
     Mat trustImg;
     PIXEL black(0, 0, 0);
@@ -240,6 +250,8 @@ void MotionLayers::initSegment(int ncluster)
 #endif
     
     // kmeans
+    vector<SPPATCH> centers;
+    vector<LABEL> label;
     kmeans(centers, label, samples, ncluster, kmdist);
     m_label = Mat::zeros(m_height, m_width, CV_LABEL);
     for (int h = 0; h < m_height; ++h)
@@ -365,8 +377,7 @@ double MotionLayers::kmdist(const PERCISION *p1, const PERCISION *p2, int start,
 // kullback-leiber divergence
 double MotionLayers::kldist(const PERCISION *p1, const PERCISION *p2, int start, int end)
 {
-    PERCISION cost = 0;
-
+    double cost = 0;
     for (int i = start; i < end; ++i)
         if (p1[i] > ESP && p2[i] > ESP)
             cost += log(p1[i] / p2[i]) * p1[i];
