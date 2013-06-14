@@ -11,7 +11,8 @@ using std::vector;
 
 #include "types.h"
 
-// 2 + 12*3 + 8 + 11
+#define DEBUG
+
 typedef vector<PERCISION> SPPATCH;
 
 class MotionLayers
@@ -24,7 +25,8 @@ public:
     void extractAsPixel(vector<SPPATCH> &patch, const vector< vector<Point> > &pos);
     void initSegment(int ncluster = 2);
     void refineSegment(int ncluster);
-
+    void getLabel(Mat &lbl) const{m_label.copyTo(lbl);}
+    
     static double kmdist(const PERCISION *p1, const PERCISION *p2, int start, int end);
     static double kldist(const PERCISION *p1, const PERCISION *p2, int start, int end);
     static double skldist(const PERCISION *p1, const PERCISION *p2, int start, int end);
@@ -35,10 +37,6 @@ private:
     vector<SPPATCH> m_spHist;
     vector< vector<Point> > m_sp2pos;
     vector<PERCISION> m_cov;
-    
-    const static int imHistSize = 12;
-    const static int oriHistSize = 8;
-    const static int magHistSize = 11;
 };
 
 #endif

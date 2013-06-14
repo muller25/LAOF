@@ -24,16 +24,16 @@ using namespace cv;
 #define sq(x) ((x)*(x))
 #define DEBUG
 
+#include "types.h"
+
 void SuperPixels::setSourceImage(Mat &im)
 {
-    assert(im.depth() == CV_8U);
-    
     im.copyTo(m_im);
     m_width = m_im.cols, m_height = m_im.rows;
     if (m_im.channels() == 1) m_im.copyTo(m_gray);
     else cvtColor(m_im, m_gray, CV_BGR2GRAY);
 
-    m_label.create(m_height, m_width, CV_32S);
+    m_label.create(m_height, m_width, CV_LABEL);
     m_seeds.clear();
     m_init = true;
  	m_variance = computeImageVariance();
@@ -42,7 +42,7 @@ void SuperPixels::setSourceImage(Mat &im)
 
 void SuperPixels::PlaceSeeds()
 {
-    assert(m_init && m_gray.type() == CV_8U);
+    assert(m_init);
     m_seeds.clear();
     
 	int bSize = m_patch_size / 2, delta = m_patch_size / 4 - 1;
@@ -66,8 +66,8 @@ void SuperPixels::PlaceSeeds()
                     for (int yy = -1; yy <= 1; ++yy)
                         for (int xx = -1; xx <= 1; ++xx)
                         {
-                            int c1 = m_gray.at<uchar>(y, x);
-                            int c2 = m_gray.at<uchar>(y+yy, x+xx);
+                            int c1 = m_gray.at<PERCISION>(y, x);
+                            int c2 = m_gray.at<PERCISION>(y+yy, x+xx);
                             currScore += abs(c1 - c2);
                         }
 
@@ -82,7 +82,7 @@ void SuperPixels::PlaceSeeds()
 
 Value SuperPixels::computeEnergy()
 {
-    assert(m_init && m_gray.type() == CV_8U && m_label.type() == CV_32S);
+    assert(m_init);
 
 	TotalValue engSmooth = 0, engData = 0;
 	float SQRT_2 = 1./sqrt(2.0);
@@ -91,11 +91,11 @@ Value SuperPixels::computeEnergy()
 	{
 		for (int y = 0; y < m_height; y++)
 			for (int x = 0; x < m_width; x++){
-				int label = m_label.at<int>(y, x);
+				int label = m_label.at<LABEL>(y, x);
 				int seedY = m_seeds[label].y;
 				int seedX = m_seeds[label].x;
-				int scolor = m_gray.at<uchar>(seedY, seedX);
-                int color = m_gray.at<uchar>(y, x);
+				int scolor = m_gray.at<PERCISION>(seedY, seedX);
+                int color = m_gray.at<PERCISION>(y, x);
 				int diff = abs(color - scolor);
 				int maxD = 15;
 				if (diff > maxD) diff = maxD;
@@ -105,22 +105,22 @@ Value SuperPixels::computeEnergy()
 
 	for (int y = 1; y < m_height; y++)
 		for (int x = 0; x < m_width; x++)
-			if (m_label.at<int>(y, x) != m_label.at<int>((y-1), x))
+			if (m_label.at<LABEL>(y, x) != m_label.at<LABEL>((y-1), x))
 				engSmooth += m_vertWeights.at<Value>(y-1, x);
 
 	for (int y = 0; y < m_height; y++)
 		for (int x = 1; x < m_width; x++)
-            if (m_label.at<int>(y, x) != m_label.at<int>(y, (x-1)))
+            if (m_label.at<LABEL>(y, x) != m_label.at<LABEL>(y, (x-1)))
 				engSmooth += m_horizWeights.at<Value>(y, x-1);
 
 	for (int y = 1; y < m_height; y++)
 		for (int x = 1; x < m_width; x++)
-            if (m_label.at<int>(y, x) != m_label.at<int>(y-1, x-1))
+            if (m_label.at<LABEL>(y, x) != m_label.at<LABEL>(y-1, x-1))
 				engSmooth += SQRT_2 * m_diag1Weights.at<Value>(y-1, x-1);
 
 	for (int y = 1; y < m_height; y++)
 		for (int x = 0; x < m_width-1; x++)
-            if (m_label.at<int>(y, x) != m_label.at<int>(y-1, x+1))
+            if (m_label.at<LABEL>(y, x) != m_label.at<LABEL>(y-1, x+1))
 				engSmooth += SQRT_2 * m_diag2Weights.at<Value>(y-1, x+1);
 
 	return (engSmooth+engData);

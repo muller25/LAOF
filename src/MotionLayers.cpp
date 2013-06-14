@@ -3,7 +3,20 @@
 #include "MotionLayers.h"
 #include "ML.h"
 
+#ifdef DEBUG
+#include <highgui.h>
+using namespace cv;
+
+static int frame = 0;
+char buf[256];
+const char *pattern = "%s%03d.jpg";
+#endif
+
 using cv::Point2d;
+
+const int imHistSize = 12;
+const int oriHistSize = 8;
+const int magHistSize = 11;
 
 double smoothFn(int p1, int p2, int l1, int l2, void *data)
 {
@@ -22,12 +35,12 @@ void MotionLayers::init(const Mat &im, const Mat &flow)
     assert(im.channels() == 3 && flow.channels() == 2);
 
     if (im.type() != CV_PERCSION)
-        im.convertTo(m_im, CV_PERCSION);
+        im.convertTo(m_im, CV_PERCSION, 1./255);
     else
         im.copyTo(m_im);
 
     if (flow.type() != CV_PERCSION)
-        flow.convertTo(m_flow, CV_PERCSION);
+        flow.convertTo(m_flow, CV_PERCSION, 1./255);
     else
         flow.copyTo(m_flow);
     
@@ -59,6 +72,7 @@ void MotionLayers::covariance(vector<PERCISION> &cov, vector< vector<Point> > &p
     }
 }
 
+// use array of points to represent labels
 void MotionLayers::extract(vector< vector<Point> > &pos, int nlabel, const Mat &label)
 {
     pos.resize(nlabel);
@@ -81,7 +95,8 @@ void MotionLayers::extractAsHist(vector<SPPATCH> &patch, const vector< vector<Po
     
     Mat imPatch, oriPatch, magPatch, lab, hist;
     Point2d point;
-    const int channels = 3, channel = 1;
+    const int channels = 3;
+    int channel0[] = {0}, channel1[] = {1}, channel2[] = {2};
     float lRange[] = {0, 101}, aRange[] = {-127, 128}, bRange[] = {-127, 128};
     const float *lRanges[] = {lRange}, *aRanges[] = {aRange}, *bRanges[] = {bRange};
 
@@ -119,28 +134,25 @@ void MotionLayers::extractAsHist(vector<SPPATCH> &patch, const vector< vector<Po
         patch[l][idx++] = point.y / size;
         
         // Lab直方图
-        int c = 0;
-        calcHist(&lab, 1, &c, Mat(), hist, 1, &imHistSize, lRanges);
+        calcHist(&lab, 1, channel0, Mat(), hist, 1, &imHistSize, lRanges);
         for (int i = 0; i < imHistSize; ++i)
             patch[l][idx++] = hist.at<float>(i) / size;
 
-        c = 1;
-        calcHist(&lab, 1, &c, Mat(), hist, 1, &imHistSize, aRanges);
+        calcHist(&lab, 1, channel1, Mat(), hist, 1, &imHistSize, aRanges);
         for (int i = 0; i < imHistSize; ++i)
             patch[l][idx++] = hist.at<float>(i) / size;
 
-        c = 2;
-        calcHist(&lab, 1, &c, Mat(), hist, 1, &imHistSize, bRanges);
+        calcHist(&lab, 1, channel2, Mat(), hist, 1, &imHistSize, bRanges);
         for (int i = 0; i < imHistSize; ++i)
             patch[l][idx++] = hist.at<float>(i) / size;
         
         // 运动方向直方图
-        calcHist(&oriPatch, 1, &channel, Mat(), hist, 1, &oriHistSize, oriRanges);
+        calcHist(&oriPatch, 1, channel0, Mat(), hist, 1, &oriHistSize, oriRanges);
         for (int i = 0; i < oriHistSize; ++i)
             patch[l][idx++] = hist.at<float>(i) / size;
 
         // 运动幅度直方图
-        calcHist(&magPatch, 1, &channel, Mat(), hist, 1, &magHistSize, magRanges, false);
+        calcHist(&magPatch, 1, channel0, Mat(), hist, 1, &magHistSize, magRanges, false);
         for (int i = 0; i < magHistSize; ++i)
             patch[l][idx++] = hist.at<float>(i) / size;
     }
@@ -188,6 +200,11 @@ void MotionLayers::initSegment(int ncluster)
     sp.generate();
     m_nSPLbl = sp.getLabels(m_spLbl);
 
+#ifdef DEBUG
+    sprintf(buf, pattern, "superpixels", frame);
+    sp.saveSegmentationEdges(buf);
+#endif
+
     // 用直方图表示 super pixel
     extract(m_sp2pos, m_nSPLbl, m_spLbl);
     extractAsHist(m_spHist, m_sp2pos);
@@ -206,6 +223,22 @@ void MotionLayers::initSegment(int ncluster)
             spid2tid[l] = trust++;
         }
 
+#ifdef DEBUG
+    Mat trustImg;
+    PIXEL black(0, 0, 0);
+    m_im.copyTo(trustImg);
+    for (int h = 0; h < m_height; ++h)
+        for (int w = 0; w < m_width; ++w)
+        {
+            int lbl = m_spLbl.at<LABEL>(h, w);
+            if (spid2tid[lbl] < 0)
+                trustImg.at<PIXEL>(h, w) = black;
+        }
+
+    sprintf(buf, pattern, "trust", frame);
+    imwrite(buf, trustImg);
+#endif
+    
     // kmeans
     kmeans(centers, label, samples, ncluster, kmdist);
     m_label = Mat::zeros(m_height, m_width, CV_LABEL);
@@ -217,6 +250,11 @@ void MotionLayers::initSegment(int ncluster)
             if (nLbl >= 0)
                 m_label.at<LABEL>(h, w) = label[nLbl] + 1;
         }
+
+#ifdef DEBUG
+    sprintf(buf, pattern, "kmeans", frame);
+    imwrite(buf, m_label * 255 / (ncluster+1));
+#endif
 }
 
 void MotionLayers::refineSegment(int ncluster)
@@ -289,6 +327,11 @@ void MotionLayers::refineSegment(int ncluster)
     
     delete []data;
     delete []spPixel;
+
+#ifdef DEBUG
+    sprintf(buf, pattern, "refine", frame++);
+    imwrite(buf, m_label * 255 / ncluster);
+#endif
 }
 
 // distance for kmeans
@@ -306,14 +349,14 @@ double MotionLayers::kmdist(const PERCISION *p1, const PERCISION *p2, int start,
     idx += 2;
 
     // color info
-    cDist = kldist(p1, p2, idx, idx+imHistSize*3) + kldist(p2, p1, idx, idx+imHistSize*3);
+    cDist = skldist(p1, p2, idx, idx+imHistSize*3);
     idx += imHistSize*3;
     
     // flow info
-    oDist = kldist(p1, p2, idx, idx+oriHistSize) + kldist(p2, p1, idx, idx+oriHistSize);
+    oDist = skldist(p1, p2, idx, idx+oriHistSize);
     idx += oriHistSize;
 
-    mDist = kldist(p1, p2, idx, idx+magHistSize) + kldist(p2, p1, idx, idx+magHistSize);
+    mDist = skldist(p1, p2, idx, idx+magHistSize);
     idx += magHistSize;
     
     return (spatial * pDist + color * cDist + motion * (oDist + mDist));

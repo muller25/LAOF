@@ -383,7 +383,7 @@ double kmeans(vector< vector<T> > &centers, vector<int> &labels,
     vector< vector<T> > nCenters;
     bool empty;
     
-    if (centers.size() != ncluster)
+    if ((int)centers.size() != ncluster)
         initClusterCenters(centers, samples, ncluster, distance);// kmeans++
 
     labels.resize(nsample);

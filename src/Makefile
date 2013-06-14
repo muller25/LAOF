@@ -12,7 +12,7 @@ GC				= ../gc
 SP				= ../SuperPixels
 OPENCVLIBS		= `pkg-config --libs opencv`
 OBJS			= OpticalFlow.o GaussianPyramid.o Flow2Color.o MotionLayers.o LAOF.o OFPara.o
-TARGET			= biof adof stof #layers em
+TARGET			= biof adof stof layers #em
 
 all: $(TARGET) MotionLayers.o
 	@echo "DONE"
@@ -29,11 +29,11 @@ stof: main_stof.o OpticalFlow.o GaussianPyramid.o Flow2Color.o
 #em: main_em.o $(OBJS) $(GC)/GCoptimization.o $(GC)/LinkedBlockList.o
 #	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS)
 
-#layers: main_motionlayers.o MotionLayers.o Flow2Color.o $(GC)/GCoptimization.o $(GC)/LinkedBlockList.o
-#	$(LINK) $(LFLAGS) -o $@ $^ $(OPENCVLIBS)
+layers: main_motionlayers.o MotionLayers.o $(GC)/GCoptimization.o $(GC)/LinkedBlockList.o $(SP)/SuperPixels.o $(SP)/graph.o $(SP)/maxflow.o
+	$(LINK) $(LFLAGS) -o $@ $^ $(OPENCVLIBS)
 
-#main_motionlayers.o: main_motionlayers.cpp ImageProcess.h Utils.h
-#	$(CXX) $(CXXFLAGS) $(INCDIR) -c $< -o $@
+main_motionlayers.o: main_motionlayers.cpp
+	$(CXX) $(CXXFLAGS) $(INCDIR) -c $< -o $@
 
 OpticalFlow.o: OpticalFlow.cpp OpticalFlow.h Maths.h Image.h GaussianPyramid.h ImageProcess.h
 	$(CXX) $(CXXFLAGS) $(INCDIR) -c $< -o $@
