@@ -14,9 +14,12 @@ const char *pattern = "%s%03d.jpg";
 
 using cv::Point2d;
 
+const int channels = 3;
 const int imHistSize = 12;
-const int oriHistSize = 8;
-const int magHistSize = 11;
+const int oriHistSize = 12;
+const int magHistSize = 10;
+const int nPixelLen = 2 + 3 + 2;
+const int nHistLen = imHistSize * channels + oriHistSize + magHistSize;
 
 double smoothFn(int p1, int p2, int l1, int l2, void *data)
 {
@@ -24,8 +27,8 @@ double smoothFn(int p1, int p2, int l1, int l2, void *data)
 
     double *pdata = (double *)data;
     const double sigma2 = 4;
-    double pDist = dist2(pdata+p1, pdata+p2, 0, 2);
-    double cDist = dist2(pdata+p1, pdata+p2, 2, 5);
+    double pDist = dist2(pdata+p1*nPixelLen, pdata+p2*nPixelLen, 0, 2);
+    double cDist = dist2(pdata+p1*nPixelLen, pdata+p2*nPixelLen, 2, 5);
 
     return exp(-(cDist*cDist) / (pDist*2*sigma2));
 }
@@ -99,30 +102,26 @@ void MotionLayers::extractAsHist(vector<SPPATCH> &patch, const vector< vector<Po
     patch.resize(nlabel);
     
     Mat imPatch, oriPatch, magPatch, lab, hist;
-    Point2d point;
-    const int channels = 3;
-    int channel0[] = {0}, channel1[] = {1}, channel2[] = {2};
+    vector<Mat> labPlanes;
     float lRange[] = {0, 101}, aRange[] = {-127, 128}, bRange[] = {-127, 128};
     const float *lRanges[] = {lRange}, *aRanges[] = {aRange}, *bRanges[] = {bRange};
-
+    float **ranges[] = {lRanges, aRanges, bRanges};
+    
     float oriRange[] = {0, 2 * CV_PI + 1};
     const float *oriRanges[] = {oriRange};
     
-    // 假设 u, v的常规范围为 [-10, 10]
-    float magRange[magHistSize + 1] = {0, 20, 40, 60, 80, 100, 120, 140, 160, 180, 200, DBL_MAX};
+    float magRange[magHistSize + 1] = {0, 5, 10, 15, 20, 25, 50, 75, 100, 125, DBL_MAX};
     const float *magRanges[] = {magRange};
 
-    int ndata = 2 + imHistSize * channels + oriHistSize + magHistSize;
     cvtColor(m_im, lab, CV_BGR2Lab);
     for (int l = 0; l < nlabel; ++l)
     {
-        patch[l].resize(ndata);
+        patch[l].resize(nHistLen);
         
         int size = pos[l].size();
         imPatch.create(1, size, lab.type());
         oriPatch.create(1, size, CV_PERCISION);
         magPatch.create(1, size, CV_PERCISION);
-        point.x = 0, point.y = 0;
         for (int i = 0; i < size; ++i)
         {
             Point p = pos[l][i];
@@ -130,40 +129,23 @@ void MotionLayers::extractAsHist(vector<SPPATCH> &patch, const vector< vector<Po
             MOTION m = m_flow.at<MOTION>(p.y, p.x);
             oriPatch.at<PERCISION>(i) = atan2(m[1], m[0]) + CV_PI; // [0, 2*pi]
             magPatch.at<PERCISION>(i) = m[1] * m[1] + m[0] * m[0];
-            point.x += p.x, point.y += p.y;
         }
-        
-        // 位置信息
-        int idx = 0;
-        patch[l][idx++] = point.x / size;
-        patch[l][idx++] = point.y / size;
-        assert(patch[l][0] < m_width && patch[l][0] >= 0);
-        assert(patch[l][1] < m_height && patch[l][1] >= 0);
                                                                   
         // Lab直方图
-        calcHist(&lab, 1, channel0, Mat(), hist, 1, &imHistSize, lRanges);
-        for (int i = 0; i < imHistSize; ++i, ++idx)
+        int idx = 0;
+        split(imPatch, labPlanes);
+        for (int c = 0; c < channels; ++c)
         {
-            patch[l][idx] = hist.at<float>(i) / size;
-            assert(patch[l][idx] <= 1 && patch[l][idx] >= 0);
-        }
-        
-        calcHist(&lab, 1, channel1, Mat(), hist, 1, &imHistSize, aRanges);
-        for (int i = 0; i < imHistSize; ++i, ++idx)
-        {
-            patch[l][idx] = hist.at<float>(i) / size;
-            assert(patch[l][idx] <= 1 && patch[l][idx] >= 0);
-        }
-
-        calcHist(&lab, 1, channel2, Mat(), hist, 1, &imHistSize, bRanges);
-        for (int i = 0; i < imHistSize; ++i, ++idx)
-        {
-            patch[l][idx] = hist.at<float>(i) / size;
-            assert(patch[l][idx] <= 1 && patch[l][idx] >= 0);
+            calcHist(&labPlanes[c], 1, 0, Mat(), hist, 1, &imHistSize, ranges[c], true, false);
+            for (int i = 0; i < imHistSize; ++i, ++idx)
+            {
+                patch[l][idx] = hist.at<float>(i) / size;
+                assert(patch[l][idx] <= 1 && patch[l][idx] >= 0);
+            }
         }
         
         // 运动方向直方图
-        calcHist(&oriPatch, 1, channel0, Mat(), hist, 1, &oriHistSize, oriRanges);
+        calcHist(&oriPatch, 1, 0, Mat(), hist, 1, &oriHistSize, oriRanges, true, false);
         for (int i = 0; i < oriHistSize; ++i, ++idx)
         {
             patch[l][idx] = hist.at<float>(i) / size;
@@ -171,7 +153,7 @@ void MotionLayers::extractAsHist(vector<SPPATCH> &patch, const vector< vector<Po
         }
 
         // 运动幅度直方图
-        calcHist(&magPatch, 1, channel0, Mat(), hist, 1, &magHistSize, magRanges, false);
+        calcHist(&magPatch, 1, 0, Mat(), hist, 1, &magHistSize, magRanges, false, false);
         for (int i = 0; i < magHistSize; ++i, ++idx)
         {
             patch[l][idx] = hist.at<float>(i) / size;
@@ -182,13 +164,13 @@ void MotionLayers::extractAsHist(vector<SPPATCH> &patch, const vector< vector<Po
 
 void MotionLayers::extractAsPixel(vector<SPPATCH> &patch, const vector< vector<Point> > &pos)
 {
-    int ndata = 2 + 3 + 2, nlabel = pos.size();
+    int nlabel = pos.size();
     patch.resize(nlabel);
 
     for (int i = 0; i < nlabel; ++i)
     {
-        patch[i].resize(ndata);
-        memset(patch[i].data(), 0, sizeof(PERCISION) * ndata);
+        patch[i].resize(nPixelLen);
+        memset(patch[i].data(), 0, sizeof(PERCISION) * nPixelLen);
     }
 
     for (int l = 0; l < nlabel; ++l)
@@ -209,7 +191,7 @@ void MotionLayers::extractAsPixel(vector<SPPATCH> &patch, const vector< vector<P
             patch[l][6] += motion[1];
         }
 
-        for (int i = 0; i < ndata; ++i)
+        for (int i = 0; i < nPixelLen; ++i)
             patch[l][i] /= size;
     }
 }
@@ -218,7 +200,7 @@ void MotionLayers::initSegment(int ncluster)
 {
     // 计算 super pixel
     printf("generate superpixels...\n");
-    SuperPixels sp(50);
+    SuperPixels sp(30);
     sp.setSourceImage(m_im);
     sp.generate();
     m_nSPLbl = sp.getLabels(m_spLbl);
@@ -235,22 +217,6 @@ void MotionLayers::initSegment(int ncluster)
     extractAsPixel(m_spPixel, m_sp2pos);
     extractAsHist(m_spHist, m_sp2pos);
     printf("done\n");
-
-#ifdef DEBUG
-    Mat img(m_height, m_width, m_im.type());
-    PIXEL pixel;
-    for (int h = 0; h < m_height; ++h)
-        for (int w = 0; w < m_width; ++w)
-        {
-            int lbl = m_spLbl.at<LABEL>(h, w);
-            pixel[0] = m_spPixel[lbl][2];
-            pixel[1] = m_spPixel[lbl][3];
-            pixel[2] = m_spPixel[lbl][4];
-            img.at<PIXEL>(h, w) = pixel;
-        }
-
-    sprintf(buf, pattern, "spAsColor", frame);
-    imwrite(buf, img);
 
     double maxu, maxv, minu, minv, maxrad, u, v;
     maxu = minu = m_spPixel[0][5];
@@ -272,6 +238,23 @@ void MotionLayers::initSegment(int ncluster)
     ufactor = 255. / (maxu - minu);
     vfactor = 255. / (maxv - minv);
     radfactor = 255. / maxrad;
+
+#ifdef DEBUG
+    Mat img(m_height, m_width, m_im.type());
+    PIXEL pixel;
+    for (int h = 0; h < m_height; ++h)
+        for (int w = 0; w < m_width; ++w)
+        {
+            int lbl = m_spLbl.at<LABEL>(h, w);
+            pixel[0] = m_spPixel[lbl][2];
+            pixel[1] = m_spPixel[lbl][3];
+            pixel[2] = m_spPixel[lbl][4];
+            img.at<PIXEL>(h, w) = pixel;
+        }
+
+    sprintf(buf, pattern, "spAsColor", frame);
+    imwrite(buf, img);
+
     for (int h = 0; h < m_height; ++h)
         for (int w = 0; w < m_width; ++w)
         {
@@ -286,27 +269,44 @@ void MotionLayers::initSegment(int ncluster)
 
     sprintf(buf, pattern, "spAsMotion", frame);
     imwrite(buf, img);
-
-    int bin_w = 10, bin_h = 100;
-    int histBins = m_spHist[0].size();
-    int color = 255. / (histBins+1);
+/*
+    int binw = 10, binh = 100;
+    int color = 255. / (nHistLen+1);
     for (int l = 0; l < m_nSPLbl; ++l)
     {
-        Mat histImg = Mat::zeros(bin_h, bin_w * histBins, CV_8UC3);
-        for(int i = 2; i < histBins; ++i)
+        Mat histImg = Mat::zeros(binh, binw * nHistLen, CV_8UC3);
+        for(int i = 0; i < nHistLen; ++i)
         {
             PERCISION val = m_spHist[l][i];
-            printf("val: %.6f\n", val);
-            assert(val >= 0 && val <= 1);
-            
-            Point lbp(i * bin_w, 0);
-            Point rup((i+1) * bin_w, cvRound(val * bin_h));
-            rectangle(histImg, lbp, rup, Scalar(color*(i+1), color*(i-1), color*i), -1);
+            Point lbp(i * binw, binh);
+            Point rup((i+1) * binw, binh - cvRound(val * binh));
+            rectangle(histImg, lbp, rup, Scalar(0, color*i, color*(i+1)), -1);
         }
+
+        // L, a
+        Point p1((2+imHistSize)*binw, 0);
+        Point p2((2+imHistSize)*binw, binh);
+        line(histImg, p1, p2, Scalar(255, 0, 0), 3);
+
+        // a, b
+        Point p3((2+imHistSize*2)*binw, 0);
+        Point p4((2+imHistSize*2)*binw, binh);
+        line(histImg, p3, p4, Scalar(255, 0, 0), 3);
+
+        // b, o
+        Point p5((2+imHistSize*3)*binw, 0);
+        Point p6((2+imHistSize*3)*binw, binh);
+        line(histImg, p5, p6, Scalar(255, 0, 0), 3);
+
+        // o, m
+        Point p7((2+imHistSize*3+oriHistSize)*binw, 0);
+        Point p8((2+imHistSize*3+oriHistSize)*binw, binh);
+        line(histImg, p7, p8, Scalar(255, 0, 0), 3);
+        
         sprintf(buf, pattern, "spAsHist", frame*100+l);
         imwrite(buf, histImg);
     }
-    
+*/    
 #endif
     
     // 计算可信的 patch
@@ -323,19 +323,31 @@ void MotionLayers::initSegment(int ncluster)
     printf("cov: %.6f .. %.6f\n", minCov, maxCov);
 #endif
     
-    const PERCISION threshold = 5e-3;
-    vector<SPPATCH> samples;
+    const PERCISION threshold = 3e-3;
     vector<int> spid2tid(m_nSPLbl, -1);
     int trust = 0;
     for (int l = 0; l < m_nSPLbl; ++l)
-    {
         if (fabs(m_cov[l]) < threshold)
-        {
-            samples.push_back(m_spPixel[l]);
             spid2tid[l] = trust++;
-        }
-    }
+
     printf("trusted points: %d / %d\n", trust, m_nSPLbl);
+
+    vector<SPPATCH> samples(trust);
+    for (int l = 0; l < m_nSPLbl; ++l)
+    {
+        if (spid2tid[l] < 0) continue;
+
+        int tid = spid2tid[l];
+        double u, v;
+        
+        samples[tid].resize(5);
+        samples[tid][0] = m_spPixel[l][0];
+        samples[tid][1] = m_spPixel[l][1];
+        u = m_spPixel[l][5], v = m_spPixel[l][6];
+        samples[tid][2] = (u - minu) * ufactor;
+        samples[tid][3] = (v - minv) * vfactor;
+        samples[tid][4] = (u*u + v*v) * radfactor;
+    }
     
 #ifdef DEBUG
     Mat trustImg = Mat::zeros(m_height, m_width, m_im.type());
@@ -350,7 +362,6 @@ void MotionLayers::initSegment(int ncluster)
                 color[0] = m_spPixel[lbl][2];
                 color[1] = m_spPixel[lbl][3];
                 color[2] = m_spPixel[lbl][4];
-
                 trustImg.at<PIXEL>(h, w) = color;
             }
         }
@@ -385,9 +396,7 @@ void MotionLayers::refineSegment(int ncluster)
 {
     // prepare data for graph cut
     printf("prepare data for graph cut...\n");
-    int nPixelLen = m_spPixel[0].size();
-    vector<double> spPixel(m_nSPLbl*nPixelLen);
-
+    vector<double> spPixel(m_nSPLbl * nPixelLen);
     for (int i = 0; i < m_nSPLbl; ++i)
         for (int l = 0; l < nPixelLen; ++l)
             spPixel[i*nPixelLen+l] = m_spPixel[i][l];
@@ -401,12 +410,49 @@ void MotionLayers::refineSegment(int ncluster)
     extract(npos, ncluster+1, m_label);
     extractAsHist(layer, npos);
     printf("done\n");
+
+#ifdef DEBUG
+    int binw = 10, binh = 100;
+    int color = 255. / (nHistLen+1);
+    for (int l = 0; l < ncluster; ++l)
+    {
+        Mat histImg = Mat::zeros(binh, binw * nHistLen, CV_8UC3);
+        for(int i = 0; i < nHistLen; ++i)
+        {
+            PERCISION val = layer[l][i];
+            Point lbp(i * binw, binh);
+            Point rup((i+1) * binw, binh - cvRound(val * binh));
+            rectangle(histImg, lbp, rup, Scalar(0, color*i, color*(i+1)), -1);
+        }
+
+        // L, a
+        Point p1((2+imHistSize)*binw, 0);
+        Point p2((2+imHistSize)*binw, binh);
+        line(histImg, p1, p2, Scalar(255, 0, 0), 3);
+
+        // a, b
+        Point p3((2+imHistSize*2)*binw, 0);
+        Point p4((2+imHistSize*2)*binw, binh);
+        line(histImg, p3, p4, Scalar(255, 0, 0), 3);
+
+        // b, o
+        Point p5((2+imHistSize*3)*binw, 0);
+        Point p6((2+imHistSize*3)*binw, binh);
+        line(histImg, p5, p6, Scalar(255, 0, 0), 3);
+
+        // o, m
+        Point p7((2+imHistSize*3+oriHistSize)*binw, 0);
+        Point p8((2+imHistSize*3+oriHistSize)*binw, binh);
+        line(histImg, p7, p8, Scalar(255, 0, 0), 3);
+        
+        sprintf(buf, pattern, "layer", frame*100+l);
+        imwrite(buf, histImg);
+    }
+#endif
     
     // prepare data term
     printf("prepare data term\n");
-    int nHistLen = layer[0].size();
-    vector<double> data(ncluster*m_nSPLbl);
-
+    vector<double> data(ncluster * m_nSPLbl);
     PERCISION weight, kl;
     for (int i = 0; i < m_nSPLbl; ++i)
     {
@@ -475,39 +521,19 @@ void MotionLayers::refineSegment(int ncluster)
 // distance for kmeans
 double MotionLayers::kmdist(const PERCISION *p1, const PERCISION *p2, int start, int end)
 {
-    const double spatial = 0.5;
-    const double color = 0;
-    const double motion = 1.;
-    double pDist, cDist, oDist, mDist;
+    double pDist, mDist;
     int idx = start;
     
     // spatial info
-    pDist = dist2(p1, p2, idx, idx+2);
-    pDist = log10(pDist+9);
+    pDist = log10(dist2(p1, p2, idx, idx+2) + 9);
+    pDist = 1;
     idx += 2;
 
-/*    // color info
-    cDist = skldist(p1, p2, idx, idx+imHistSize*3);
-    idx += imHistSize*3;
-    
-    // flow info
-    oDist = skldist(p1, p2, idx, idx+oriHistSize);
-    idx += oriHistSize;
-
-    mDist = skldist(p1, p2, idx, idx+magHistSize);
-    idx += magHistSize;
-
-    assert(idx <= end);
-    return (spatial * pDist + color * cDist + motion * (oDist + mDist));
-*/
-    cDist = dist2(p1, p2, idx, idx+3);
+    mDist = dist2(p1, p2, idx, idx+3);
     idx += 3;
-
-    mDist = dist2(p1, p2, idx, idx+2);
-    idx += 2;
     assert(idx <= end);
 
-    return (spatial * pDist + color * cDist + motion * mDist);
+    return (pDist * mDist);
 }
 
 // kullback-leiber divergence
