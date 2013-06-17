@@ -17,9 +17,10 @@ bool imreadf(Mat &m, const char *filename)
         fs.release();
         return false;
     }
-    
+
     fs["matrix"] >> m;
     fs.release();
+    
     return true;
 }
 
@@ -59,7 +60,7 @@ int main(int argc, char *argv[])
         printf("init...\n");
         ml.init(im, flow);
         printf("done\n");
-        
+
         printf("init segment...\n");
         ml.initSegment(nlabel);
         printf("done\n");

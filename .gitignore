@@ -30,6 +30,7 @@ src/stof
 src/em
 src/run
 src/layers
+src/superpixels
 PainterlyRendering/pr
 PainterlyRendering/vr
 PainterlyRendering/rbf
@@ -40,7 +41,6 @@ ui/bin/*
 tools/image2video
 tools/video2images
 tools/subVideo2Video
-SuperPixels/superpixels
 
 *cscope.out
 *.jpg

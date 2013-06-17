@@ -1,5 +1,5 @@
 CXX				= g++
-CXXFLAGS  		= -O3 -Wall 
+CXXFLAGS  		= -O3 -Wall -fpermissive
 INCDIR			= `pkg-config --cflags opencv`
 
 LINK			= g++
@@ -31,14 +31,8 @@ MotionLayers.o: MotionLayers.cpp MotionLayers.h ML.h types.h
 OFPara.o: OFPara.cpp OFPara.h Maths.h ImageProcess.h Image.h
 	$(CXX) $(CXXFLAGS) $(INCDIR) -c $< -o $@
 
-graph.o: graph.cpp graph.h
-	$(CXX) $(CFLAGS) -c graph.cpp -o graph.o
-
-maxflow.o: maxflow.cpp 
-	$(CXX) $(CFLAGS) -c maxflow.cpp -o maxflow.o
-
 SuperPixels.o: SuperPixels.cpp SuperPixels.h
-	$(CXX) $(CFLAGS) $(OPENCVFLAGS) -I$(GC) -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(INCDIR) -I$(GC) -c $< -o $@
 
 biof: main_biof.o OpticalFlow.o GaussianPyramid.o Flow2Color.o
 	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS)
@@ -52,11 +46,14 @@ stof: main_stof.o OpticalFlow.o GaussianPyramid.o Flow2Color.o
 #em: main_em.o $(OBJS) $(GC)/GCoptimization.o $(GC)/LinkedBlockList.o
 #	$(LINK) $(LFAGS) -o $@ $^ $(OPENCVLIBS)
 
-layers: main_motionlayers.o MotionLayers.o SuperPixels.o graph.o maxflow.o $(GC)/GCoptimization.o $(GC)/LinkedBlockList.o
+layers: main_motionlayers.o MotionLayers.o SuperPixels.o $(GC)/graph.o $(GC)/maxflow.o $(GC)/GCoptimization.o $(GC)/LinkedBlockList.o
 	$(LINK) $(LFLAGS) -o $@ $^ $(OPENCVLIBS)
 
-superpixels: graph.o maxflow.o SuperPixels.o main_superpixels.o
+superpixels: $(GC)/graph.o $(GC)/maxflow.o SuperPixels.o main_superpixels.o
 	$(CXX) -o superpixels $^ $(OPENCVLIBS)
+
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) $(INCDIR) -c $< -o $@
 
 %.o: %.cpp %.h
 	$(CXX) $(CXXFLAGS) $(INCDIR) -c $< -o $@

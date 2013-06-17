@@ -9,8 +9,9 @@
 #include <float.h>
 
 #include "SuperPixels.h"
-#include "graph.h"
 #include "energy.h"
+#include "graph.cpp"
+#include "maxflow.cpp"
 
 #include <iostream>
 using namespace std;

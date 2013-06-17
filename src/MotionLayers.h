@@ -34,7 +34,7 @@ public:
 private:
     Mat m_im, m_flow, m_spLbl, m_label;
     int m_width, m_height, m_nSPLbl;
-    vector<SPPATCH> m_spHist;
+    vector<SPPATCH> m_spHist, m_spPixel;
     vector< vector<Point> > m_sp2pos;
     vector<PERCISION> m_cov;
 };
