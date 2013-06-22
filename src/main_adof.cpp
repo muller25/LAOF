@@ -5,15 +5,15 @@
 #include <vector>
 
 char *inPattern, *outDir;
-int frameStart, frameEnd, numOfSegs;
+int frameStart, frameEnd;
 
-// #define SAVETIME
+#define SAVETIME
 
 int main(int argc, char *argv[])
 {
-    if (argc != 6)
+    if (argc != 5)
     {
-        printf("./em input_pattern output_dir start end #_of_seg\n");
+        printf("./adof input_pattern output_dir start end\n");
         return 1;
     }
     
@@ -21,10 +21,9 @@ int main(int argc, char *argv[])
     outDir = argv[2];
     frameStart = atoi(argv[3]);
     frameEnd = atoi(argv[4]);
-    numOfSegs = atoi(argv[5]);
 
     // init optical flow parameters
-    const double as = 0.026;
+    const double as = 0.013;
     // const double ap = 0.012;
     const double ratio = 0.75;
     const int minWidth = 20;

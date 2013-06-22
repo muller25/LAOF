@@ -1,0 +1,134 @@
+#include <cv.h>
+#include <highgui.h>
+using namespace cv;
+
+#include <cstdio>
+#include <vector>
+using std::vector;
+
+bool imreadf(Mat &m, const char *filename)
+{
+    cv::FileStorage fs(filename, cv::FileStorage::READ);
+
+    if (!fs.isOpened())
+    {
+        fs.release();
+        return false;
+    }
+
+    fs["matrix"] >> m;
+    fs.release();
+    
+    return true;
+}
+
+int main(int argc, char *argv[])
+{
+    if (argc != 4)
+    {
+        printf("./trajectory inIm inFile outDir\n");
+        return -1;
+    }
+    
+    char inIm[256], inFile[256], outDir[256], buf[256];
+    strcpy(inIm, argv[1]);
+    strcpy(inFile, argv[2]);
+    strcpy(outDir, argv[3]);
+    
+    const int timeWin = 50;
+    const double threshold = 100;
+    const double ratio = 3;
+    const int wsize = 3;
+    const int dilateFactor = 5;
+
+    Mat u, v, im, edge, smooth, ddst5;
+    sprintf(buf, inIm, 0);
+    im = imread(buf);
+    sprintf(buf, inFile, "u", 0);
+    imreadf(u, buf);
+    sprintf(buf, inFile, "v", 0);
+    imreadf(v, buf);
+
+    // use edge map as confident map
+    GaussianBlur(im, smooth, Size(wsize, wsize), 0, 0);
+    Canny(smooth, edge, threshold, threshold*ratio, wsize);
+    dilate(edge, ddst5, Mat(), Point(-1, -1), dilateFactor); // enlarge edge areas
+    
+    int width = u.cols, height = u.rows;
+    Mat trajectory(height * width, timeWin, CV_32FC2);
+    Mat outOfBound = Mat::ones(height * width, 1, CV_8U);
+    Mat trust = (ddst5 == 0); // pixels outside of edge areas are trusted
+    for (int h = 0; h < height; ++h)
+        for (int w = 0; w < width; ++w)
+        {
+            double uVal = u.at<double>(h, w);
+            double vVal = v.at<double>(h, w);
+            trajectory.at<Vec2f>(h*width+w, 0) = Vec2f(cvRound(uVal), cvRound(vVal));
+        }
+
+    for (int t = 1; t < timeWin; ++t)
+    {
+        sprintf(buf, inIm, t);
+        im = imread(buf);
+        sprintf(buf, inFile, "u", t);
+        imreadf(u, buf);
+        sprintf(buf, inFile, "v", t);
+        imreadf(v, buf);
+
+        GaussianBlur(im, smooth, Size(wsize, wsize), 0, 0);
+        Canny(smooth, edge, threshold, threshold*ratio, wsize);
+        dilate(edge, ddst5, Mat(), Point(-1, -1), dilateFactor);
+
+        for (int h = 0; h < height; ++h)
+            for (int w = 0; w < width; ++w)
+            {
+                int offset = h * width + w;
+                Vec2f motion = trajectory.at<Vec2f>(offset, t-1);
+                int nw = w + motion[0];
+                int nh = h + motion[1];
+                if (nw < 0 || nw >= width || nh >= height || nh < 0)
+                {
+                    trajectory.at<Vec2f>(offset, t) = trajectory.at<Vec2f>(offset, t-1);
+                    outOfBound.at<uchar>(offset) = 0;
+                } else {
+                    if (ddst5.at<uchar>(nh, nw) != 0) trust.at<uchar>(h, w) = 0;
+                    
+                    double uVal = u.at<double>(nh, nw);
+                    double vVal = v.at<double>(nh, nw);
+                    trajectory.at<Vec2f>(offset, t) = Vec2f(cvRound(uVal), cvRound(vVal));
+                }
+            }
+    }
+    
+    Mat label, nim;
+    int nlabel = 3;
+    kmeans(trajectory, nlabel, label, TermCriteria(TermCriteria::COUNT + TermCriteria::EPS, 100, 1), 5, KMEANS_PP_CENTERS);
+    im.create(height, width, CV_8U);
+    for (int h = 0; h < height; ++h)
+        for (int w = 0; w < width; ++w)
+            im.at<uchar>(h, w) = (label.at<int>(h*width+w) + 1) * 255 / (nlabel+1);
+
+    sprintf(buf, "label%03d.jpg", 0);
+    imwrite(buf, im);
+
+    // for (int t = 0; t < timeWin; ++t)
+    // {
+    //     nim = Mat::zeros(height, width, CV_8U);
+    //     for (int h = 0; h < height; ++h)
+    //         for (int w = 0; w < width; ++w)
+    //         {
+    //             int offset = h * width + w;
+    //             Vec2f motion = trajectory.at<Vec2f>(offset, t);
+    //             int nw = w + motion[0], nh = h + motion[1];
+    //             if (nw < 0 || nw >= width || nh >= height || nh < 0) continue;
+
+    //             nim.at<uchar>(nh, nw) = im.at<uchar>(h, w);
+    //         }
+
+    //     sprintf(buf, "label%03d.jpg", t+1);
+    //     imwrite(buf, nim);
+    //     nim.copyTo(im);
+    // }
+    
+    return 0;
+}

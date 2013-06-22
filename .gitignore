@@ -31,12 +31,13 @@ src/em
 src/run
 src/layers
 src/superpixels
+src/trajectory
 PainterlyRendering/pr
 PainterlyRendering/vr
 PainterlyRendering/rbf
 PainterlyRendering/stupid
 PainterlyRendering/pr2video
-gc/*
+gc/gc
 ui/bin/*
 tools/image2video
 tools/video2images
