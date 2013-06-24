@@ -8,6 +8,7 @@ using std::vector;
 
 typedef Vec2i POSITION;
 typedef Vec2f MOTION;
+typedef Vec3b PIXEL;
 
 // #define DEBUG
 
@@ -27,6 +28,13 @@ bool imreadf(Mat &m, const char *filename)
     return true;
 }
 
+void covariance(Mat &cov, const Mat &x, const Mat &y)
+{
+    Mat arr[] = {x, y};
+    Mat mean;
+    calcCovarMatrix(arr, 2, cov, mean, CV_COVAR_NORMAL, CV_64F);
+}
+
 int main(int argc, char *argv[])
 {
     if (argc != 4)
@@ -42,43 +50,22 @@ int main(int argc, char *argv[])
     strcat(outDir, "%s%03d.jpg");
     
     const int timeWin = 24;
-    const double threshold = 100;
-    const double ratio = 3;
-    const int wsize = 3;
-    const int dilateFactor = 3;
+    const int maxDiff = 50 * 3;
+    const double threshold = 1e-3;
     
-    Mat u, v, curIm, nextIm, edge, smooth, cdilate, ndilate;
-    sprintf(buf, inIm, 0);
-    curIm = imread(buf);
-    sprintf(buf, inIm, 1);
-    nextIm = imread(buf);
+    Mat u, v;
     sprintf(buf, inFile, "u", 0);
     imreadf(u, buf);
     sprintf(buf, inFile, "v", 0);
     imreadf(v, buf);
 
-    int width = curIm.cols, height = curIm.rows;
-    Mat trust, curPos(height, width, CV_32SC2); // current position of trajectory
+    int width = u.cols, height = u.rows;
+    Mat trust = Mat::ones(height, width, CV_8U);
+    Mat curPos(height, width, CV_32SC2); // current position of trajectory
     Mat trajectory(height * width, timeWin, CV_32FC2);
 
     // init trajectory
     printf("init trajectory...\n");
-    GaussianBlur(curIm, smooth, Size(wsize, wsize), 0, 0);
-    Canny(smooth, edge, threshold, threshold*ratio, wsize);
-    dilate(edge, cdilate, Mat(), Point(-1, -1), dilateFactor);
-
-    GaussianBlur(nextIm, smooth, Size(wsize, wsize), 0, 0);
-    Canny(smooth, edge, threshold, threshold*ratio, wsize);
-    dilate(edge, ndilate, Mat(), Point(-1, -1), dilateFactor);
-
-    edge = cdilate + ndilate;
-    trust = (edge == 0);
-    
-#ifdef DEBUG
-    sprintf(buf, outDir, "edge", 0);
-    imwrite(buf, edge);
-#endif
-
     for (int h = 0; h < height; ++h)
         for (int w = 0; w < width; ++w)
         {
@@ -90,31 +77,33 @@ int main(int argc, char *argv[])
         }
 
     // calculate trajectory
+    Mat curIm, nextIm, cov, failWarp;
+
     printf("calculate trajectory...\n");
     for (int t = 1; t < timeWin; ++t)
     {
-        sprintf(buf, inIm, t);
+        sprintf(buf, inIm, t-1);
         curIm = imread(buf);
-        sprintf(buf, inIm, t+1);
+        sprintf(buf, inIm, t);
         nextIm = imread(buf);
         sprintf(buf, inFile, "u", t);
         imreadf(u, buf);
         sprintf(buf, inFile, "v", t);
         imreadf(v, buf);
 
-        GaussianBlur(curIm, smooth, Size(wsize, wsize), 0, 0);
-        Canny(smooth, edge, threshold, threshold*ratio, wsize);
-        dilate(edge, cdilate, Mat(), Point(-1, -1), dilateFactor);
-
-        GaussianBlur(nextIm, smooth, Size(wsize, wsize), 0, 0);
-        Canny(smooth, edge, threshold, threshold*ratio, wsize);
-        dilate(edge, ndilate, Mat(), Point(-1, -1), dilateFactor);
-
-        edge = cdilate + ndilate;
+        covariance(cov, u, v);
 
 #ifdef DEBUG
-        sprintf(buf, outDir, "edge", t);
-        imwrite(buf, edge);
+        double minVal, maxVal;
+        minMaxLoc(cov, &minVal, &maxVal);
+        printf("cov: %.6f .. %.6f\n", minVal, maxVal);
+        sprintf(buf, "cov", t);
+        imwrite(buf, (cov - minVal) / (maxVal - minVal));
+
+        sprintf(buf, "trust", t);
+        imwrite(buf, (cov <= threshold));
+
+        failWarp = Mat::zeros(height, width, CV_8U);
 #endif
         
         for (int h = 0; h < height; ++h)
@@ -123,6 +112,7 @@ int main(int argc, char *argv[])
                 int offset = h * width + w;
                 POSITION pos = curPos.at<POSITION>(h, w);
                 MOTION motion = trajectory.at<MOTION>(offset, t-1);
+                PIXEL color = curIm.at<PIXEL>(h, w);
                 int nw = pos[0] + motion[0];
                 int nh = pos[1] + motion[1];
                 
@@ -130,10 +120,22 @@ int main(int argc, char *argv[])
                 {
                     trust.at<uchar>(h, w) = 0;
                     trajectory.at<MOTION>(offset, t) = motion;
+                    int diff = color[0] + color[1] + color[2];
+                    if (diff > maxDiff) {
+                        trust.at<uchar>(h, w) = 0;
+                        failWarp.at<uchar>(h, w) = 1;
+                    }
                 }
                 else {
-                    if (edge.at<uchar>(nh, nw) != 0) trust.at<uchar>(h, w) = 0;
+                    if (cov.at<double>(h, w) > threshold) trust.at<uchar>(h, w) = 0;
 
+                    PIXEL ncolor = nextIm.at<PIXEL>(nh, nw);
+                    int diff = abs(ncolor[0] - color[0]) + abs(ncolor[1] - color[1]) + abs(ncolor[2] - color[2]);
+                    if (diff > maxDiff) {
+                        trust.at<uchar>(h, w) = 0;
+                        failWarp.at<uchar>(h, w) = 1;
+                    }
+                    
                     curPos.at<POSITION>(h, w) = POSITION(nw, nh);
                     double uVal = cvRound(u.at<double>(nh, nw));
                     double vVal = cvRound(v.at<double>(nh, nw));
