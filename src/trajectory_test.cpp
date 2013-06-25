@@ -30,9 +30,37 @@ bool imreadf(Mat &m, const char *filename)
 
 void covariance(Mat &cov, const Mat &x, const Mat &y)
 {
-    Mat arr[] = {x, y};
-    Mat mean;
-    calcCovarMatrix(arr, 2, cov, mean, CV_COVAR_NORMAL, CV_64F);
+    const int wsize = 3;
+    int width = x.cols, height = y.rows, depth = x.depth();
+    Mat ix, iy, xy, ixy, nx, ny, nxy;
+
+    xy.create(height, width, depth);
+    for (int h = 0; h < height; ++h)
+        for (int w = 0; w < width; ++w)
+            xy.at<double>(h, w) = x.at<double>(h, w) * y.at<double>(h, w);
+
+    copyMakeBorder(x, nx, wsize, wsize, wsize, wsize, BORDER_REPLICATE);
+    copyMakeBorder(y, ny, wsize, wsize, wsize, wsize, BORDER_REPLICATE);
+    copyMakeBorder(xy, nxy, wsize, wsize, wsize, wsize, BORDER_REPLICATE);
+    
+    integral(nx, ix, depth);
+    integral(ny, iy, depth);
+    integral(nxy, ixy, depth);
+    cov.create(height, width, depth);
+    for (int h = wsize; h < height + wsize; ++h)
+    {
+        int h1 = h - wsize;
+        int h2 = h + wsize + 1;
+        for (int w = wsize; w < width + wsize; ++w)
+        {
+            int w1 = w - wsize;
+            int w2 = w + wsize + 1;
+            double ex = nx.at<double>(h2, w2) - nx.at<double>(h2, w1) - nx.at<double>(h1, w2) + nx.at<double>(h1, w1);
+            double ey = ny.at<double>(h2, w2) - ny.at<double>(h2, w1) - ny.at<double>(h1, w2) + ny.at<double>(h1, w1);
+            double exy = nxy.at<double>(h2, w2) - nxy.at<double>(h2, w1) - nxy.at<double>(h1, w2) + nxy.at<double>(h1, w1);
+            cov.at<double>(h1, w1) = exy - ex * ey;
+        }
+    }
 }
 
 int main(int argc, char *argv[])
@@ -97,10 +125,10 @@ int main(int argc, char *argv[])
         double minVal, maxVal;
         minMaxLoc(cov, &minVal, &maxVal);
         printf("cov: %.6f .. %.6f\n", minVal, maxVal);
-        sprintf(buf, "cov", t);
+        sprintf(buf, outDir, "cov", t);
         imwrite(buf, (cov - minVal) / (maxVal - minVal));
 
-        sprintf(buf, "trust", t);
+        sprintf(buf, outDir, "trust", t);
         imwrite(buf, (cov <= threshold));
 
         failWarp = Mat::zeros(height, width, CV_8U);
@@ -142,6 +170,11 @@ int main(int argc, char *argv[])
                     trajectory.at<MOTION>(offset, t) = MOTION(uVal, vVal);
                 }
             }
+
+#ifdef DEBUG
+        sprintf(buf, outDir, "failWarp", t);
+        imwrite(buf, failWarp);
+#endif
     }
 
     printf("sampling confident trajectory...\n");
